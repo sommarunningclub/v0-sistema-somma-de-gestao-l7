@@ -6,22 +6,11 @@ import { NextRequest, NextResponse } from 'next/server'
 // =====================================================
 
 function getAsaasConfig() {
-  const config = {
+  return {
     baseUrl: process.env.NEXT_PUBLIC_ASAAS_API_URL || '',
     apiKey: process.env.ASAAS_API_KEY || '',
     walletId: process.env.ASAAS_WALLET_ID || ''
   }
-  
-  if (!config.baseUrl || !config.apiKey) {
-    console.error('[Asaas Route] Configuração incompleta:', {
-      hasBaseUrl: !!config.baseUrl,
-      hasApiKey: !!config.apiKey,
-      baseUrl: config.baseUrl ? 'configurado' : 'FALTANDO',
-      apiKey: config.apiKey ? 'configurado' : 'FALTANDO'
-    })
-  }
-  
-  return config
 }
 
 async function asaasRequest(
@@ -32,7 +21,15 @@ async function asaasRequest(
 ) {
   const config = getAsaasConfig()
   
+  console.log('[v0] Asaas config check:', {
+    hasBaseUrl: !!config.baseUrl,
+    hasApiKey: !!config.apiKey,
+    apiKeyLength: config.apiKey?.length || 0,
+    baseUrl: config.baseUrl
+  })
+  
   if (!config.baseUrl || !config.apiKey) {
+    console.error('[v0] Asaas credentials missing!')
     return {
       ok: false,
       status: 500,
@@ -49,7 +46,7 @@ async function asaasRequest(
     })
   }
 
-  console.log('[Asaas Route] Request:', method, url.toString())
+  console.log('[v0] Asaas Request:', method, cleanPath)
 
   const response = await fetch(url.toString(), {
     method,
@@ -63,7 +60,12 @@ async function asaasRequest(
 
   const data = await response.json().catch(() => null)
   
-  console.log('[Asaas Route] Response:', response.status, response.ok ? 'OK' : 'ERROR')
+  console.log('[v0] Asaas Response:', {
+    status: response.status,
+    ok: response.ok,
+    hasData: !!data,
+    dataCount: data?.data?.length
+  })
   
   return {
     ok: response.ok,
@@ -108,6 +110,25 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}))
   
   const result = await asaasRequest('POST', endpoint, body)
+  
+  if (!result.ok) {
+    return NextResponse.json({ error: result.data }, { status: result.status })
+  }
+
+  return NextResponse.json(result.data)
+}
+
+export async function PUT(request: NextRequest) {
+  const { searchParams } = new URL(request.url)
+  const endpoint = searchParams.get('endpoint')
+  
+  if (!endpoint) {
+    return NextResponse.json({ error: 'Endpoint required' }, { status: 400 })
+  }
+
+  const body = await request.json().catch(() => ({}))
+  
+  const result = await asaasRequest('PUT', endpoint, body)
   
   if (!result.ok) {
     return NextResponse.json({ error: result.data }, { status: result.status })
