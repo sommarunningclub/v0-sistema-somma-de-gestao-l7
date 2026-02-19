@@ -9,6 +9,8 @@ const ASAAS_BASE_URL = 'https://api.asaas.com/v3'
 const ASAAS_API_KEY = process.env.ASAAS_API_KEY || ''
 const ASAAS_WALLET_ID = process.env.ASAAS_WALLET_ID || ''
 
+console.log('[v0] ASAAS_API_KEY env var check:', !!process.env.ASAAS_API_KEY, 'Value length:', process.env.ASAAS_API_KEY?.length)
+
 async function asaasRequest(
   method: string,
   path: string,
@@ -47,11 +49,14 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const endpoint = searchParams.get('endpoint')
   
+  console.log('[v0] GET /api/asaas called, endpoint:', endpoint, 'ASAAS_API_KEY available:', !!ASAAS_API_KEY)
+  
   if (!endpoint) {
     return NextResponse.json({ error: 'Endpoint required' }, { status: 400 })
   }
 
   if (!ASAAS_API_KEY) {
+    console.error('[v0] ASAAS_API_KEY is not configured! process.env.ASAAS_API_KEY:', process.env.ASAAS_API_KEY)
     return NextResponse.json({ error: 'ASAAS_API_KEY not configured' }, { status: 500 })
   }
 
