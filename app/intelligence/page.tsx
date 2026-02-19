@@ -1,0 +1,1162 @@
+"use client"
+
+import { useEffect, useState } from "react"
+import { Card, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
+import { Search, Plus, Users, DollarSign, Award, Mail, Phone, Briefcase, Edit, Trash2, UserPlus, X, Check } from "lucide-react"
+import { supabase, type Professor, type ProfessorClient, type CommissionConfig } from "@/lib/supabase-client"
+import { getSession } from "@/components/protected-route"
+
+type TabType = "professors" | "commissions"
+
+interface AsaasCustomer {
+  id: string
+  name: string
+  email: string
+  cpfCnpj: string
+}
+
+interface AsaasSubscription {
+  id: string
+  customer: string
+  value: number
+  status: string
+  cycle: string
+  nextDueDate: string
+}
+
+interface CommissionBreakdown {
+  professorId: string
+  professorName: string
+  totalClients: number
+  totalSubscriptionValue: number
+  sommaFee: number
+  professorCommission: number
+}
+
+export default function CarteirasPage() {
+  const [activeTab, setActiveTab] = useState<TabType>("professors")
+  const [professors, setProfessors] = useState<Professor[]>([])
+  const [professorClients, setProfessorClients] = useState<ProfessorClient[]>([])
+  const [loading, setLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [showNewProfessorModal, setShowNewProfessorModal] = useState(false)
+  const [showLinkClientModal, setShowLinkClientModal] = useState(false)
+  const [showEditProfessorModal, setShowEditProfessorModal] = useState(false)
+  const [selectedProfessor, setSelectedProfessor] = useState<Professor | null>(null)
+  const [editingProfessor, setEditingProfessor] = useState<Professor | null>(null)
+  const [expandedProfessorId, setExpandedProfessorId] = useState<string | null>(null)
+  const [isAdmin, setIsAdmin] = useState(false)
+  
+  // Form state
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    specialty: "",
+    status: "active" as "active" | "inactive",
+    client_type: "cliente_somma" as "cliente_somma" | "cliente_professor",
+  })
+
+  // Asaas customers state
+  const [asaasCustomers, setAsaasCustomers] = useState<AsaasCustomer[]>([])
+  const [loadingCustomers, setLoadingCustomers] = useState(false)
+  const [selectedCustomer, setSelectedCustomer] = useState<AsaasCustomer | null>(null)
+
+  // Commissions state
+  const [sommaFixedFee, setSommaFixedFee] = useState(50.00)
+  const [editingFee, setEditingFee] = useState(false)
+  const [newFeeValue, setNewFeeValue] = useState("50.00")
+  const [commissionBreakdowns, setCommissionBreakdowns] = useState<CommissionBreakdown[]>([])
+  const [loadingCommissions, setLoadingCommissions] = useState(false)
+
+  const fetchCommissionConfig = async () => {
+    const { data, error } = await supabase
+      .from("commission_config")
+      .select("*")
+      .single()
+
+    if (error) {
+      console.error("[v0] Error fetching commission config:", error)
+    } else if (data) {
+      setSommaFixedFee(data.somma_fixed_fee)
+      setNewFeeValue(data.somma_fixed_fee.toFixed(2))
+    }
+  }
+
+  const fetchCommissionData = async () => {
+    setLoadingCommissions(true)
+    const breakdowns: CommissionBreakdown[] = []
+
+    for (const professor of professors) {
+      const clients = professorClients.filter(pc => pc.professor_id === professor.id)
+      
+      // Para cada cliente, buscar assinatura ativa do Asaas
+      let totalSubscriptionValue = 0
+      for (const client of clients) {
+        try {
+          const response = await fetch(`/api/asaas?endpoint=/subscriptions&customer=${client.asaas_customer_id}`)
+          if (response.ok) {
+            const data = await response.json()
+            const activeSubs = (data.data || []).filter((s: AsaasSubscription) => s.status === "ACTIVE")
+            totalSubscriptionValue += activeSubs.reduce((sum: number, s: AsaasSubscription) => sum + s.value, 0)
+          }
+        } catch (err) {
+          console.error("[v0] Error fetching subscription for client:", client.asaas_customer_id, err)
+        }
+      }
+
+      const sommaTotal = sommaFixedFee * clients.length
+      const professorTotal = totalSubscriptionValue - sommaTotal
+
+      breakdowns.push({
+        professorId: professor.id,
+        professorName: professor.name,
+        totalClients: clients.length,
+        totalSubscriptionValue,
+        sommaFee: sommaTotal,
+        professorCommission: professorTotal > 0 ? professorTotal : 0
+      })
+    }
+
+    setCommissionBreakdowns(breakdowns)
+    setLoadingCommissions(false)
+  }
+
+  useEffect(() => {
+    // Check if user is admin
+    const session = getSession()
+    if (session && session.role === 'admin') {
+      setIsAdmin(true)
+    }
+    
+    fetchProfessors()
+    fetchProfessorClients()
+    fetchCommissionConfig()
+  }, [])
+
+  useEffect(() => {
+    if (activeTab === "commissions") {
+      fetchCommissionData()
+    }
+  }, [activeTab, professors, professorClients])
+
+  const fetchProfessors = async () => {
+    setLoading(true)
+    const { data, error } = await supabase
+      .from("professors")
+      .select("*")
+      .order("created_at", { ascending: false })
+
+    if (error) {
+      console.error("[v0] Error fetching professors:", error)
+    } else {
+      setProfessors(data || [])
+    }
+    setLoading(false)
+  }
+
+  const fetchProfessorClients = async () => {
+    const { data, error } = await supabase
+      .from("professor_clients")
+      .select("*")
+      .eq("status", "active")
+
+    if (error) {
+      console.error("[v0] Error fetching professor clients:", error)
+    } else {
+      setProfessorClients(data || [])
+    }
+  }
+
+  const fetchAsaasCustomers = async () => {
+    setLoadingCustomers(true)
+    try {
+      const response = await fetch("/api/asaas?endpoint=/customers&limit=100")
+      if (response.ok) {
+        const data = await response.json()
+        console.log("[v0] Fetched Asaas customers:", data.data?.length || 0)
+        setAsaasCustomers(data.data || [])
+      }
+    } catch (err) {
+      console.error("[v0] Error fetching Asaas customers:", err)
+    }
+    setLoadingCustomers(false)
+  }
+
+  const handleCreateProfessor = async () => {
+    if (!formData.name || !formData.email) {
+      alert("Nome e email são obrigatórios")
+      return
+    }
+
+    const { data, error } = await supabase
+      .from("professors")
+      .insert([formData])
+      .select()
+
+    if (error) {
+      console.error("[v0] Error creating professor:", error)
+      alert("Erro ao criar professor")
+    } else {
+      alert("Professor criado com sucesso!")
+      setShowNewProfessorModal(false)
+      setFormData({
+        name: "",
+        email: "",
+        phone: "",
+        specialty: "",
+        status: "active",
+        client_type: "cliente_somma",
+      })
+      fetchProfessors()
+    }
+  }
+
+  const handleUpdateProfessor = async () => {
+    if (!editingProfessor || !editingProfessor.name || !editingProfessor.email) {
+      alert("Nome e email são obrigatórios")
+      return
+    }
+
+    const { error } = await supabase
+      .from("professors")
+      .update({
+        name: editingProfessor.name,
+        email: editingProfessor.email,
+        phone: editingProfessor.phone,
+        specialty: editingProfessor.specialty,
+        status: editingProfessor.status,
+      })
+      .eq("id", editingProfessor.id)
+
+    if (error) {
+      console.error("[v0] Error updating professor:", error)
+      alert("Erro ao atualizar professor")
+    } else {
+      alert("Professor atualizado com sucesso!")
+      setShowEditProfessorModal(false)
+      setEditingProfessor(null)
+      fetchProfessors()
+    }
+  }
+
+  const handleLinkClient = async () => {
+    if (!selectedProfessor || !selectedCustomer) return
+
+    const { data, error } = await supabase
+      .from("professor_clients")
+      .insert([{
+        professor_id: selectedProfessor.id,
+        asaas_customer_id: selectedCustomer.id,
+        customer_name: selectedCustomer.name,
+        customer_email: selectedCustomer.email,
+        status: "active",
+      }])
+      .select()
+
+    if (error) {
+      console.error("[v0] Error linking client:", error)
+      alert("Erro ao vincular cliente")
+    } else {
+      alert("Cliente vinculado com sucesso!")
+      setShowLinkClientModal(false)
+      setSelectedCustomer(null)
+      fetchProfessorClients()
+    }
+  }
+
+  const handleDeleteProfessor = async (professorId: string) => {
+    if (!confirm("Tem certeza que deseja deletar este professor?")) return
+
+    const { error } = await supabase
+      .from("professors")
+      .delete()
+      .eq("id", professorId)
+
+    if (error) {
+      console.error("[v0] Error deleting professor:", error)
+      alert("Erro ao deletar professor")
+    } else {
+      alert("Professor deletado com sucesso!")
+      fetchProfessors()
+    }
+  }
+
+  const handleUnlinkClient = async (linkId: string) => {
+    if (!confirm("Tem certeza que deseja desvincular este cliente?")) return
+
+    const { error } = await supabase
+      .from("professor_clients")
+      .update({ status: "inactive", unlinked_at: new Date().toISOString() })
+      .eq("id", linkId)
+
+    if (error) {
+      console.error("[v0] Error unlinking client:", error)
+      alert("Erro ao desvincular cliente")
+    } else {
+      alert("Cliente desvinculado com sucesso!")
+      fetchProfessorClients()
+    }
+  }
+
+  const handleUpdateFee = async () => {
+    const feeValue = parseFloat(newFeeValue)
+    if (isNaN(feeValue) || feeValue < 0) {
+      alert("Valor inválido")
+      return
+    }
+
+    console.log("[v0] Updating commission fee to:", feeValue)
+
+    // Primeiro, verificar se existe algum registro
+    const { data: existing } = await supabase
+      .from("commission_config")
+      .select("*")
+      .limit(1)
+      .single()
+
+    let error = null
+
+    if (existing) {
+      // Atualizar o registro existente
+      const result = await supabase
+        .from("commission_config")
+        .update({ somma_fixed_fee: feeValue, updated_at: new Date().toISOString() })
+        .eq("id", existing.id)
+      error = result.error
+    } else {
+      // Criar novo registro se não existir
+      const result = await supabase
+        .from("commission_config")
+        .insert([{ somma_fixed_fee: feeValue, updated_at: new Date().toISOString() }])
+      error = result.error
+    }
+
+    if (error) {
+      console.error("[v0] Error updating commission config:", error)
+      alert("Erro ao atualizar taxa")
+    } else {
+      console.log("[v0] Commission fee updated successfully")
+      setSommaFixedFee(feeValue)
+      setEditingFee(false)
+      alert("Taxa atualizada com sucesso!")
+      // Recalcular comissões com novo valor
+      fetchCommissionData()
+    }
+  }
+
+  const filteredProfessors = professors.filter((prof) =>
+    prof.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    prof.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    prof.specialty?.toLowerCase().includes(searchTerm.toLowerCase())
+  )
+
+  const getProfessorClients = (professorId: string) => {
+    return professorClients.filter(pc => pc.professor_id === professorId)
+  }
+
+  const totalProfessors = professors.length
+  const activeProfessors = professors.filter(p => p.status === "active").length
+  const totalLinkedClients = professorClients.length
+  const topProfessor = professors.length > 0 ? professors[0] : null
+
+  return (
+    <div className="p-6 space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-white tracking-wider">CARTEIRAS</h1>
+          <p className="text-sm text-neutral-400">Gerencie professores, suas carteiras de clientes e comissões do plano Somma Assessoria</p>
+        </div>
+        <Button
+          onClick={() => setShowNewProfessorModal(true)}
+          className="bg-orange-500 hover:bg-orange-600 text-white"
+        >
+          Novo Professor
+        </Button>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-4 border-b border-neutral-800">
+        <button
+          onClick={() => setActiveTab("professors")}
+          className={`flex items-center gap-2 px-4 py-3 font-medium transition-colors relative ${
+            activeTab === "professors"
+              ? "text-white"
+              : "text-neutral-400 hover:text-neutral-300"
+          }`}
+        >
+          <Users className="w-4 h-4" />
+          Gestão de Professores
+          {activeTab === "professors" && (
+            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-orange-500" />
+          )}
+        </button>
+        {isAdmin && (
+          <button
+            onClick={() => setActiveTab("commissions")}
+            className={`flex items-center gap-2 px-4 py-3 font-medium transition-colors relative ${
+              activeTab === "commissions"
+                ? "text-white"
+                : "text-neutral-400 hover:text-neutral-300"
+            }`}
+          >
+            <DollarSign className="w-4 h-4" />
+            Repasse de Comissões
+            {activeTab === "commissions" && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-orange-500" />
+            )}
+          </button>
+        )}
+      </div>
+
+      {/* Tab: Gestão de Professores */}
+      {activeTab === "professors" && (
+        <>
+          {/* Stats Overview */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card className="bg-neutral-900 border-neutral-700">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-neutral-400 tracking-wider">PROFESSORES</p>
+                    <p className="text-2xl font-bold text-white font-mono">{totalProfessors}</p>
+                  </div>
+                  <Users className="w-8 h-8 text-white" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-neutral-900 border-neutral-700">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-neutral-400 tracking-wider">CLIENTES</p>
+                    <p className="text-2xl font-bold text-white font-mono">{totalLinkedClients}</p>
+                  </div>
+                  <UserPlus className="w-8 h-8 text-white" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-neutral-900 border-neutral-700">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-neutral-400 tracking-wider">RECEITA</p>
+                    <p className="text-2xl font-bold text-white font-mono">R$ 0</p>
+                  </div>
+                  <DollarSign className="w-8 h-8 text-white" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-neutral-900 border-neutral-700">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-neutral-400 tracking-wider">ATIVOS</p>
+                    <p className="text-2xl font-bold text-white font-mono">{activeProfessors}</p>
+                  </div>
+                  <Award className="w-8 h-8 text-white" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-neutral-400" />
+            <Input
+              placeholder="Buscar por nome, email ou especialidade..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 bg-neutral-900 border-neutral-700 text-white placeholder-neutral-400"
+            />
+          </div>
+
+          {/* Professors List */}
+          <div className="space-y-4">
+            {loading ? (
+              <div className="text-center py-8 text-neutral-400">Carregando professores...</div>
+            ) : filteredProfessors.length === 0 ? (
+              <div className="text-center py-8 text-neutral-400">Nenhum professor encontrado</div>
+            ) : (
+              filteredProfessors.map((professor) => {
+                const clients = getProfessorClients(professor.id)
+                const isExpanded = expandedProfessorId === professor.id
+
+                return (
+                  <Card key={professor.id} className="bg-neutral-900 border-neutral-700 hover:border-orange-500/50 transition-colors">
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-full bg-neutral-800 flex items-center justify-center">
+                            <span className="text-xl font-bold text-white">
+                              {professor.name.charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="text-sm font-bold text-white tracking-wider">{professor.name.toUpperCase()}</h3>
+                              <Badge className={professor.status === "active" ? "bg-white/20 text-white" : "bg-red-500/20 text-red-500"}>
+                                {professor.status === "active" ? "ATIVO" : "INATIVO"}
+                              </Badge>
+                            </div>
+                            {professor.specialty && (
+                              <p className="text-xs text-neutral-400 mt-1">{professor.specialty}</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-neutral-400 hover:text-white bg-transparent"
+                            onClick={() => {
+                              setSelectedProfessor(professor)
+                              fetchAsaasCustomers()
+                              setShowLinkClientModal(true)
+                            }}
+                          >
+                            <UserPlus className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-neutral-400 hover:text-white bg-transparent"
+                            onClick={() => {
+                              setEditingProfessor(professor)
+                              setShowEditProfessorModal(true)
+                            }}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-neutral-400 hover:text-white bg-transparent"
+                            onClick={() => handleDeleteProfessor(professor.id)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 mb-4">
+                        <div className="flex items-center gap-2 text-xs text-neutral-400">
+                          <Mail className="w-3 h-3" />
+                          <span>{professor.email}</span>
+                        </div>
+                        {professor.phone && (
+                          <div className="flex items-center gap-2 text-xs text-neutral-400">
+                            <Phone className="w-3 h-3" />
+                            <span>{professor.phone}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Professor Stats */}
+                      <div className="flex items-center gap-6 mt-4 pt-4 border-t border-neutral-800">
+                        <div>
+                          <span className="text-2xl font-bold text-white">{clients.length}</span>
+                          <p className="text-xs text-neutral-400">Clientes</p>
+                        </div>
+                        <div>
+                          <span className="text-2xl font-bold text-green-500">R$ 0</span>
+                          <p className="text-xs text-neutral-400">Receita</p>
+                        </div>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex items-center gap-2 mt-4">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="border-neutral-700 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-300 bg-transparent"
+                          onClick={() => setExpandedProfessorId(isExpanded ? null : professor.id)}
+                        >
+                          {isExpanded ? "Ocultar" : "Ver Clientes"}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="border-neutral-700 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-300 bg-transparent"
+                          onClick={() => {
+                            setSelectedProfessor(professor)
+                            fetchAsaasCustomers()
+                            setShowLinkClientModal(true)
+                          }}
+                        >
+                          Vincular
+                        </Button>
+                      </div>
+
+                      {/* Expanded Clients List */}
+                      {isExpanded && (
+                        <div className="mt-4 pt-4 border-t border-neutral-800">
+                          <h4 className="text-sm font-medium text-neutral-300 mb-3 flex items-center gap-2">
+                            <Users className="w-4 h-4" />
+                            Clientes Vinculados ({clients.length})
+                          </h4>
+                          {clients.length === 0 ? (
+                            <p className="text-sm text-neutral-500">Nenhum cliente vinculado</p>
+                          ) : (
+                            <div className="space-y-2">
+                              {clients.map((client) => (
+                                <div
+                                  key={client.id}
+                                  className="flex items-center justify-between p-3 bg-neutral-800 rounded-lg"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
+                                      <span className="text-sm font-bold text-green-500">
+                                        {client.customer_name.charAt(0).toUpperCase()}
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <p className="text-sm font-medium text-white">{client.customer_name}</p>
+                                      <p className="text-xs text-neutral-400">{client.customer_email}</p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Badge className="bg-green-500/20 text-green-400">Ativo</Badge>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="text-neutral-400 hover:text-red-500 h-8 w-8 bg-transparent"
+                                      onClick={() => handleUnlinkClient(client.id)}
+                                    >
+                                      <X className="w-3 h-3" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )
+              })
+            )}
+          </div>
+        </>
+      )}
+
+      {/* Tab: Repasse de Comissões */}
+      {activeTab === "commissions" && (
+        <>
+          {/* Config Card */}
+          <Card className="bg-neutral-900 border-neutral-700">
+            <CardContent className="p-6">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-sm font-bold text-white tracking-wider mb-2">TAXA FIXA SOMMA</h3>
+                  <p className="text-xs text-neutral-400">
+                    Valor fixo que a Somma recebe de cada cliente. O restante vai para o professor.
+                  </p>
+                </div>
+                <div className="flex items-center gap-4">
+                  {editingFee ? (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={newFeeValue}
+                        onChange={(e) => setNewFeeValue(e.target.value)}
+                        className="w-32 bg-neutral-800 border-neutral-700 text-white"
+                      />
+                      <Button
+                        onClick={handleUpdateFee}
+                        size="sm"
+                        className="bg-orange-500 hover:bg-orange-600 text-white"
+                      >
+                        <Check className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setEditingFee(false)
+                          setNewFeeValue(sommaFixedFee.toFixed(2))
+                        }}
+                        size="sm"
+                        variant="ghost"
+                        className="text-neutral-400 hover:text-white bg-transparent"
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="text-right">
+                        <p className="text-2xl font-bold text-white font-mono">
+                          R$ {sommaFixedFee.toFixed(2)}
+                        </p>
+                        <p className="text-xs text-neutral-400">por cliente/mês</p>
+                      </div>
+                      <Button
+                        onClick={() => setEditingFee(true)}
+                        variant="outline"
+                        size="sm"
+                        className="border-neutral-700 text-neutral-400 hover:text-white hover:border-orange-500 bg-transparent"
+                      >
+                        <Edit className="w-4 h-4 mr-2" />
+                        Editar
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Summary Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="bg-neutral-900 border-neutral-700">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-neutral-400 tracking-wider">RECEITA SOMMA</p>
+                    <p className="text-2xl font-bold text-white font-mono mt-1">
+                      R$ {(commissionBreakdowns.reduce((sum, b) => sum + b.sommaFee, 0)).toFixed(2)}
+                    </p>
+                  </div>
+                  <DollarSign className="w-8 h-8 text-white" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-neutral-900 border-neutral-700">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-neutral-400 tracking-wider">REPASSE PROFESSORES</p>
+                    <p className="text-2xl font-bold text-white font-mono mt-1">
+                      R$ {(commissionBreakdowns.reduce((sum, b) => sum + b.professorCommission, 0)).toFixed(2)}
+                    </p>
+                  </div>
+                  <Users className="w-8 h-8 text-white" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-neutral-900 border-neutral-700">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-neutral-400 tracking-wider">RECEITA TOTAL</p>
+                    <p className="text-2xl font-bold text-white font-mono mt-1">
+                      R$ {(commissionBreakdowns.reduce((sum, b) => sum + b.totalSubscriptionValue, 0)).toFixed(2)}
+                    </p>
+                  </div>
+                  <Award className="w-8 h-8 text-white" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Commission Breakdown Table */}
+          <Card className="bg-neutral-900 border-neutral-700">
+            <CardContent className="p-6">
+              <h3 className="text-sm font-bold text-white tracking-wider mb-4">BREAKDOWN POR PROFESSOR</h3>
+              
+              {loadingCommissions ? (
+                <div className="text-center py-8 text-neutral-400">Calculando comissões...</div>
+              ) : commissionBreakdowns.length === 0 ? (
+                <div className="text-center py-8 text-neutral-400">Nenhuma comissão para calcular</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-neutral-800">
+                        <th className="text-left py-3 px-4 text-sm font-medium text-neutral-400">Professor</th>
+                        <th className="text-center py-3 px-4 text-sm font-medium text-neutral-400">Clientes</th>
+                        <th className="text-right py-3 px-4 text-sm font-medium text-neutral-400">Receita Total</th>
+                        <th className="text-right py-3 px-4 text-sm font-medium text-neutral-400">Taxa Somma</th>
+                        <th className="text-right py-3 px-4 text-sm font-medium text-neutral-400">Comissão Professor</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {commissionBreakdowns.map((breakdown, index) => (
+                        <tr
+                          key={breakdown.professorId}
+                          className={`border-b border-neutral-800 hover:bg-neutral-800/50 transition-colors ${
+                            index % 2 === 0 ? "bg-neutral-900" : "bg-neutral-850"
+                          }`}
+                        >
+                          <td className="py-4 px-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center">
+                                <span className="text-sm font-bold text-purple-500">
+                                  {breakdown.professorName.charAt(0).toUpperCase()}
+                                </span>
+                              </div>
+                              <span className="font-medium text-white">{breakdown.professorName}</span>
+                            </div>
+                          </td>
+                          <td className="py-4 px-4 text-center">
+                            <Badge className="bg-blue-500/20 text-blue-400">
+                              {breakdown.totalClients}
+                            </Badge>
+                          </td>
+                          <td className="py-4 px-4 text-right font-mono text-white">
+                            R$ {breakdown.totalSubscriptionValue.toFixed(2)}
+                          </td>
+                          <td className="py-4 px-4 text-right font-mono text-green-500">
+                            R$ {breakdown.sommaFee.toFixed(2)}
+                          </td>
+                          <td className="py-4 px-4 text-right font-mono text-purple-500 font-bold">
+                            R$ {breakdown.professorCommission.toFixed(2)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <div className="mt-4 p-4 bg-blue-900/20 border border-blue-700/30 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-blue-500/20 rounded">
+                    <DollarSign className="w-5 h-5 text-blue-500" />
+                  </div>
+                  <div>
+                    <h4 className="font-medium text-white mb-1">Regra de Cálculo</h4>
+                    <p className="text-sm text-neutral-400">
+                      A Somma fica com <strong className="text-blue-400">R$ {sommaFixedFee.toFixed(2)}</strong> fixos por cliente. 
+                      O restante do valor do plano vai para o professor responsável pela carteira daquele cliente.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {/* Modal: Novo Professor */}
+      {showNewProfessorModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+          <Card className="bg-neutral-900 border-neutral-800 w-full max-w-2xl">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-white">Novo Professor</h2>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowNewProfessorModal(false)}
+                  className="text-neutral-400 hover:text-white bg-transparent"
+                >
+                  <X className="w-5 h-5" />
+                </Button>
+              </div>
+              <p className="text-neutral-400 mb-6">Adicione um novo professor ao sistema para gerenciar carteiras de clientes</p>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className="text-sm text-white mb-2 block">Nome Completo *</label>
+                  <Input
+                    placeholder="João Silva"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="bg-neutral-800 border-neutral-700 text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm text-white mb-2 block">Email *</label>
+                  <Input
+                    type="email"
+                    placeholder="joao@email.com"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className="bg-neutral-800 border-neutral-700 text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm text-white mb-2 block">Telefone</label>
+                  <Input
+                    placeholder="(11) 98888-8888"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    className="bg-neutral-800 border-neutral-700 text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm text-white mb-2 block">Especialidade</label>
+                  <Input
+                    placeholder="Nutrição, Treino, etc."
+                    value={formData.specialty}
+                    onChange={(e) => setFormData({ ...formData, specialty: e.target.value })}
+                    className="bg-neutral-800 border-neutral-700 text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm text-white mb-2 block">Status</label>
+                  <select
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value as "active" | "inactive" })}
+                    className="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-md text-white"
+                  >
+                    <option value="active">Ativo</option>
+                    <option value="inactive">Inativo</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-sm text-white mb-2 block">Tipo de Cliente</label>
+                  <select
+                    value={formData.client_type}
+                    onChange={(e) => setFormData({ ...formData, client_type: e.target.value as "cliente_somma" | "cliente_professor" })}
+                    className="w-full px-3 py-2 bg-neutral-800 border border-neutral-700 rounded-md text-white"
+                  >
+                    <option value="cliente_somma">Cliente Somma</option>
+                    <option value="cliente_professor">Cliente Professor</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowNewProfessorModal(false)}
+                  className="flex-1 border-neutral-700 text-neutral-400 hover:bg-neutral-800 bg-transparent"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleCreateProfessor}
+                  className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
+                >
+                  Criar Professor
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Modal: Vincular Cliente */}
+      {showLinkClientModal && selectedProfessor && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+          <Card className="bg-neutral-900 border-neutral-800 w-full max-w-2xl">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-white">Vincular Cliente</h2>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => {
+                    setShowLinkClientModal(false)
+                    setSelectedCustomer(null)
+                  }}
+                  className="text-neutral-400 hover:text-white bg-transparent"
+                >
+                  <X className="w-5 h-5" />
+                </Button>
+              </div>
+              <p className="text-neutral-400 mb-6">
+                Selecione um cliente do plano Assessoria para vincular a {selectedProfessor.name}.
+              </p>
+
+              {/* Asaas Info Box */}
+              <div className="bg-orange-900/20 border border-orange-700/30 rounded-lg p-4 mb-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-orange-500/20 rounded-lg">
+                    <Users className="w-5 h-5 text-orange-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-white">Clientes do Asaas</p>
+                    <p className="text-xs text-neutral-400">
+                      {asaasCustomers.length} clientes importados, {asaasCustomers.length - professorClients.length} disponíveis
+                    </p>
+                  </div>
+                </div>
+                <Badge className="bg-orange-500/20 text-orange-400 border-orange-700">Asaas API</Badge>
+              </div>
+
+              {/* Customer List */}
+              {loadingCustomers ? (
+                <div className="text-center py-8 text-neutral-400">Carregando clientes...</div>
+              ) : asaasCustomers.length === 0 ? (
+                <div className="text-center py-8 text-neutral-400">Nenhum cliente encontrado</div>
+              ) : (
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {asaasCustomers.map((customer) => {
+                    const isLinked = professorClients.some(pc => pc.asaas_customer_id === customer.id)
+                    const isSelected = selectedCustomer?.id === customer.id
+
+                    return (
+                      <div
+                        key={customer.id}
+                        className={`p-4 rounded-lg border transition-all cursor-pointer ${
+                          isSelected
+                            ? "bg-orange-500/20 border-orange-500"
+                            : isLinked
+                              ? "bg-neutral-800/50 border-neutral-700 opacity-50 cursor-not-allowed"
+                              : "bg-neutral-800 border-neutral-700 hover:bg-neutral-800/80"
+                        }`}
+                        onClick={() => {
+                          if (!isLinked) {
+                            setSelectedCustomer(customer)
+                          }
+                        }}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium text-white">{customer.name}</p>
+                              {isLinked && (
+                                <Badge className="bg-neutral-700 text-neutral-400 text-xs">Vinculado</Badge>
+                              )}
+                              {customer.cpfCnpj && (
+                                <Badge className={customer.cpfCnpj.length === 11 ? "bg-blue-500/20 text-blue-400" : "bg-purple-500/20 text-purple-400"}>
+                                  Asaas
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-sm text-neutral-400">{customer.email}</p>
+                            {customer.cpfCnpj && (
+                              <p className="text-xs text-neutral-500 mt-1">CPF/CNPJ: {customer.cpfCnpj}</p>
+                            )}
+                          </div>
+                          {isSelected && !isLinked && (
+                            <div className="p-2 bg-orange-500 rounded-full">
+                              <Check className="w-4 h-4 text-white" />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              <div className="flex gap-3 mt-6">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowLinkClientModal(false)
+                    setSelectedCustomer(null)
+                  }}
+                  className="flex-1 border-neutral-700 text-neutral-400 hover:bg-neutral-800 bg-transparent"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleLinkClient}
+                  disabled={!selectedCustomer}
+                  className="flex-1 bg-orange-500 hover:bg-orange-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <UserPlus className="w-4 h-4 mr-2" />
+                  Vincular
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Modal: Editar Professor */}
+      {showEditProfessorModal && editingProfessor && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50">
+          <Card className="bg-neutral-900 border-neutral-800 w-full max-w-md">
+            <CardContent className="p-6 space-y-4">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-white">Editar Professor</h2>
+                <button
+                  onClick={() => {
+                    setShowEditProfessorModal(false)
+                    setEditingProfessor(null)
+                  }}
+                  className="text-neutral-400 hover:text-white"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div>
+                <label className="text-xs text-neutral-400 tracking-wider">NOME</label>
+                <Input
+                  value={editingProfessor.name}
+                  onChange={(e) => setEditingProfessor({ ...editingProfessor, name: e.target.value })}
+                  className="bg-neutral-800 border-neutral-700 text-white mt-1"
+                  placeholder="Nome do professor"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-neutral-400 tracking-wider">EMAIL</label>
+                <Input
+                  value={editingProfessor.email}
+                  onChange={(e) => setEditingProfessor({ ...editingProfessor, email: e.target.value })}
+                  className="bg-neutral-800 border-neutral-700 text-white mt-1"
+                  placeholder="email@example.com"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-neutral-400 tracking-wider">TELEFONE</label>
+                <Input
+                  value={editingProfessor.phone || ""}
+                  onChange={(e) => setEditingProfessor({ ...editingProfessor, phone: e.target.value })}
+                  className="bg-neutral-800 border-neutral-700 text-white mt-1"
+                  placeholder="(61) 9999-9999"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-neutral-400 tracking-wider">ESPECIALIDADE</label>
+                <Input
+                  value={editingProfessor.specialty || ""}
+                  onChange={(e) => setEditingProfessor({ ...editingProfessor, specialty: e.target.value })}
+                  className="bg-neutral-800 border-neutral-700 text-white mt-1"
+                  placeholder="Sua especialidade"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-neutral-400 tracking-wider">STATUS</label>
+                <select
+                  value={editingProfessor.status}
+                  onChange={(e) => setEditingProfessor({ ...editingProfessor, status: e.target.value as "active" | "inactive" })}
+                  className="w-full bg-neutral-800 border border-neutral-700 text-white rounded-md p-2 mt-1"
+                >
+                  <option value="active">Ativo</option>
+                  <option value="inactive">Inativo</option>
+                </select>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowEditProfessorModal(false)
+                    setEditingProfessor(null)
+                  }}
+                  className="flex-1 border-neutral-700 text-neutral-400 hover:bg-neutral-800 bg-transparent"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleUpdateProfessor}
+                  className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
+                >
+                  <Check className="w-4 h-4 mr-2" />
+                  Salvar
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+    </div>
+  )
+}
