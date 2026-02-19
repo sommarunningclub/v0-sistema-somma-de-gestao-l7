@@ -34,10 +34,6 @@ async function asaasRequest<T>(
     const config = getAsaasConfig()
     
     if (!config.apiUrl || !config.apiKey) {
-      console.error('[Asaas] Configuração incompleta:', { 
-        hasApiUrl: !!config.apiUrl, 
-        hasApiKey: !!config.apiKey 
-      })
       return { data: null, error: 'Asaas não configurado corretamente' }
     }
 
