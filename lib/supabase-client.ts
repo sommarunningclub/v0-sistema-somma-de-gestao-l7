@@ -3,36 +3,24 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
-// Create a singleton Supabase client
-let supabaseInstance: ReturnType<typeof createSupabaseClient> | null = null;
+console.log('[v0] Supabase initialization check:', {
+  hasUrl: !!supabaseUrl,
+  hasKey: !!supabaseKey,
+  urlPrefix: supabaseUrl?.substring(0, 30) || 'MISSING',
+  keyPrefix: supabaseKey?.substring(0, 20) || 'MISSING'
+});
 
-function getSupabaseInstance() {
-  if (!supabaseUrl || !supabaseKey) {
-    console.error('[v0] Supabase credentials missing:', { 
-      hasUrl: !!supabaseUrl, 
-      hasKey: !!supabaseKey,
-      url: supabaseUrl?.substring(0, 20) + '...'
-    });
-    throw new Error(
-      "Missing Supabase credentials. Please check your environment variables."
-    );
-  }
-
-  if (!supabaseInstance) {
-    supabaseInstance = createSupabaseClient(supabaseUrl, supabaseKey);
-  }
-
-  return supabaseInstance;
+if (!supabaseUrl || !supabaseKey) {
+  console.error('[v0] ERROR: Supabase credentials are missing!');
+  console.error('[v0] NEXT_PUBLIC_SUPABASE_URL:', process.env.NEXT_PUBLIC_SUPABASE_URL ? 'SET' : 'NOT SET');
+  console.error('[v0] NEXT_PUBLIC_SUPABASE_ANON_KEY:', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'SET' : 'NOT SET');
 }
 
-// Export the client - will throw error only when actually used
-export const supabase = new Proxy({} as ReturnType<typeof createSupabaseClient>, {
-  get(_target, prop) {
-    const instance = getSupabaseInstance();
-    const value = instance[prop as keyof typeof instance];
-    return typeof value === 'function' ? value.bind(instance) : value;
-  }
-});
+// Create Supabase client with empty strings if not available (will fail at runtime when used)
+export const supabase = createSupabaseClient(
+  supabaseUrl || 'https://placeholder.supabase.co',
+  supabaseKey || 'placeholder-key'
+);
 
 // Export a function to create new Supabase clients
 export function createClient() {
