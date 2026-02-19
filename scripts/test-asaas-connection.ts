@@ -82,7 +82,7 @@ async function testAsaasConnection() {
       console.log(`✅ Total de clientes: ${customersData.totalCount || 0}`)
       if (customersData.data && customersData.data.length > 0) {
         console.log(`   Primeiros clientes:`)
-        customersData.data.slice(0, 3).forEach((customer: any) => {
+        customersData.data.slice(0, 3).forEach((customer) => {
           console.log(`   - ${customer.name} (${customer.email || 'sem email'})`)
         })
       }
