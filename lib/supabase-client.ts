@@ -1,77 +1,61 @@
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+// Supabase Client - v3.0 - Clean rebuild
+import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder";
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 
-export const supabase = createSupabaseClient(supabaseUrl, supabaseKey);
+// Create the Supabase client - never throws, fails gracefully on API calls
+export const supabase = createSupabaseClient(
+  supabaseUrl || "https://placeholder.supabase.co",
+  supabaseAnonKey || "placeholder-key"
+)
 
-// Export a function to create new Supabase clients
+// Export createClient for server-side usage
 export function createClient() {
-  return createSupabaseClient(supabaseUrl, supabaseKey);
+  return createSupabaseClient(
+    supabaseUrl || "https://placeholder.supabase.co",
+    supabaseAnonKey || "placeholder-key"
+  )
 }
 
-export type CadastroSite = {
-  id: number;
-  nome_completo: string;
-  email: string;
-  cpf: string;
-  data_nascimento: string;
-  whatsapp: string;
-};
+// Type exports
+export interface CadastroSite {
+  id: number
+  nome_completo: string
+  email: string
+  cpf: string
+  whatsapp: string
+  data_nascimento: string
+  cep: number
+}
 
-export type Coupon = {
-  id: string;
-  code: string;
-  name: string;
-  description: string | null;
-  discount_type: "percentage" | "fixed";
-  discount_value: number;
-  max_uses: number | null;
-  current_uses: number;
-  valid_from: string;
-  valid_until: string | null;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-};
+export interface Professor {
+  id: string
+  name: string
+  email: string
+  phone: string
+  specialty: string
+  client_type: string
+  status: string
+  created_at: string
+  updated_at: string
+}
 
-export type CouponRedemption = {
-  id: string;
-  coupon_id: string;
-  customer_email: string;
-  customer_name: string | null;
-  original_value: number;
-  discount_applied: number;
-  final_value: number;
-  redeemed_at: string;
-};
+export interface ProfessorClient {
+  id: string
+  professor_id: string
+  asaas_customer_id: string
+  customer_name: string
+  customer_email: string
+  customer_cpf_cnpj: string
+  status: string
+  linked_at: string
+  unlinked_at: string | null
+}
 
-export type Professor = {
-  id: string;
-  name: string;
-  email: string;
-  phone: string | null;
-  specialty: string | null;
-  status: "active" | "inactive";
-  client_type: "cliente_somma" | "cliente_professor";
-  created_at: string;
-  updated_at: string;
-};
-
-export type ProfessorClient = {
-  id: string;
-  professor_id: string;
-  asaas_customer_id: string;
-  customer_name: string;
-  customer_email: string;
-  status: "active" | "inactive";
-  linked_at: string;
-  unlinked_at: string | null;
-};
-
-export type CommissionConfig = {
-  id: string;
-  somma_fixed_fee: number;
-  updated_at: string;
-  updated_by: string | null;
-};
+export interface CommissionConfig {
+  id: string
+  somma_fixed_fee: number
+  updated_by: string
+  updated_at: string
+}
