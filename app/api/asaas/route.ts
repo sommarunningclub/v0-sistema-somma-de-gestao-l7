@@ -1,38 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-// Asaas API Proxy - v2.2.0 - Rebuild forced
-// Producao: https://api.asaas.com/v3
-const ASAAS_URL = 'https://api.asaas.com/v3'
-const ASAAS_KEY = '$aact_prod_000MzkwODA2MWY2OGM3MWRlMDU2NWM3MzJlNzZmNGZhZGY6OjBhZWFlNDA0LTM2M2YtNDNkYi04MjM5LTA1NTk1NzRhNTllNjo6JGFhY2hfZGVhZmY0OTEtNjc3OC00MTQ0LTg5OTItOTliMDFmNzczMzEx'
+// =====================================================
+// API Asaas - AMBIENTE DE PRODUCAO
+// URL fixa: https://api.asaas.com/v3
+// NUNCA usar sandbox neste sistema
+// =====================================================
+const ASAAS_BASE_URL = 'https://api.asaas.com/v3'
+const ASAAS_API_KEY = process.env.ASAAS_API_KEY || '$aact_prod_000MzkwODA2MWY2OGM3MWRlMDU2NWM3MzJlNzZmNGZhZGY6OjBhZWFlNDA0LTM2M2YtNDNkYi04MjM5LTA1NTk1NzRhNTllNjo6JGFhY2hfZGVhZmY0OTEtNjc3OC00MTQ0LTg5OTItOTliMDFmNzczMzEx'
+const ASAAS_WALLET_ID = process.env.ASAAS_WALLET_ID || 'ad3b1fb7-eda4-48b0-abb1-cd77a8ad3de6'
 
-async function callAsaas(
+async function asaasRequest(
   method: string,
   path: string,
   body?: Record<string, unknown>,
   params?: Record<string, string>
 ) {
-  const key = process.env.ASAAS_API_KEY || ASAAS_KEY
-  const base = process.env.NEXT_PUBLIC_ASAAS_API_URL || ASAAS_URL
+  // Garantir que o path comece com / e nao tenha duplicacao
   const cleanPath = path.startsWith('/') ? path : `/${path}`
-  const url = new URL(`${base}${cleanPath}`)
-
+  const url = new URL(`${ASAAS_BASE_URL}${cleanPath}`)
   if (params) {
-    Object.entries(params).forEach(([k, v]) => url.searchParams.append(k, v))
+    Object.entries(params).forEach(([key, value]) => {
+      url.searchParams.append(key, value)
+    })
   }
 
-  const res = await fetch(url.toString(), {
+  const response = await fetch(url.toString(), {
     method,
     headers: {
-      'access_token': key,
+      'access_token': ASAAS_API_KEY,
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     },
     body: body ? JSON.stringify(body) : undefined,
-    cache: 'no-store',
   })
 
-  const data = await res.json().catch(() => null)
-  return { ok: res.ok, status: res.status, data }
+  const data = await response.json().catch(() => null)
+
+  return {
+    ok: response.ok,
+    status: response.status,
+    data,
+  }
 }
 
 export async function GET(request: NextRequest) {
@@ -43,6 +51,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Endpoint required' }, { status: 400 })
   }
 
+  // Converter searchParams para objeto, excluindo 'endpoint'
   const params: Record<string, string> = {}
   searchParams.forEach((value, key) => {
     if (key !== 'endpoint') {
@@ -50,7 +59,7 @@ export async function GET(request: NextRequest) {
     }
   })
 
-  const result = await callAsaas('GET', endpoint, undefined, Object.keys(params).length > 0 ? params : undefined)
+  const result = await asaasRequest('GET', endpoint, undefined, Object.keys(params).length > 0 ? params : undefined)
 
   if (!result.ok) {
     return NextResponse.json({ error: result.data }, { status: result.status })
@@ -68,7 +77,8 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json().catch(() => ({}))
-  const result = await callAsaas('POST', endpoint, body)
+
+  const result = await asaasRequest('POST', endpoint, body)
 
   if (!result.ok) {
     return NextResponse.json({ error: result.data }, { status: result.status })
@@ -86,7 +96,8 @@ export async function PUT(request: NextRequest) {
   }
 
   const body = await request.json().catch(() => ({}))
-  const result = await callAsaas('PUT', endpoint, body)
+
+  const result = await asaasRequest('PUT', endpoint, body)
 
   if (!result.ok) {
     return NextResponse.json({ error: result.data }, { status: result.status })
@@ -103,7 +114,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Endpoint required' }, { status: 400 })
   }
 
-  const result = await callAsaas('DELETE', endpoint)
+  const result = await asaasRequest('DELETE', endpoint)
 
   if (!result.ok) {
     return NextResponse.json({ error: result.data }, { status: result.status })

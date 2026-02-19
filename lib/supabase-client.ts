@@ -1,24 +1,15 @@
-// Supabase Client - v3.0 - Clean rebuild
-import { createClient as createSupabaseClient } from "@supabase/supabase-js"
+import { createClient as _createClient } from "@supabase/supabase-js"
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ""
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+// Supabase connection - safe initialization without throw
+const _url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://placeholder.supabase.co"
+const _key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "placeholder-key"
 
-// Create the Supabase client - never throws, fails gracefully on API calls
-export const supabase = createSupabaseClient(
-  supabaseUrl || "https://placeholder.supabase.co",
-  supabaseAnonKey || "placeholder-key"
-)
+export const supabase = _createClient(_url, _key)
 
-// Export createClient for server-side usage
 export function createClient() {
-  return createSupabaseClient(
-    supabaseUrl || "https://placeholder.supabase.co",
-    supabaseAnonKey || "placeholder-key"
-  )
+  return _createClient(_url, _key)
 }
 
-// Type exports
 export interface CadastroSite {
   id: number
   nome_completo: string
