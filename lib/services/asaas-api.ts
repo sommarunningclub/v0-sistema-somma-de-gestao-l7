@@ -1,14 +1,27 @@
 // =====================================================
 // Servico de API para comunicacao com o Asaas
-// AMBIENTE DE PRODUCAO - URL fixa: https://api.asaas.com/v3
-// NUNCA usar sandbox neste sistema
+// Documentação oficial: https://docs.asaas.com
 // =====================================================
 
-const ASAAS_API_URL = 'https://api.asaas.com/v3'
+// Configurações da API Asaas
+// Você pode usar ambiente de produção ou sandbox
+// Produção: https://api.asaas.com/v3
+// Sandbox: https://sandbox.asaas.com/api/v3
+
+const ASAAS_API_URL = process.env.NEXT_PUBLIC_ASAAS_API_URL || ''
 const ASAAS_API_KEY = process.env.ASAAS_API_KEY || ''
 const ASAAS_WALLET_ID = process.env.ASAAS_WALLET_ID || ''
 
 export { ASAAS_WALLET_ID }
+
+// Validação de configuração
+if (!ASAAS_API_URL) {
+  console.warn('[Asaas] NEXT_PUBLIC_ASAAS_API_URL não configurada')
+}
+
+if (!ASAAS_API_KEY) {
+  console.warn('[Asaas] ASAAS_API_KEY não configurada')
+}
 
 interface ApiResponse<T> {
   data: T | null

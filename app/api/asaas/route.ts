@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 // =====================================================
-// API Asaas - AMBIENTE DE PRODUÇÃO
-// URL fixa: https://api.asaas.com/v3
-// NUNCA usar sandbox neste sistema
+// API Asaas - Proxy para comunicação com a API
+// Documentação oficial: https://docs.asaas.com
 // =====================================================
-const ASAAS_BASE_URL = 'https://api.asaas.com/v3'
+const ASAAS_BASE_URL = process.env.NEXT_PUBLIC_ASAAS_API_URL || ''
 const ASAAS_API_KEY = process.env.ASAAS_API_KEY || ''
 const ASAAS_WALLET_ID = process.env.ASAAS_WALLET_ID || ''
 
