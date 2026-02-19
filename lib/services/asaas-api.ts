@@ -8,20 +8,16 @@
 // Produção: https://api.asaas.com/v3
 // Sandbox: https://sandbox.asaas.com/api/v3
 
-const ASAAS_API_URL = process.env.NEXT_PUBLIC_ASAAS_API_URL || ''
-const ASAAS_API_KEY = process.env.ASAAS_API_KEY || ''
-const ASAAS_WALLET_ID = process.env.ASAAS_WALLET_ID || ''
-
-export { ASAAS_WALLET_ID }
-
-// Validação de configuração
-if (!ASAAS_API_URL) {
-  console.warn('[Asaas] NEXT_PUBLIC_ASAAS_API_URL não configurada')
+// Função para obter configurações (lazy evaluation para evitar warnings prematuros)
+function getAsaasConfig() {
+  return {
+    apiUrl: process.env.NEXT_PUBLIC_ASAAS_API_URL || '',
+    apiKey: process.env.ASAAS_API_KEY || '',
+    walletId: process.env.ASAAS_WALLET_ID || ''
+  }
 }
 
-if (!ASAAS_API_KEY) {
-  console.warn('[Asaas] ASAAS_API_KEY não configurada')
-}
+export const ASAAS_WALLET_ID = process.env.ASAAS_WALLET_ID || ''
 
 interface ApiResponse<T> {
   data: T | null
@@ -35,7 +31,17 @@ async function asaasRequest<T>(
   params?: Record<string, string>
 ): Promise<ApiResponse<T>> {
   try {
-    const url = new URL(`${ASAAS_API_URL}${path}`)
+    const config = getAsaasConfig()
+    
+    if (!config.apiUrl || !config.apiKey) {
+      console.error('[Asaas] Configuração incompleta:', { 
+        hasApiUrl: !!config.apiUrl, 
+        hasApiKey: !!config.apiKey 
+      })
+      return { data: null, error: 'Asaas não configurado corretamente' }
+    }
+
+    const url = new URL(`${config.apiUrl}${path}`)
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
         url.searchParams.append(key, value)
@@ -45,7 +51,7 @@ async function asaasRequest<T>(
     const response = await fetch(url.toString(), {
       method,
       headers: {
-        'access_token': ASAAS_API_KEY,
+        'access_token': config.apiKey,
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       },
@@ -54,7 +60,7 @@ async function asaasRequest<T>(
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error('[v0] Asaas API error:', errorText)
+      console.error('[v0] Asaas API error:', response.status, errorText)
       return { data: null, error: errorText }
     }
 

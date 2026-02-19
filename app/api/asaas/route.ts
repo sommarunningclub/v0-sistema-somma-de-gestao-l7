@@ -4,9 +4,25 @@ import { NextRequest, NextResponse } from 'next/server'
 // API Asaas - Proxy para comunicação com a API
 // Documentação oficial: https://docs.asaas.com
 // =====================================================
-const ASAAS_BASE_URL = process.env.NEXT_PUBLIC_ASAAS_API_URL || ''
-const ASAAS_API_KEY = process.env.ASAAS_API_KEY || ''
-const ASAAS_WALLET_ID = process.env.ASAAS_WALLET_ID || ''
+
+function getAsaasConfig() {
+  const config = {
+    baseUrl: process.env.NEXT_PUBLIC_ASAAS_API_URL || '',
+    apiKey: process.env.ASAAS_API_KEY || '',
+    walletId: process.env.ASAAS_WALLET_ID || ''
+  }
+  
+  if (!config.baseUrl || !config.apiKey) {
+    console.error('[Asaas Route] Configuração incompleta:', {
+      hasBaseUrl: !!config.baseUrl,
+      hasApiKey: !!config.apiKey,
+      baseUrl: config.baseUrl ? 'configurado' : 'FALTANDO',
+      apiKey: config.apiKey ? 'configurado' : 'FALTANDO'
+    })
+  }
+  
+  return config
+}
 
 async function asaasRequest(
   method: string,
@@ -14,19 +30,31 @@ async function asaasRequest(
   body?: Record<string, unknown>,
   params?: Record<string, string>
 ) {
+  const config = getAsaasConfig()
+  
+  if (!config.baseUrl || !config.apiKey) {
+    return {
+      ok: false,
+      status: 500,
+      data: { error: 'Asaas não configurado corretamente' }
+    }
+  }
+
   // Garantir que o path comece com / e não tenha duplicação
   const cleanPath = path.startsWith('/') ? path : `/${path}`
-  const url = new URL(`${ASAAS_BASE_URL}${cleanPath}`)
+  const url = new URL(`${config.baseUrl}${cleanPath}`)
   if (params) {
     Object.entries(params).forEach(([key, value]) => {
       url.searchParams.append(key, value)
     })
   }
 
+  console.log('[Asaas Route] Request:', method, url.toString())
+
   const response = await fetch(url.toString(), {
     method,
     headers: {
-      'access_token': ASAAS_API_KEY,
+      'access_token': config.apiKey,
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     },
@@ -34,6 +62,8 @@ async function asaasRequest(
   })
 
   const data = await response.json().catch(() => null)
+  
+  console.log('[Asaas Route] Response:', response.status, response.ok ? 'OK' : 'ERROR')
   
   return {
     ok: response.ok,
@@ -48,10 +78,6 @@ export async function GET(request: NextRequest) {
   
   if (!endpoint) {
     return NextResponse.json({ error: 'Endpoint required' }, { status: 400 })
-  }
-
-  if (!ASAAS_API_KEY) {
-    return NextResponse.json({ error: 'ASAAS_API_KEY not configured' }, { status: 500 })
   }
 
   // Converter searchParams para objeto, excluindo 'endpoint'
@@ -79,10 +105,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Endpoint required' }, { status: 400 })
   }
 
-  if (!ASAAS_API_KEY) {
-    return NextResponse.json({ error: 'ASAAS_API_KEY not configured' }, { status: 500 })
-  }
-
   const body = await request.json().catch(() => ({}))
   
   const result = await asaasRequest('POST', endpoint, body)
@@ -100,10 +122,6 @@ export async function DELETE(request: NextRequest) {
   
   if (!endpoint) {
     return NextResponse.json({ error: 'Endpoint required' }, { status: 400 })
-  }
-
-  if (!ASAAS_API_KEY) {
-    return NextResponse.json({ error: 'ASAAS_API_KEY not configured' }, { status: 500 })
   }
 
   const result = await asaasRequest('DELETE', endpoint)
