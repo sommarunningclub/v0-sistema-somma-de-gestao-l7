@@ -132,17 +132,22 @@ export default function ClientesAsaas() {
     setError(null)
     try {
       const response = await fetch("/api/asaas?endpoint=/customers&limit=100")
+      console.log("[v0] fetchCustomers response status:", response.status)
+      console.log("[v0] fetchCustomers response ok:", response.ok)
       
       if (!response.ok) {
         const errorData = await response.json()
+        console.log("[v0] API error:", errorData)
         setError(errorData.error?.message || "Erro ao buscar clientes")
         setCustomers([])
         return
       }
       
       const data = await response.json()
+      console.log("[v0] API data received:", data)
       setCustomers(data.data || [])
     } catch (err) {
+      console.error("[v0] fetchCustomers error:", err)
       setError("Erro de conexao com a API")
       setCustomers([])
     } finally {
@@ -255,6 +260,7 @@ export default function ClientesAsaas() {
   }
 
   useEffect(() => {
+    console.log("[v0] Component mounted, calling fetchCustomers")
     fetchCustomers()
   }, [])
 
