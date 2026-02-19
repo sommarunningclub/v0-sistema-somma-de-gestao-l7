@@ -1,42 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-// =====================================================
-// API Asaas - Proxy para comunicacao com a API
-// Documentacao: https://docs.asaas.com
-// =====================================================
+// Asaas API Proxy - v2.2.0 - Rebuild forced
+// Producao: https://api.asaas.com/v3
+const ASAAS_URL = 'https://api.asaas.com/v3'
+const ASAAS_KEY = '$aact_prod_000MzkwODA2MWY2OGM3MWRlMDU2NWM3MzJlNzZmNGZhZGY6OjBhZWFlNDA0LTM2M2YtNDNkYi04MjM5LTA1NTk1NzRhNTllNjo6JGFhY2hfZGVhZmY0OTEtNjc3OC00MTQ0LTg5OTItOTliMDFmNzczMzEx'
 
-const ASAAS_BASE_URL = 'https://api.asaas.com/v3'
-
-function getApiKey(): string {
-  // Tenta ler da env var primeiro
-  const envKey = process.env.ASAAS_API_KEY
-  if (envKey && envKey.length > 10) {
-    return envKey
-  }
-  // Fallback: chave configurada diretamente
-  return '$aact_prod_000MzkwODA2MWY2OGM3MWRlMDU2NWM3MzJlNzZmNGZhZGY6OjBhZWFlNDA0LTM2M2YtNDNkYi04MjM5LTA1NTk1NzRhNTllNjo6JGFhY2hfZGVhZmY0OTEtNjc3OC00MTQ0LTg5OTItOTliMDFmNzczMzEx'
-}
-
-async function asaasRequest(
+async function callAsaas(
   method: string,
   path: string,
   body?: Record<string, unknown>,
   params?: Record<string, string>
 ) {
-  const apiKey = getApiKey()
+  const key = process.env.ASAAS_API_KEY || ASAAS_KEY
+  const base = process.env.NEXT_PUBLIC_ASAAS_API_URL || ASAAS_URL
   const cleanPath = path.startsWith('/') ? path : `/${path}`
-  const url = new URL(`${ASAAS_BASE_URL}${cleanPath}`)
+  const url = new URL(`${base}${cleanPath}`)
 
   if (params) {
-    Object.entries(params).forEach(([key, value]) => {
-      url.searchParams.append(key, value)
-    })
+    Object.entries(params).forEach(([k, v]) => url.searchParams.append(k, v))
   }
 
-  const response = await fetch(url.toString(), {
+  const res = await fetch(url.toString(), {
     method,
     headers: {
-      'access_token': apiKey,
+      'access_token': key,
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     },
@@ -44,13 +31,8 @@ async function asaasRequest(
     cache: 'no-store',
   })
 
-  const data = await response.json().catch(() => null)
-
-  return {
-    ok: response.ok,
-    status: response.status,
-    data,
-  }
+  const data = await res.json().catch(() => null)
+  return { ok: res.ok, status: res.status, data }
 }
 
 export async function GET(request: NextRequest) {
@@ -68,7 +50,7 @@ export async function GET(request: NextRequest) {
     }
   })
 
-  const result = await asaasRequest('GET', endpoint, undefined, Object.keys(params).length > 0 ? params : undefined)
+  const result = await callAsaas('GET', endpoint, undefined, Object.keys(params).length > 0 ? params : undefined)
 
   if (!result.ok) {
     return NextResponse.json({ error: result.data }, { status: result.status })
@@ -86,7 +68,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json().catch(() => ({}))
-  const result = await asaasRequest('POST', endpoint, body)
+  const result = await callAsaas('POST', endpoint, body)
 
   if (!result.ok) {
     return NextResponse.json({ error: result.data }, { status: result.status })
@@ -104,7 +86,7 @@ export async function PUT(request: NextRequest) {
   }
 
   const body = await request.json().catch(() => ({}))
-  const result = await asaasRequest('PUT', endpoint, body)
+  const result = await callAsaas('PUT', endpoint, body)
 
   if (!result.ok) {
     return NextResponse.json({ error: result.data }, { status: result.status })
@@ -121,7 +103,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Endpoint required' }, { status: 400 })
   }
 
-  const result = await asaasRequest('DELETE', endpoint)
+  const result = await callAsaas('DELETE', endpoint)
 
   if (!result.ok) {
     return NextResponse.json({ error: result.data }, { status: result.status })

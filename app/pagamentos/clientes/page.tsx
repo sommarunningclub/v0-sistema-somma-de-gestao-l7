@@ -396,8 +396,6 @@ export default function ClientesAsaas() {
       groupName: formData.groupName || undefined,
     }
     
-    console.log("[v0] Updating customer with payload:", payload)
-    
     try {
       const response = await fetch(`/api/asaas?endpoint=/customers/${editingCustomer.id}`, {
         method: "PUT",
@@ -406,8 +404,7 @@ export default function ClientesAsaas() {
       })
 
       const responseData = await response.json()
-      console.log("[v0] Update customer response:", response.status, responseData)
-
+      
       if (response.ok) {
         toast({ title: "Cliente atualizado", description: "Dados atualizados com sucesso." })
         setShowEditModal(false)
@@ -464,8 +461,6 @@ export default function ClientesAsaas() {
       cpfCnpj: cleanCpfCnpj,
       groupName: formData.groupName || undefined,
     }
-    
-    console.log("[v0] Creating customer with payload:", payload)
     
     try {
       const response = await fetch("/api/asaas?endpoint=/customers", {
