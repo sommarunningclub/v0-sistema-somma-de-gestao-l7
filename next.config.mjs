@@ -9,6 +9,11 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  productionBrowserSourceMaps: false,
+  webpack: (config, { isServer }) => {
+    config.devtool = false
+    return config
+  },
 }
 
 export default nextConfig
