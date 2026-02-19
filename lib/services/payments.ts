@@ -22,6 +22,7 @@ export async function getCustomersFromDB(): Promise<AsaasCustomer[]> {
 }
 
 export async function getCustomerById(id: number): Promise<AsaasCustomer | null> {
+   null
   try {
     const { data, error } = await supabase
       .from('customers')
@@ -42,6 +43,7 @@ export async function getCustomerById(id: number): Promise<AsaasCustomer | null>
 }
 
 export async function saveCustomerToDB(customer: Partial<AsaasCustomer>): Promise<AsaasCustomer | null> {
+   null
   try {
     const { data, error } = await supabase
       .from('customers')
@@ -66,6 +68,7 @@ export async function getPaymentsFromDB(filters?: {
   status?: string
   customer_asaas_id?: string
 }): Promise<AsaasPayment[]> {
+   []
   try {
     let query = supabase
       .from('payments')
@@ -94,6 +97,7 @@ export async function getPaymentsFromDB(filters?: {
 }
 
 export async function getPaymentById(id: number): Promise<AsaasPayment | null> {
+   null
   try {
     const { data, error } = await supabase
       .from('payments')
@@ -114,6 +118,7 @@ export async function getPaymentById(id: number): Promise<AsaasPayment | null> {
 }
 
 export async function savePaymentToDB(payment: Partial<AsaasPayment>): Promise<AsaasPayment | null> {
+   null
   try {
     const { data, error } = await supabase
       .from('payments')
@@ -135,6 +140,7 @@ export async function savePaymentToDB(payment: Partial<AsaasPayment>): Promise<A
 
 // Cupons
 export async function getCouponsFromDB(): Promise<AsaasCoupon[]> {
+   []
   try {
     const { data, error } = await supabase
       .from('coupons')
@@ -154,6 +160,7 @@ export async function getCouponsFromDB(): Promise<AsaasCoupon[]> {
 }
 
 export async function saveCouponToDB(coupon: Partial<AsaasCoupon>): Promise<AsaasCoupon | null> {
+   null
   try {
     const { data, error } = await supabase
       .from('coupons')
@@ -174,6 +181,7 @@ export async function saveCouponToDB(coupon: Partial<AsaasCoupon>): Promise<Asaa
 }
 
 export async function updateCouponInDB(id: string, updates: Partial<AsaasCoupon>): Promise<boolean> {
+   false
   try {
     const { error } = await supabase
       .from('coupons')
@@ -285,6 +293,7 @@ export async function calculateDashboardMetrics(month: string): Promise<Dashboar
 
 // Sincronização
 export async function logSync(entityType: string, entityId: string, action: string, status: string, errorMessage?: string) {
+  
   try {
     await supabase.from('sync_log').insert([{
       entity_type: entityType,
@@ -299,6 +308,7 @@ export async function logSync(entityType: string, entityId: string, action: stri
 }
 
 export async function getSyncLogs(limit = 50) {
+   []
   try {
     const { data, error } = await supabase
       .from('sync_log')

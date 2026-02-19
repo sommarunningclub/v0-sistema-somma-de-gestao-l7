@@ -1,4 +1,0 @@
-// Força o Next.js a fazer rebuild completo
-// Timestamp: ${new Date().toISOString()}
-// Este arquivo força o sistema a reconstruir tudo do zero
-export const REBUILD_TIMESTAMP = Date.now()

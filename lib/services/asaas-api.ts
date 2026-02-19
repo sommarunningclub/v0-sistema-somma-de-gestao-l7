@@ -1,23 +1,23 @@
 // =====================================================
 // Servico de API para comunicacao com o Asaas
-// Documentação oficial: https://docs.asaas.com
+// Documentacao: https://docs.asaas.com
 // =====================================================
 
-// Configurações da API Asaas
-// Você pode usar ambiente de produção ou sandbox
-// Produção: https://api.asaas.com/v3
-// Sandbox: https://sandbox.asaas.com/api/v3
+const ASAAS_BASE_URL = 'https://api.asaas.com/v3'
+const FALLBACK_API_KEY = '$aact_prod_000MzkwODA2MWY2OGM3MWRlMDU2NWM3MzJlNzZmNGZhZGY6OjBhZWFlNDA0LTM2M2YtNDNkYi04MjM5LTA1NTk1NzRhNTllNjo6JGFhY2hfZGVhZmY0OTEtNjc3OC00MTQ0LTg5OTItOTliMDFmNzczMzEx'
+const FALLBACK_WALLET_ID = 'ad3b1fb7-eda4-48b0-abb1-cd77a8ad3de6'
 
-// Função para obter configurações (lazy evaluation para evitar warnings prematuros)
-function getAsaasConfig() {
-  return {
-    apiUrl: process.env.NEXT_PUBLIC_ASAAS_API_URL || '',
-    apiKey: process.env.ASAAS_API_KEY || '',
-    walletId: process.env.ASAAS_WALLET_ID || ''
-  }
+function getApiKey(): string {
+  const envKey = process.env.ASAAS_API_KEY
+  return (envKey && envKey.length > 10) ? envKey : FALLBACK_API_KEY
 }
 
-export const ASAAS_WALLET_ID = process.env.ASAAS_WALLET_ID || ''
+function getApiUrl(): string {
+  const envUrl = process.env.NEXT_PUBLIC_ASAAS_API_URL
+  return (envUrl && envUrl.length > 10) ? envUrl : ASAAS_BASE_URL
+}
+
+export const ASAAS_WALLET_ID = process.env.ASAAS_WALLET_ID || FALLBACK_WALLET_ID
 
 interface ApiResponse<T> {
   data: T | null
@@ -31,13 +31,10 @@ async function asaasRequest<T>(
   params?: Record<string, string>
 ): Promise<ApiResponse<T>> {
   try {
-    const config = getAsaasConfig()
-    
-    if (!config.apiUrl || !config.apiKey) {
-      return { data: null, error: 'Asaas não configurado corretamente' }
-    }
+    const apiUrl = getApiUrl()
+    const apiKey = getApiKey()
 
-    const url = new URL(`${config.apiUrl}${path}`)
+    const url = new URL(`${apiUrl}${path}`)
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
         url.searchParams.append(key, value)
@@ -47,11 +44,12 @@ async function asaasRequest<T>(
     const response = await fetch(url.toString(), {
       method,
       headers: {
-        'access_token': config.apiKey,
+        'access_token': apiKey,
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       },
       body: body ? JSON.stringify(body) : undefined,
+      cache: 'no-store',
     })
 
     if (!response.ok) {

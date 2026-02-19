@@ -843,9 +843,6 @@ export default function ClientesAsaas() {
     )
   }
 
-  // Debug: log customers state
-  console.log("[v0] Rendering ClientesAsaas - customers:", customers.length, "loading:", loading, "error:", error)
-
   // Tela principal de lista de clientes
   return (
     <div className="w-full h-full flex flex-col bg-neutral-950">

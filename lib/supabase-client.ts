@@ -1,23 +1,12 @@
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error(
-    "Missing Supabase credentials. Please check your environment variables."
-  );
-}
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder";
 
 export const supabase = createSupabaseClient(supabaseUrl, supabaseKey);
 
 // Export a function to create new Supabase clients
 export function createClient() {
-  if (!supabaseUrl || !supabaseKey) {
-    throw new Error(
-      "Missing Supabase credentials. Please check your environment variables."
-    );
-  }
   return createSupabaseClient(supabaseUrl, supabaseKey);
 }
 
