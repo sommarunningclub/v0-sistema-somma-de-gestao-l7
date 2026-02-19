@@ -1,15 +1,38 @@
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error(
-    "Missing Supabase credentials. Please check your environment variables."
-  );
+// Create a singleton Supabase client
+let supabaseInstance: ReturnType<typeof createSupabaseClient> | null = null;
+
+function getSupabaseInstance() {
+  if (!supabaseUrl || !supabaseKey) {
+    console.error('[v0] Supabase credentials missing:', { 
+      hasUrl: !!supabaseUrl, 
+      hasKey: !!supabaseKey,
+      url: supabaseUrl?.substring(0, 20) + '...'
+    });
+    throw new Error(
+      "Missing Supabase credentials. Please check your environment variables."
+    );
+  }
+
+  if (!supabaseInstance) {
+    supabaseInstance = createSupabaseClient(supabaseUrl, supabaseKey);
+  }
+
+  return supabaseInstance;
 }
 
-export const supabase = createSupabaseClient(supabaseUrl, supabaseKey);
+// Export the client - will throw error only when actually used
+export const supabase = new Proxy({} as ReturnType<typeof createSupabaseClient>, {
+  get(_target, prop) {
+    const instance = getSupabaseInstance();
+    const value = instance[prop as keyof typeof instance];
+    return typeof value === 'function' ? value.bind(instance) : value;
+  }
+});
 
 // Export a function to create new Supabase clients
 export function createClient() {
