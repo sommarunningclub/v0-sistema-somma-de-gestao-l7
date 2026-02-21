@@ -33,6 +33,8 @@ import {
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import type { CustomerCreatePayload } from "@/lib/types/asaas"
+import { CustomerFilters, type AdvancedFilters } from "@/components/customer-filters"
+import { CustomerStats } from "@/components/customer-stats"
 
 type FilterType = "all" | "active" | "pf" | "pj" | "archived"
 
@@ -125,6 +127,17 @@ export default function ClientesAsaas() {
   const [deletingCustomer, setDeletingCustomer] = useState<AsaasCustomerAPI | null>(null)
   const [processingDelete, setProcessingDelete] = useState(false)
   const [loadingCep, setLoadingCep] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [lastSyncDate, setLastSyncDate] = useState<string>()
+  const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilters>({
+    searchTerm: "",
+    status: "all",
+    personType: "all",
+    dateFrom: "",
+    dateTo: "",
+    sortBy: "name",
+    sortOrder: "asc",
+  })
   const { toast } = useToast()
 
   const fetchCustomers = async () => {
@@ -148,6 +161,60 @@ export default function ClientesAsaas() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const syncCustomers = async () => {
+    setSyncing(true)
+    try {
+      const response = await fetch("/api/customers-sync", {
+        method: "POST",
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        toast({
+          title: "Erro na sincronização",
+          description: error.error || "Erro ao sincronizar clientes",
+          variant: "destructive",
+        })
+        return
+      }
+
+      const data = await response.json()
+      setLastSyncDate(new Date().toISOString())
+      toast({
+        title: "Sincronização concluída",
+        description: `${data.syncLog.synced_customers} cliente(s) sincronizado(s)`,
+      })
+      fetchCustomers()
+    } catch (err) {
+      console.error("[v0] Sync error:", err)
+      toast({
+        title: "Erro na sincronização",
+        description: "Erro ao sincronizar com o Asaas",
+        variant: "destructive",
+      })
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  const handleAdvancedFiltersChange = (filters: AdvancedFilters) => {
+    setAdvancedFilters(filters)
+    setSearchTerm(filters.searchTerm)
+  }
+
+  const resetAdvancedFilters = () => {
+    setAdvancedFilters({
+      searchTerm: "",
+      status: "all",
+      personType: "all",
+      dateFrom: "",
+      dateTo: "",
+      sortBy: "name",
+      sortOrder: "asc",
+    })
+    setSearchTerm("")
   }
 
   const handleCepChange = async (cep: string) => {
@@ -879,6 +946,41 @@ export default function ClientesAsaas() {
             </Button>
           </div>
         </div>
+      </div>
+
+      {/* Estatísticas dos Clientes */}
+      <div className="flex-shrink-0 px-3 md:px-6 py-4">
+        <CustomerStats
+          stats={{
+            totalCustomers: customers.length,
+            activeCustomers: customers.filter((c) => !c.deleted).length,
+            inactiveCustomers: customers.filter((c) => c.deleted).length,
+            lastSyncDate,
+            isLoading: syncing,
+          }}
+        />
+      </div>
+
+      {/* Filtros Avançados */}
+      <div className="flex-shrink-0 px-3 md:px-6 py-4">
+        <div className="flex items-center gap-2 mb-4">
+          <Button
+            onClick={syncCustomers}
+            disabled={syncing || loading}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+            size="sm"
+          >
+            <RefreshCw className={`w-4 h-4 mr-2 ${syncing ? "animate-spin" : ""}`} />
+            {syncing ? "Sincronizando..." : "Sincronizar com Asaas"}
+          </Button>
+        </div>
+        <CustomerFilters
+          filters={advancedFilters}
+          onFiltersChange={handleAdvancedFiltersChange}
+          onReset={resetAdvancedFilters}
+          totalResults={filteredCustomers.length}
+          isLoading={loading || syncing}
+        />
       </div>
 
       {/* Busca e Filtros */}
