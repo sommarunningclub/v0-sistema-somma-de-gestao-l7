@@ -1,35 +1,45 @@
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { createClient as createSupabaseClient, SupabaseClient } from "@supabase/supabase-js";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
-console.log('[v0] Supabase initialization check:', {
-  hasUrl: !!supabaseUrl,
-  hasKey: !!supabaseKey,
-  urlPrefix: supabaseUrl?.substring(0, 30) || 'MISSING',
-  keyPrefix: supabaseKey?.substring(0, 20) || 'MISSING'
-});
+// Singleton instance
+let supabaseInstance: SupabaseClient | null = null;
 
-if (!supabaseUrl || !supabaseKey) {
-  console.error('[v0] ERROR: Supabase credentials are missing!');
-  console.error('[v0] NEXT_PUBLIC_SUPABASE_URL:', process.env.NEXT_PUBLIC_SUPABASE_URL ? 'SET' : 'NOT SET');
-  console.error('[v0] NEXT_PUBLIC_SUPABASE_ANON_KEY:', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'SET' : 'NOT SET');
+// Initialize only once
+function initSupabase() {
+  if (supabaseInstance) {
+    return supabaseInstance;
+  }
+
+  console.log('[v0] Supabase initialization check:', {
+    hasUrl: !!supabaseUrl,
+    hasKey: !!supabaseKey,
+    urlPrefix: supabaseUrl?.substring(0, 30) || 'MISSING',
+    keyPrefix: supabaseKey?.substring(0, 20) || 'MISSING'
+  });
+
+  if (!supabaseUrl || !supabaseKey) {
+    console.error('[v0] ERROR: Supabase credentials are missing!');
+    console.error('[v0] NEXT_PUBLIC_SUPABASE_URL:', process.env.NEXT_PUBLIC_SUPABASE_URL ? 'SET' : 'NOT SET');
+    console.error('[v0] NEXT_PUBLIC_SUPABASE_ANON_KEY:', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'SET' : 'NOT SET');
+  }
+
+  // Create Supabase client singleton
+  supabaseInstance = createSupabaseClient(
+    supabaseUrl || 'https://placeholder.supabase.co',
+    supabaseKey || 'placeholder-key'
+  );
+
+  return supabaseInstance;
 }
 
-// Create Supabase client with empty strings if not available (will fail at runtime when used)
-export const supabase = createSupabaseClient(
-  supabaseUrl || 'https://placeholder.supabase.co',
-  supabaseKey || 'placeholder-key'
-);
+// Export the singleton instance
+export const supabase = initSupabase();
 
-// Export a function to create new Supabase clients
+// Export a function to get the Supabase client (always returns the same instance)
 export function createClient() {
-  if (!supabaseUrl || !supabaseKey) {
-    throw new Error(
-      "Missing Supabase credentials. Please check your environment variables."
-    );
-  }
-  return createSupabaseClient(supabaseUrl, supabaseKey);
+  return supabase;
 }
 
 export type CadastroSite = {

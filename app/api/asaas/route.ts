@@ -9,14 +9,14 @@ export const revalidate = 0
 // URL fixa: https://api.asaas.com/v3
 // NUNCA usar sandbox neste sistema
 // =====================================================
-const ASAAS_BASE_URL = https://api.asaas.com/v3
+const ASAAS_BASE_URL = 'https://api.asaas.com/v3'
 
 // Helper function to get fresh env vars on each request
 function getAsaasConfig() {
   return {
-    apiKey: process.env.ASAAS_API_KEY || $aact_prod_000MzkwODA2MWY2OGM3MWRlMDU2NWM3MzJlNzZmNGZhZGY6OjBhZWFlNDA0LTM2M2YtNDNkYi04MjM5LTA1NTk1NzRhNTllNjo6JGFhY2hfZGVhZmY0OTEtNjc3OC00MTQ0LTg5OTItOTliMDFmNzczMzEx,
-    walletId: process.env.ASAAS_WALLET_ID || ad3b1fb7 - eda4 - 48b0- abb1 - cd77a8ad3de6,
-    baseUrl: https://api.asaas.com/v3
+    apiKey: process.env.ASAAS_API_KEY || '',
+    walletId: process.env.ASAAS_WALLET_ID || '',
+    baseUrl: 'https://api.asaas.com/v3'
   }
 }
 
