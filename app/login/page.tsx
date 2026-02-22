@@ -61,7 +61,7 @@ export default function LoginPage() {
       {/* Desktop - Two Column */}
       <div className="hidden lg:grid lg:grid-cols-2 w-full">
         {/* Left Column - Login Form */}
-        <div className="flex flex-col justify-center items-center p-10" style={{ backgroundColor: '#fb4c00' }}>
+        <div className="flex flex-col justify-start items-center pt-12 p-10" style={{ backgroundColor: '#fb4c00' }}>
           <div className="w-full max-w-sm">
             <LoginForm />
           </div>

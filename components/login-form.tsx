@@ -91,63 +91,65 @@ export function LoginForm({
   return (
     <form 
       onSubmit={handleLogin}
-      className={`flex flex-col gap-4 w-full ${className || ''}`} 
+      className={`flex flex-col gap-4 w-full items-center justify-center ${className || ''}`} 
       {...props}
     >
-      <FieldGroup>
-        <div className="flex flex-col items-center gap-2 text-center mb-4">
-          <img 
-            src="https://cdn.shopify.com/s/files/1/0788/1932/8253/files/Nova_Logo_Somma_Club.svg?v=1771801981" 
-            alt="Somma Logo" 
-            className="h-60 sm:h-72 w-auto"
-          />
-          <p className="text-xs sm:text-sm text-white">
-            SSG - Sistema Somma de Gestão
-          </p>
-        </div>
-
-        {error && (
-          <div className="p-2 bg-red-500/20 border border-red-500/30 rounded text-red-400 text-xs sm:text-sm">
-            {error}
+      <div className="w-full max-w-sm flex flex-col gap-4">
+        <FieldGroup>
+          <div className="flex flex-col items-center gap-2 text-center mb-2">
+            <img 
+              src="https://cdn.shopify.com/s/files/1/0788/1932/8253/files/Nova_Logo_Somma_Club.svg?v=1771801981" 
+              alt="Somma Logo" 
+              className="h-60 sm:h-72 w-auto"
+            />
+            <p className="text-xs sm:text-sm text-white">
+              SSG - Sistema Somma de Gestão
+            </p>
           </div>
-        )}
 
-        <Field>
-          <FieldLabel htmlFor="email" className="text-white text-xs sm:text-sm">Email</FieldLabel>
-          <Input 
-            id="email" 
-            type="email" 
-            placeholder="seu@email.com" 
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
+          {error && (
+            <div className="p-2 bg-red-500/20 border border-red-500/30 rounded text-red-400 text-xs sm:text-sm">
+              {error}
+            </div>
+          )}
+
+          <Field>
+            <FieldLabel htmlFor="email" className="text-white text-xs sm:text-sm">Email</FieldLabel>
+            <Input 
+              id="email" 
+              type="email" 
+              placeholder="seu@email.com" 
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              disabled={loading}
+              className="bg-neutral-800 border-neutral-700 text-white placeholder-neutral-500 text-xs sm:text-sm py-2"
+            />
+          </Field>
+
+          <Field>
+            <FieldLabel htmlFor="password" className="text-white text-xs sm:text-sm">Senha</FieldLabel>
+            <Input 
+              id="password" 
+              type="password"
+              placeholder="Sua senha"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              disabled={loading}
+              className="bg-neutral-800 border-neutral-700 text-white placeholder-neutral-500 text-xs sm:text-sm py-2"
+            />
+          </Field>
+
+          <Button 
+            type="submit"
             disabled={loading}
-            className="bg-neutral-800 border-neutral-700 text-white placeholder-neutral-500 text-xs sm:text-sm py-2"
-          />
-        </Field>
-
-        <Field>
-          <FieldLabel htmlFor="password" className="text-white text-xs sm:text-sm">Senha</FieldLabel>
-          <Input 
-            id="password" 
-            type="password"
-            placeholder="Sua senha"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            disabled={loading}
-            className="bg-neutral-800 border-neutral-700 text-white placeholder-neutral-500 text-xs sm:text-sm py-2"
-          />
-        </Field>
-
-        <Button 
-          type="submit"
-          disabled={loading}
-          className="bg-black hover:bg-neutral-900 text-white font-bold tracking-wider mt-2 text-xs sm:text-sm py-2"
-        >
-          {loading ? 'Entrando...' : 'ACESSAR SISTEMA'}
-        </Button>
-      </FieldGroup>
+            className="bg-black hover:bg-neutral-900 text-white font-bold tracking-wider mt-2 text-xs sm:text-sm py-2"
+          >
+            {loading ? 'Entrando...' : 'ACESSAR SISTEMA'}
+          </Button>
+        </FieldGroup>
+      </div>
     </form>
   )
 }
