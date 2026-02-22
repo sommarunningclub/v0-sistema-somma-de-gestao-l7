@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { ChevronRight, ChevronDown, Monitor, Settings, Shield, Target, Users, Bell, RefreshCw, CreditCard, LogOut, CheckSquare, Briefcase, LayoutDashboard, Receipt, Ticket, Zap } from "lucide-react"
+import { ChevronRight, ChevronDown, Monitor, Settings, Shield, Target, Users, Bell, RefreshCw, CreditCard, LogOut, CheckSquare, Briefcase, LayoutDashboard, Receipt, Ticket, Zap, ChevronLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { UserProfile } from "@/components/user-profile"
 import ProtectedRouteComponent from "@/components/protected-route"
@@ -18,6 +18,7 @@ import OperationsPage from "./operations/page"
 export default function TacticalDashboard() {
   const [activeSection, setActiveSection] = useState("overview")
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [pagamentosOpen, setPagamentosOpen] = useState(false)
   const [pagamentosTab, setPagamentosTab] = useState("dashboard")
@@ -38,6 +39,14 @@ export default function TacticalDashboard() {
       setPermissions(permObj)
     }
     loadPermissions()
+    
+    // Carregar preferência de sidebar colapsado
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('somma_sidebar_collapsed')
+      if (saved === 'true') {
+        setSidebarCollapsed(true)
+      }
+    }
   }, [])
 
   const pagamentosSubItems = [
@@ -61,6 +70,14 @@ export default function TacticalDashboard() {
     logout()
   }
 
+  const toggleSidebarCollapse = () => {
+    const newState = !sidebarCollapsed
+    setSidebarCollapsed(newState)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('somma_sidebar_collapsed', String(newState))
+    }
+  }
+
   // Valida se pode navegar para secao
   const canAccessSection = (sectionId: string): boolean => {
     if (sectionId === "overview") return true // Dashboard sempre disponivel
@@ -72,26 +89,38 @@ export default function TacticalDashboard() {
   return (
     <ProtectedRouteComponent>
       <div className="flex h-screen w-screen overflow-hidden bg-black">
-        {/* Mobile Sidebar - Optimized for touch */}
+        {/* Desktop/Mobile Sidebar */}
         <aside
           className={`${
             sidebarOpen ? "translate-x-0" : "-translate-x-full"
-          } md:translate-x-0 w-64 md:w-auto bg-neutral-900 border-r border-neutral-700 transition-transform duration-300 fixed md:relative z-40 h-screen overflow-y-auto flex flex-col`}
+          } md:translate-x-0 ${
+            sidebarCollapsed ? "md:w-20" : "md:w-64"
+          } w-64 bg-neutral-900 border-r border-neutral-700 transition-all duration-300 fixed md:relative z-40 h-screen overflow-y-auto flex flex-col`}
         >
           <div className="p-4 flex-1 flex flex-col min-h-screen md:min-h-auto">
             {/* Header */}
             <div className="flex items-center justify-between mb-8">
-              <div>
+              <div className={sidebarCollapsed ? "hidden" : ""}>
                 <h1 className="text-orange-500 font-bold text-lg tracking-wider">SOMMA</h1>
                 <p className="text-neutral-500 text-xs">v2.1.7</p>
               </div>
-              <button
-                onClick={() => setSidebarOpen(false)}
-                className="md:hidden p-1 text-neutral-400 hover:text-orange-500 transition-colors active:scale-95"
-                aria-label="Close menu"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={toggleSidebarCollapse}
+                  className="hidden md:flex p-1 text-neutral-400 hover:text-orange-500 transition-colors active:scale-95"
+                  aria-label="Toggle sidebar"
+                  title={sidebarCollapsed ? "Expandir menu" : "Recolher menu"}
+                >
+                  {sidebarCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+                </button>
+                <button
+                  onClick={() => setSidebarOpen(false)}
+                  className="md:hidden p-1 text-neutral-400 hover:text-orange-500 transition-colors active:scale-95"
+                  aria-label="Close menu"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             {/* Navigation - Touch optimized */}
@@ -122,10 +151,10 @@ export default function TacticalDashboard() {
                         ? "bg-orange-500 text-white shadow-lg shadow-orange-500/20"
                         : "text-neutral-400 hover:text-white hover:bg-neutral-800"
                     }`}
-                    title={!hasAccess ? "Acesso negado" : ""}
+                    title={sidebarCollapsed ? item.label : !hasAccess ? "Acesso negado" : ""}
                   >
                     <item.icon className="w-5 h-5 flex-shrink-0" />
-                    <span className="text-sm font-medium truncate">{item.label}</span>
+                    <span className={`text-sm font-medium truncate ${sidebarCollapsed ? "hidden md:hidden" : ""}`}>{item.label}</span>
                   </button>
                 )
               })}
@@ -145,14 +174,15 @@ export default function TacticalDashboard() {
                         ? "bg-orange-500 text-white shadow-lg shadow-orange-500/20"
                         : "text-neutral-400 hover:text-white hover:bg-neutral-800"
                     }`}
+                    title={sidebarCollapsed ? "ASSESSORIA SOMMA" : ""}
                   >
                     <CreditCard className="w-5 h-5 flex-shrink-0" />
-                    <span className="text-sm font-medium truncate flex-1 text-left">ASSESSORIA SOMMA</span>
-                    <ChevronDown className={`w-4 h-4 transition-transform ${pagamentosOpen ? "rotate-180" : ""}`} />
+                    <span className={`text-sm font-medium truncate flex-1 text-left ${sidebarCollapsed ? "hidden md:hidden" : ""}`}>ASSESSORIA SOMMA</span>
+                    <ChevronDown className={`w-4 h-4 transition-transform ${pagamentosOpen ? "rotate-180" : ""} ${sidebarCollapsed ? "hidden md:hidden" : ""}`} />
                   </button>
 
                   {/* Submenu Dropdown */}
-                  {pagamentosOpen && (
+                  {pagamentosOpen && !sidebarCollapsed && (
                     <div className="ml-4 mt-1 space-y-1 border-l border-neutral-700 pl-3">
                       {pagamentosSubItems.map((subItem) => (
                         <button
@@ -190,15 +220,16 @@ export default function TacticalDashboard() {
                       ? "bg-orange-500 text-white shadow-lg shadow-orange-500/20"
                       : "text-neutral-400 hover:text-white hover:bg-neutral-800"
                   }`}
+                  title={sidebarCollapsed ? "ADMIN" : ""}
                 >
                   <Settings className="w-5 h-5 flex-shrink-0" />
-                  <span className="text-sm font-medium truncate">ADMIN</span>
+                  <span className={`text-sm font-medium truncate ${sidebarCollapsed ? "hidden md:hidden" : ""}`}>ADMIN</span>
                 </button>
               )}
             </nav>
 
             {/* System Status */}
-            <div className="mt-auto pt-4 space-y-4">
+            <div className={`mt-auto pt-4 space-y-4 ${sidebarCollapsed ? "hidden md:hidden" : ""}`}>
               <div className="p-4 bg-neutral-800 border border-neutral-700 rounded-lg">
                 <div className="flex items-center gap-2 mb-2">
                   <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
