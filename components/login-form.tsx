@@ -101,7 +101,7 @@ export function LoginForm({
             alt="Somma Logo" 
             className="h-20 sm:h-24 w-auto"
           />
-          <p className="text-xs sm:text-sm text-neutral-400">
+          <p className="text-xs sm:text-sm text-white">
             SSG - Sistema Somma de Gestão
           </p>
         </div>
