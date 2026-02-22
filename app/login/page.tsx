@@ -10,10 +10,20 @@ export default function LoginPage() {
 
   useEffect(() => {
     const checkAuth = () => {
-      // Verificar sessao no localStorage
-      const session = localStorage.getItem('somma_session')
-      if (session) {
-        router.push('/')
+      // Verificar se estamos no cliente
+      if (typeof window === 'undefined') {
+        setLoading(false)
+        return
+      }
+
+      try {
+        // Verificar sessao no localStorage
+        const session = localStorage.getItem('somma_session')
+        if (session) {
+          router.push('/')
+        }
+      } catch (err) {
+        console.error('[v0] Error checking auth:', err)
       }
       setLoading(false)
     }
