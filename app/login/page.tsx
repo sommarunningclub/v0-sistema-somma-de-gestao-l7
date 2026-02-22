@@ -22,7 +22,7 @@ export default function LoginPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen w-screen bg-black">
+      <div className="flex items-center justify-center h-screen w-screen" style={{ backgroundColor: '#fb4c00' }}>
         <div className="text-center">
           <h1 className="text-2xl font-bold text-white tracking-wider mb-4">SOMMA</h1>
           <p className="text-neutral-400 text-sm">Carregando...</p>
@@ -32,7 +32,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex h-screen w-screen bg-black overflow-hidden">
+    <div className="flex h-screen w-screen overflow-hidden" style={{ backgroundColor: '#fb4c00' }}>
       {/* Mobile/Tablet - Full Screen */}
       <div className="flex-1 lg:hidden flex flex-col justify-between p-4 sm:p-6">
         {/* Top Spacer */}
@@ -51,7 +51,7 @@ export default function LoginPage() {
       {/* Desktop - Two Column */}
       <div className="hidden lg:grid lg:grid-cols-2 w-full">
         {/* Left Column - Login Form */}
-        <div className="flex flex-col justify-center items-center p-10 bg-black">
+        <div className="flex flex-col justify-center items-center p-10" style={{ backgroundColor: '#fb4c00' }}>
           <div className="w-full max-w-sm">
             <LoginForm />
           </div>
