@@ -143,7 +143,7 @@ export function LoginForm({
         <Button 
           type="submit"
           disabled={loading}
-          className="bg-orange-500 hover:bg-orange-600 text-white font-bold tracking-wider mt-2 text-xs sm:text-sm py-2"
+          className="bg-black hover:bg-neutral-900 text-white font-bold tracking-wider mt-2 text-xs sm:text-sm py-2"
         >
           {loading ? 'Entrando...' : 'ACESSAR SISTEMA'}
         </Button>
