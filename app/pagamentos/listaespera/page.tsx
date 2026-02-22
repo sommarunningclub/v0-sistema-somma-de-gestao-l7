@@ -234,6 +234,8 @@ export default function ListaEsperaPage() {
     feminino: entries.filter(e => e.sexo === 'feminino').length,
   }
 
+  console.log('[v0] Stats calculated:', stats)
+
   const formatDate = (dateString: string) => {
     try {
       return new Date(dateString).toLocaleDateString('pt-BR', {
@@ -302,7 +304,7 @@ export default function ListaEsperaPage() {
                   <p className="text-neutral-400 text-sm">Masculino</p>
                   <p className="text-3xl font-bold text-white mt-2">{stats.masculino}</p>
                 </div>
-                <Badge className="bg-blue-500">{((stats.masculino / stats.total) * 100).toFixed(0)}%</Badge>
+                <Badge className="bg-blue-500">{stats.total > 0 ? ((stats.masculino / stats.total) * 100).toFixed(0) : 0}%</Badge>
               </div>
             </CardContent>
           </Card>
@@ -314,7 +316,7 @@ export default function ListaEsperaPage() {
                   <p className="text-neutral-400 text-sm">Feminino</p>
                   <p className="text-3xl font-bold text-white mt-2">{stats.feminino}</p>
                 </div>
-                <Badge className="bg-pink-500">{((stats.feminino / stats.total) * 100).toFixed(0)}%</Badge>
+                <Badge className="bg-pink-500">{stats.total > 0 ? ((stats.feminino / stats.total) * 100).toFixed(0) : 0}%</Badge>
               </div>
             </CardContent>
           </Card>

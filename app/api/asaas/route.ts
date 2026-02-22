@@ -1,13 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+// Force dynamic rendering to always read fresh environment variables
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 // =====================================================
 // API Asaas - AMBIENTE DE PRODUÇÃO
 // URL fixa: https://api.asaas.com/v3
 // NUNCA usar sandbox neste sistema
 // =====================================================
 const ASAAS_BASE_URL = 'https://api.asaas.com/v3'
-const ASAAS_API_KEY = process.env.ASAAS_API_KEY || ''
-const ASAAS_WALLET_ID = process.env.ASAAS_WALLET_ID || ''
+
+// Helper function to get fresh env vars on each request
+function getAsaasConfig() {
+  return {
+    apiKey: process.env.ASAAS_API_KEY || '',
+    walletId: process.env.ASAAS_WALLET_ID || '',
+    baseUrl: 'https://api.asaas.com/v3'
+  }
+}
 
 async function asaasRequest(
   method: string,
@@ -15,19 +26,28 @@ async function asaasRequest(
   body?: Record<string, unknown>,
   params?: Record<string, string>
 ) {
+  const config = getAsaasConfig()
+
+  if (!config.apiKey) {
+    console.error('[v0] ASAAS_API_KEY not available in request')
+    throw new Error('ASAAS_API_KEY not configured')
+  }
+
   // Garantir que o path comece com / e não tenha duplicação
   const cleanPath = path.startsWith('/') ? path : `/${path}`
-  const url = new URL(`${ASAAS_BASE_URL}${cleanPath}`)
+  const url = new URL(`${config.baseUrl}${cleanPath}`)
   if (params) {
     Object.entries(params).forEach(([key, value]) => {
       url.searchParams.append(key, value)
     })
   }
 
+  console.log('[v0] Making Asaas request:', method, cleanPath, 'API Key length:', config.apiKey.length)
+
   const response = await fetch(url.toString(), {
     method,
     headers: {
-      'access_token': ASAAS_API_KEY,
+      'access_token': config.apiKey,
       'Content-Type': 'application/json',
       'Accept': 'application/json',
     },
@@ -35,7 +55,7 @@ async function asaasRequest(
   })
 
   const data = await response.json().catch(() => null)
-  
+
   return {
     ok: response.ok,
     status: response.status,
@@ -46,12 +66,16 @@ async function asaasRequest(
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const endpoint = searchParams.get('endpoint')
-  
+  const config = getAsaasConfig()
+
+  console.log('[v0] GET /api/asaas called, endpoint:', endpoint, 'ASAAS_API_KEY available:', !!config.apiKey, 'Length:', config.apiKey.length)
+
   if (!endpoint) {
     return NextResponse.json({ error: 'Endpoint required' }, { status: 400 })
   }
 
-  if (!ASAAS_API_KEY) {
+  if (!config.apiKey) {
+    console.error('[v0] ASAAS_API_KEY is not configured! Current value:', config.apiKey)
     return NextResponse.json({ error: 'ASAAS_API_KEY not configured' }, { status: 500 })
   }
 
@@ -64,7 +88,7 @@ export async function GET(request: NextRequest) {
   })
 
   const result = await asaasRequest('GET', endpoint, undefined, Object.keys(params).length > 0 ? params : undefined)
-  
+
   if (!result.ok) {
     return NextResponse.json({ error: result.data }, { status: result.status })
   }
@@ -75,19 +99,23 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const endpoint = searchParams.get('endpoint')
-  
+  const config = getAsaasConfig()
+
+  console.log('[v0] POST /api/asaas called, endpoint:', endpoint, 'ASAAS_API_KEY available:', !!config.apiKey, 'Length:', config.apiKey.length)
+
   if (!endpoint) {
     return NextResponse.json({ error: 'Endpoint required' }, { status: 400 })
   }
 
-  if (!ASAAS_API_KEY) {
+  if (!config.apiKey) {
+    console.error('[v0] ASAAS_API_KEY is not configured!')
     return NextResponse.json({ error: 'ASAAS_API_KEY not configured' }, { status: 500 })
   }
 
   const body = await request.json().catch(() => ({}))
-  
+
   const result = await asaasRequest('POST', endpoint, body)
-  
+
   if (!result.ok) {
     return NextResponse.json({ error: result.data }, { status: result.status })
   }
@@ -98,17 +126,21 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const endpoint = searchParams.get('endpoint')
-  
+  const config = getAsaasConfig()
+
+  console.log('[v0] DELETE /api/asaas called, endpoint:', endpoint, 'ASAAS_API_KEY available:', !!config.apiKey, 'Length:', config.apiKey.length)
+
   if (!endpoint) {
     return NextResponse.json({ error: 'Endpoint required' }, { status: 400 })
   }
 
-  if (!ASAAS_API_KEY) {
+  if (!config.apiKey) {
+    console.error('[v0] ASAAS_API_KEY is not configured!')
     return NextResponse.json({ error: 'ASAAS_API_KEY not configured' }, { status: 500 })
   }
 
   const result = await asaasRequest('DELETE', endpoint)
-  
+
   if (!result.ok) {
     return NextResponse.json({ error: result.data }, { status: result.status })
   }

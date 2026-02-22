@@ -97,11 +97,11 @@ export function LoginForm({
       <FieldGroup>
         <div className="flex flex-col items-center gap-2 text-center mb-4">
           <img 
-            src="https://cdn.shopify.com/s/files/1/0788/1932/8253/files/Logo_loja_Somma_Branca.png?v=1762905637" 
+            src="https://cdn.shopify.com/s/files/1/0788/1932/8253/files/Design_sem_nome.svg?v=1771767783" 
             alt="Somma Logo" 
-            className="h-20 sm:h-24 w-auto"
+            className="h-60 sm:h-72 w-auto"
           />
-          <p className="text-xs sm:text-sm text-neutral-400">
+          <p className="text-xs sm:text-sm text-white">
             SSG - Sistema Somma de Gestão
           </p>
         </div>
@@ -143,7 +143,7 @@ export function LoginForm({
         <Button 
           type="submit"
           disabled={loading}
-          className="bg-orange-500 hover:bg-orange-600 text-white font-bold tracking-wider mt-2 text-xs sm:text-sm py-2"
+          className="bg-black hover:bg-neutral-900 text-white font-bold tracking-wider mt-2 text-xs sm:text-sm py-2"
         >
           {loading ? 'Entrando...' : 'ACESSAR SISTEMA'}
         </Button>
