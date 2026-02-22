@@ -99,7 +99,7 @@ export function LoginForm({
           <img 
             src="https://cdn.shopify.com/s/files/1/0788/1932/8253/files/Design_sem_nome.svg?v=1771767783" 
             alt="Somma Logo" 
-            className="h-20 sm:h-24 w-auto"
+            className="h-60 sm:h-72 w-auto"
           />
           <p className="text-xs sm:text-sm text-white">
             SSG - Sistema Somma de Gestão
