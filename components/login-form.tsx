@@ -97,7 +97,7 @@ export function LoginForm({
       <FieldGroup>
         <div className="flex flex-col items-center gap-2 text-center mb-4">
           <img 
-            src="https://cdn.shopify.com/s/files/1/0788/1932/8253/files/Design_sem_nome.svg?v=1771767783" 
+            src="https://cdn.shopify.com/s/files/1/0788/1932/8253/files/Nova_Logo_Somma_Club.svg?v=1771801981" 
             alt="Somma Logo" 
             className="h-60 sm:h-72 w-auto"
           />
