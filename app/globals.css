@@ -6,6 +6,14 @@
   .text-balance {
     text-wrap: balance;
   }
+  
+  .pb-safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 1rem);
+  }
+  
+  .pt-safe-top {
+    padding-top: env(safe-area-inset-top, 0);
+  }
 }
 
 /* Mobile optimizations */

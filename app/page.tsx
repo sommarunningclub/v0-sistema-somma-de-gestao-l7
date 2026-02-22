@@ -76,11 +76,11 @@ export default function TacticalDashboard() {
         <aside
           className={`${
             sidebarOpen ? "translate-x-0" : "-translate-x-full"
-          } md:translate-x-0 w-64 md:w-auto bg-neutral-900 border-r border-neutral-700 transition-transform duration-300 fixed md:relative z-40 h-screen overflow-y-auto flex flex-col`}
+          } md:translate-x-0 w-64 md:w-64 lg:w-72 bg-neutral-900 border-r border-neutral-700 transition-transform duration-300 fixed md:relative z-40 h-screen overflow-y-auto flex flex-col`}
         >
-          <div className="p-4 flex-1 flex flex-col min-h-screen md:min-h-auto">
+          <div className="p-3 sm:p-4 lg:p-5 flex-1 flex flex-col min-h-screen md:min-h-auto">
             {/* Header */}
-            <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center justify-between mb-6 sm:mb-8">
               <div>
                 <h1 className="text-orange-500 font-bold text-lg tracking-wider">SOMMA</h1>
                 <p className="text-neutral-500 text-xs">v2.1.7</p>
@@ -115,7 +115,7 @@ export default function TacticalDashboard() {
                       }
                     }}
                     disabled={!hasAccess}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all active:scale-95 md:active:scale-100 ${
+                    className={`w-full flex items-center gap-2 sm:gap-3 px-3 py-2.5 sm:px-4 sm:py-3 rounded-lg transition-all active:scale-95 md:active:scale-100 ${
                       !hasAccess
                         ? "opacity-40 cursor-not-allowed text-neutral-600"
                         : activeSection === item.id
@@ -140,7 +140,7 @@ export default function TacticalDashboard() {
                         setActiveSection("pagamentos")
                       }
                     }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all active:scale-95 md:active:scale-100 ${
+                    className={`w-full flex items-center gap-2 sm:gap-3 px-3 py-2.5 sm:px-4 sm:py-3 rounded-lg transition-all active:scale-95 md:active:scale-100 ${
                       activeSection === "pagamentos"
                         ? "bg-orange-500 text-white shadow-lg shadow-orange-500/20"
                         : "text-neutral-400 hover:text-white hover:bg-neutral-800"
@@ -153,7 +153,7 @@ export default function TacticalDashboard() {
 
                   {/* Submenu Dropdown */}
                   {pagamentosOpen && (
-                    <div className="ml-4 mt-1 space-y-1 border-l border-neutral-700 pl-3">
+                    <div className="ml-3 sm:ml-4 mt-1 space-y-1 border-l border-neutral-700 pl-2 sm:pl-3">
                       {pagamentosSubItems.map((subItem) => (
                         <button
                           key={subItem.id}
@@ -162,7 +162,7 @@ export default function TacticalDashboard() {
                             setPagamentosTab(subItem.id)
                             setSidebarOpen(false)
                           }}
-                          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-sm ${
+                          className={`w-full flex items-center gap-2 sm:gap-3 px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg transition-all text-xs sm:text-sm ${
                             activeSection === "pagamentos" && pagamentosTab === subItem.id
                               ? "bg-orange-500/20 text-orange-500"
                               : "text-neutral-400 hover:text-white hover:bg-neutral-800"
@@ -185,7 +185,7 @@ export default function TacticalDashboard() {
                     setPagamentosOpen(false)
                     setSidebarOpen(false)
                   }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all active:scale-95 md:active:scale-100 ${
+                  className={`w-full flex items-center gap-2 sm:gap-3 px-3 py-2.5 sm:px-4 sm:py-3 rounded-lg transition-all active:scale-95 md:active:scale-100 ${
                     activeSection === "systems"
                       ? "bg-orange-500 text-white shadow-lg shadow-orange-500/20"
                       : "text-neutral-400 hover:text-white hover:bg-neutral-800"
@@ -198,8 +198,8 @@ export default function TacticalDashboard() {
             </nav>
 
             {/* System Status */}
-            <div className="mt-auto pt-4 space-y-4">
-              <div className="p-4 bg-neutral-800 border border-neutral-700 rounded-lg">
+            <div className="mt-auto pt-3 sm:pt-4 space-y-3 sm:space-y-4">
+              <div className="p-3 sm:p-4 bg-neutral-800 border border-neutral-700 rounded-lg">
                 <div className="flex items-center gap-2 mb-2">
                   <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                   <span className="text-xs text-white font-bold tracking-wider">ONLINE</span>
@@ -270,7 +270,7 @@ export default function TacticalDashboard() {
           </header>
 
           {/* Content Area - Safe area for notch */}
-          <div className="flex-1 overflow-auto bg-black pb-20 md:pb-0">
+          <div className="flex-1 overflow-auto bg-black pb-safe-bottom md:pb-0">
             {activeSection === "overview" && <CommandCenterPage />}
             {activeSection === "checkin" && permissions.checkin && <CheckInPage />}
             {activeSection === "agents" && permissions.membros && <AgentNetworkPage />}

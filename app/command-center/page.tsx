@@ -168,33 +168,33 @@ export default function CommandCenterPage() {
         </div>
 
         {/* Main Metrics Grid - Mobile Optimized */}
-        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
           {/* Total Clientes */}
           <Card className="bg-neutral-900 border-neutral-700 hover:border-orange-500/50 transition-colors">
-            <CardContent className="p-2 sm:p-3 md:p-4">
-              <div className="flex flex-col gap-1">
-                <p className="text-xs text-neutral-400 tracking-wider">CLIENTES</p>
-                <p className="text-base sm:text-lg md:text-2xl font-bold text-white font-mono">{metrics.totalCustomers}</p>
+            <CardContent className="p-3 sm:p-4 md:p-5">
+              <div className="flex flex-col gap-1 sm:gap-1.5">
+                <p className="text-[10px] sm:text-xs text-neutral-400 tracking-wider truncate">CLIENTES</p>
+                <p className="text-lg sm:text-xl md:text-2xl font-bold text-white font-mono">{metrics.totalCustomers}</p>
               </div>
             </CardContent>
           </Card>
 
           {/* Assinaturas Ativas */}
           <Card className="bg-neutral-900 border-neutral-700 hover:border-orange-500/50 transition-colors">
-            <CardContent className="p-2 sm:p-3 md:p-4">
-              <div className="flex flex-col gap-1">
-                <p className="text-xs text-neutral-400 tracking-wider">ASSINATURA</p>
-                <p className="text-base sm:text-lg md:text-2xl font-bold text-white font-mono">{metrics.activeSubscriptions}</p>
+            <CardContent className="p-3 sm:p-4 md:p-5">
+              <div className="flex flex-col gap-1 sm:gap-1.5">
+                <p className="text-[10px] sm:text-xs text-neutral-400 tracking-wider truncate">ASSINATURA</p>
+                <p className="text-lg sm:text-xl md:text-2xl font-bold text-white font-mono">{metrics.activeSubscriptions}</p>
               </div>
             </CardContent>
           </Card>
 
           {/* Receita Mensal */}
           <Card className="bg-neutral-900 border-neutral-700 hover:border-orange-500/50 transition-colors">
-            <CardContent className="p-2 sm:p-3 md:p-4">
-              <div className="flex flex-col gap-1">
-                <p className="text-xs text-neutral-400 tracking-wider">RECEITA</p>
-                <p className="text-base sm:text-lg md:text-2xl font-bold text-white font-mono truncate">
+            <CardContent className="p-3 sm:p-4 md:p-5">
+              <div className="flex flex-col gap-1 sm:gap-1.5">
+                <p className="text-[10px] sm:text-xs text-neutral-400 tracking-wider truncate">RECEITA</p>
+                <p className="text-lg sm:text-xl md:text-2xl font-bold text-white font-mono truncate">
                   R$ {(metrics.totalRevenue / 1000).toFixed(1)}K
                 </p>
               </div>
@@ -202,28 +202,28 @@ export default function CommandCenterPage() {
           </Card>
 
           {/* Professores Ativos */}
-          <Card className="bg-neutral-900 border-neutral-700 hover:border-orange-500/50 transition-colors hidden sm:block md:block">
-            <CardContent className="p-2 sm:p-3 md:p-4">
-              <div className="flex flex-col gap-1">
-                <p className="text-xs text-neutral-400 tracking-wider">PROF.</p>
-                <p className="text-base sm:text-lg md:text-2xl font-bold text-white font-mono">{metrics.totalProfessors}</p>
+          <Card className="bg-neutral-900 border-neutral-700 hover:border-orange-500/50 transition-colors">
+            <CardContent className="p-3 sm:p-4 md:p-5">
+              <div className="flex flex-col gap-1 sm:gap-1.5">
+                <p className="text-[10px] sm:text-xs text-neutral-400 tracking-wider truncate">PROF.</p>
+                <p className="text-lg sm:text-xl md:text-2xl font-bold text-white font-mono">{metrics.totalProfessors}</p>
               </div>
             </CardContent>
           </Card>
         </div>
 
         {/* Secondary Metrics - Stacked on mobile */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 sm:gap-3 md:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 sm:gap-3 md:gap-4">
           {/* Cobranças Pendentes */}
           <Card className="bg-neutral-900 border-neutral-700 hover:border-orange-500/50 transition-colors">
-            <CardContent className="p-2 sm:p-3 md:p-4">
-              <div className="flex items-center justify-between gap-2 mb-1">
-                <div>
-                  <p className="text-xs text-neutral-400 tracking-wider">PENDENTES</p>
-                  <p className="text-base sm:text-lg md:text-xl font-bold text-white font-mono">{metrics.pendingPayments}</p>
+            <CardContent className="p-3 sm:p-4 md:p-5">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <div className="min-w-0">
+                  <p className="text-[10px] sm:text-xs text-neutral-400 tracking-wider truncate">PENDENTES</p>
+                  <p className="text-lg sm:text-xl md:text-2xl font-bold text-white font-mono">{metrics.pendingPayments}</p>
                 </div>
               </div>
-              <div className="flex items-center justify-between text-xs">
+              <div className="flex items-center justify-between text-[10px] sm:text-xs">
                 <span className="text-neutral-400">R$:</span>
                 <span className="font-bold text-white font-mono">{metrics.pendingPaymentsValue.toFixed(0)}</span>
               </div>
@@ -232,14 +232,14 @@ export default function CommandCenterPage() {
 
           {/* Pagamentos Vencidos */}
           <Card className="bg-neutral-900 border-neutral-700 hover:border-orange-500/50 transition-colors">
-            <CardContent className="p-2 sm:p-3 md:p-4">
-              <div className="flex items-center justify-between mb-1">
-                <div>
-                  <p className="text-xs text-neutral-400 tracking-wider">VENCIDOS</p>
-                  <p className="text-base sm:text-lg md:text-xl font-bold text-white font-mono">{metrics.overduePayments}</p>
+            <CardContent className="p-3 sm:p-4 md:p-5">
+              <div className="flex items-center justify-between mb-2">
+                <div className="min-w-0">
+                  <p className="text-[10px] sm:text-xs text-neutral-400 tracking-wider truncate">VENCIDOS</p>
+                  <p className="text-lg sm:text-xl md:text-2xl font-bold text-white font-mono">{metrics.overduePayments}</p>
                 </div>
               </div>
-              <Badge className="bg-red-500/20 text-red-500 text-xs">
+              <Badge className="bg-red-500/20 text-red-500 text-[10px] sm:text-xs">
                 Atenção
               </Badge>
             </CardContent>
@@ -247,14 +247,14 @@ export default function CommandCenterPage() {
 
           {/* Clientes Vinculados */}
           <Card className="bg-neutral-900 border-neutral-700 hover:border-orange-500/50 transition-colors">
-            <CardContent className="p-2 sm:p-3 md:p-4">
-              <div className="flex items-center justify-between mb-1">
-                <div>
-                  <p className="text-xs text-neutral-400 tracking-wider">VINCULADOS</p>
-                  <p className="text-base sm:text-lg md:text-xl font-bold text-white font-mono">{metrics.linkedClients}</p>
+            <CardContent className="p-3 sm:p-4 md:p-5">
+              <div className="flex items-center justify-between mb-2">
+                <div className="min-w-0">
+                  <p className="text-[10px] sm:text-xs text-neutral-400 tracking-wider truncate">VINCULADOS</p>
+                  <p className="text-lg sm:text-xl md:text-2xl font-bold text-white font-mono">{metrics.linkedClients}</p>
                 </div>
               </div>
-              <div className="flex items-center justify-between text-xs">
+              <div className="flex items-center justify-between text-[10px] sm:text-xs">
                 <span className="text-neutral-400">Taxa:</span>
                 <span className="font-bold text-white font-mono">
                   {metrics.totalCustomers > 0 
