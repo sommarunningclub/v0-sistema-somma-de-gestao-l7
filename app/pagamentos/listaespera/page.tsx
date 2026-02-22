@@ -32,6 +32,20 @@ interface ListaVipAssessoria {
   sexo: "masculino" | "feminino"
   cidade: string
   data_hora: string
+  professor_id?: string
+}
+
+interface ConvertedCustomer {
+  lista_vip_id: string
+  lista_vip_nome: string
+  lista_vip_email: string
+  asaas_customer_id: string
+  asaas_name: string
+  asaas_email: string
+  has_active_subscription: boolean
+  subscription_count: number
+  total_payments: number
+  converted_at: string
 }
 
 export default function ListaEsperaPage() {
@@ -50,6 +64,9 @@ export default function ListaEsperaPage() {
   const [professors, setProfessors] = useState<any[]>([])
   const [selectedProfessorId, setSelectedProfessorId] = useState<string>('')
   const [linkingProfessor, setLinkingProfessor] = useState(false)
+  const [convertedCustomers, setConvertedCustomers] = useState<ConvertedCustomer[]>([])
+  const [loadingConversions, setLoadingConversions] = useState(false)
+  const [showConversionsModal, setShowConversionsModal] = useState(false)
 
   // Buscar dados da tabela lista_vip_assessoria
   const loadListaVip = async () => {
@@ -127,6 +144,91 @@ export default function ListaEsperaPage() {
       setProfessors(data || [])
     } catch (error) {
       console.error('[v0] Error loading professors:', error)
+    }
+  }
+
+  // Verificar conversões da lista VIP
+  const checkConversions = async () => {
+    try {
+      setLoadingConversions(true)
+      console.log('[v0] Checking conversions from lista_vip to paying customers...')
+
+      // Query complexa que cruza lista_vip_assessoria com asaas_customers_sync
+      const { data: conversions, error } = await supabase
+        .from('lista_vip_assessoria')
+        .select(`
+          id,
+          nome,
+          email,
+          data_hora
+        `)
+
+      if (error) {
+        console.error('[v0] Error loading lista_vip:', error)
+        throw error
+      }
+
+      // Para cada entrada da lista VIP, verificar se existe no Asaas
+      const converted: ConvertedCustomer[] = []
+      
+      for (const entry of conversions || []) {
+        // Buscar cliente no Asaas pelo email
+        const { data: asaasCustomer, error: asaasError } = await supabase
+          .from('asaas_customers_sync')
+          .select('*')
+          .ilike('email', entry.email)
+          .single()
+
+        if (asaasCustomer && !asaasError) {
+          // Verificar se tem assinatura ativa
+          const { data: subscriptions, error: subError } = await supabase
+            .from('member_subscriptions')
+            .select('*')
+            .eq('member_id', asaasCustomer.id)
+
+          // Contar pagamentos
+          const { data: payments, error: payError } = await supabase
+            .from('payments')
+            .select('*')
+            .eq('customer_asaas_id', asaasCustomer.asaas_id)
+            .eq('status', 'CONFIRMED')
+
+          const hasActiveSubscription = subscriptions?.some(
+            (sub: any) => sub.status === 'ACTIVE'
+          ) || false
+
+          converted.push({
+            lista_vip_id: entry.id,
+            lista_vip_nome: entry.nome,
+            lista_vip_email: entry.email,
+            asaas_customer_id: asaasCustomer.asaas_id,
+            asaas_name: asaasCustomer.name,
+            asaas_email: asaasCustomer.email,
+            has_active_subscription: hasActiveSubscription,
+            subscription_count: subscriptions?.length || 0,
+            total_payments: payments?.length || 0,
+            converted_at: asaasCustomer.asaas_created_at || asaasCustomer.created_at
+          })
+        }
+      }
+
+      console.log('[v0] Conversions found:', converted.length)
+      setConvertedCustomers(converted)
+      setShowConversionsModal(true)
+
+      toast({
+        title: "Verificação Concluída",
+        description: `${converted.length} conversões encontradas de ${entries.length} pessoas na lista`,
+      })
+    } catch (error) {
+      console.error('[v0] Error checking conversions:', error)
+      toast({
+        title: "Erro",
+        description: "Falha ao verificar conversões",
+        variant: "destructive",
+      })
+    } finally {
+      setLoadingConversions(false)
     }
   }
 
@@ -268,17 +370,32 @@ export default function ListaEsperaPage() {
             <h1 className="text-3xl font-bold text-white">Lista de Espera VIP</h1>
             <p className="text-neutral-400 mt-2">Gerencie os registros da lista VIP de Assessoria</p>
           </div>
-          <Button
-            onClick={() => {
-              setIsRefreshing(true)
-              loadListaVip().finally(() => setIsRefreshing(false))
-            }}
-            disabled={isRefreshing}
-            className="gap-2"
-          >
-            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-            Atualizar
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              onClick={checkConversions}
+              disabled={loadingConversions}
+              variant="outline"
+              className="gap-2 border-green-500/50 text-green-500 hover:bg-green-500/10"
+            >
+              {loadingConversions ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Users className="w-4 h-4" />
+              )}
+              Verificar Conversões
+            </Button>
+            <Button
+              onClick={() => {
+                setIsRefreshing(true)
+                loadListaVip().finally(() => setIsRefreshing(false))
+              }}
+              disabled={isRefreshing}
+              className="gap-2"
+            >
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+              Atualizar
+            </Button>
+          </div>
         </div>
 
         {/* Stats Cards */}
@@ -567,6 +684,102 @@ export default function ListaEsperaPage() {
                       Vincular
                     </>
                   )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Modal de Conversões */}
+      {showConversionsModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <Card className="bg-neutral-900 border-neutral-800 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4 sticky top-0 bg-neutral-900 z-10 border-b border-neutral-800">
+              <CardTitle className="text-white">Conversões da Lista VIP</CardTitle>
+              <button
+                onClick={() => setShowConversionsModal(false)}
+                className="text-neutral-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </CardHeader>
+            <CardContent className="space-y-4 pt-4">
+              <div className="bg-neutral-800 p-4 rounded-lg">
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  <div>
+                    <p className="text-neutral-400 text-sm">Total na Lista</p>
+                    <p className="text-2xl font-bold text-white">{entries.length}</p>
+                  </div>
+                  <div>
+                    <p className="text-neutral-400 text-sm">Convertidos</p>
+                    <p className="text-2xl font-bold text-green-500">{convertedCustomers.length}</p>
+                  </div>
+                  <div>
+                    <p className="text-neutral-400 text-sm">Taxa de Conversão</p>
+                    <p className="text-2xl font-bold text-orange-500">
+                      {entries.length > 0 ? ((convertedCustomers.length / entries.length) * 100).toFixed(1) : 0}%
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {convertedCustomers.length === 0 ? (
+                <div className="text-center py-8">
+                  <AlertCircle className="w-12 h-12 text-neutral-600 mx-auto mb-4" />
+                  <p className="text-neutral-400">Nenhuma conversão encontrada ainda</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {convertedCustomers.map((customer) => (
+                    <Card key={customer.lista_vip_id} className="bg-neutral-800 border-neutral-700">
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <h3 className="text-white font-semibold">{customer.lista_vip_nome}</h3>
+                              {customer.has_active_subscription && (
+                                <Badge className="bg-green-500 text-white text-xs">
+                                  Assinatura Ativa
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="space-y-1 text-sm">
+                              <div className="flex items-center gap-2 text-neutral-400">
+                                <Mail className="w-3 h-3" />
+                                {customer.lista_vip_email}
+                              </div>
+                              <div className="flex items-center gap-2 text-neutral-400">
+                                <Calendar className="w-3 h-3" />
+                                Convertido em: {new Date(customer.converted_at).toLocaleDateString('pt-BR')}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right space-y-1">
+                            <div className="text-xs text-neutral-400">Asaas ID</div>
+                            <div className="text-xs text-white font-mono">{customer.asaas_customer_id}</div>
+                            <div className="flex gap-2 mt-2">
+                              <Badge variant="outline" className="text-xs">
+                                {customer.subscription_count} {customer.subscription_count === 1 ? 'assinatura' : 'assinaturas'}
+                              </Badge>
+                              <Badge variant="outline" className="text-xs">
+                                {customer.total_payments} {customer.total_payments === 1 ? 'pagamento' : 'pagamentos'}
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex justify-end pt-4">
+                <Button
+                  onClick={() => setShowConversionsModal(false)}
+                  className="bg-orange-500 hover:bg-orange-600 text-white"
+                >
+                  Fechar
                 </Button>
               </div>
             </CardContent>
