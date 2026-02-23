@@ -101,7 +101,11 @@ export default function TacticalDashboard() {
             {/* Header */}
             <div className="flex items-center justify-between mb-8">
               <div className={sidebarCollapsed ? "hidden" : ""}>
-                <h1 className="text-orange-500 font-bold text-lg tracking-wider">SOMMA</h1>
+                <img 
+                  src="https://cdn.shopify.com/s/files/1/0788/1932/8253/files/STICKER.svg?v=1771864806" 
+                  alt="SOMMA Logo" 
+                  className="h-10 w-auto mb-2"
+                />
                 <p className="text-neutral-500 text-xs">v2.1.7</p>
               </div>
               <div className="flex items-center gap-2">
