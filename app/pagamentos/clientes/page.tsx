@@ -138,7 +138,13 @@ export default function ClientesAsaas() {
       if (!response.ok) {
         const errorData = await response.json()
         console.log("[v0] API error:", errorData)
-        setError(errorData.error?.message || "Erro ao buscar clientes")
+        
+        // Mensagem mais clara para erro de configuração
+        if (errorData.error?.message?.includes('not configured')) {
+          setError("API Asaas não configurada. Configure ASAAS_API_KEY nas variáveis de ambiente para acessar os dados em produção.")
+        } else {
+          setError(errorData.error?.message || "Erro ao buscar clientes")
+        }
         setCustomers([])
         return
       }
@@ -148,7 +154,7 @@ export default function ClientesAsaas() {
       setCustomers(data.data || [])
     } catch (err) {
       console.error("[v0] fetchCustomers error:", err)
-      setError("Erro de conexao com a API")
+      setError("Erro de conexão com a API. Verifique se as variáveis de ambiente estão configuradas.")
       setCustomers([])
     } finally {
       setLoading(false)
@@ -930,9 +936,16 @@ export default function ClientesAsaas() {
             <p className="text-neutral-400">Carregando clientes...</p>
           </div>
         ) : error ? (
-          <div className="text-center py-12">
-            <p className="text-red-400 mb-2">{error}</p>
+          <div className="flex flex-col items-center justify-center py-12 px-4">
+            <AlertCircle className="w-12 h-12 text-red-400 mb-4" />
+            <p className="text-red-400 mb-2 text-center max-w-md">{error}</p>
+            <p className="text-neutral-500 text-sm mb-4 text-center max-w-md">
+              {error.includes('não configurada') 
+                ? 'Em produção, os dados serão carregados automaticamente quando as variáveis de ambiente estiverem configuradas.' 
+                : 'Verifique sua conexão e tente novamente.'}
+            </p>
             <Button onClick={fetchCustomers} variant="outline" size="sm" className="border-neutral-700 text-neutral-400 hover:bg-neutral-800 bg-transparent">
+              <RefreshCw className="w-4 h-4 mr-2" />
               Tentar Novamente
             </Button>
           </div>
