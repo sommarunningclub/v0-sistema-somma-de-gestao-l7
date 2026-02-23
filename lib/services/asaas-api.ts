@@ -8,6 +8,11 @@ const ASAAS_API_URL = 'https://api.asaas.com/v3'
 const ASAAS_API_KEY = process.env.ASAAS_API_KEY || ''
 const ASAAS_WALLET_ID = process.env.ASAAS_WALLET_ID || ''
 
+// Debug: Verificar se as variáveis estão carregadas
+if (!ASAAS_API_KEY) {
+  console.error('[v0] AVISO: ASAAS_API_KEY não está configurada!')
+}
+
 export { ASAAS_WALLET_ID }
 
 interface ApiResponse<T> {

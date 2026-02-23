@@ -9,6 +9,13 @@ const ASAAS_BASE_URL = 'https://api.asaas.com/v3'
 const ASAAS_API_KEY = process.env.ASAAS_API_KEY || ''
 const ASAAS_WALLET_ID = process.env.ASAAS_WALLET_ID || ''
 
+// Debug: Verificar se as variáveis estão carregadas
+if (!ASAAS_API_KEY) {
+  console.error('[v0] ERRO: ASAAS_API_KEY não foi carregada na rota da API!')
+} else {
+  console.log('[v0] ASAAS_API_KEY carregada com sucesso (primeiros 10 chars):', ASAAS_API_KEY.substring(0, 10) + '...')
+}
+
 async function asaasRequest(
   method: string,
   path: string,
