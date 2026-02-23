@@ -70,7 +70,7 @@ export default function LoginPage() {
         {/* Right Column - Hero Image */}
         <div className="relative flex items-center justify-center bg-gradient-to-b from-neutral-900 to-black border-l border-neutral-800 overflow-hidden">
           <img 
-            src="https://cdn.shopify.com/s/files/1/0788/1932/8253/files/WhatsApp_Image_2026-01-29_at_08.35.16.jpg?v=1769827835" 
+            src="https://cdn.shopify.com/s/files/1/0788/1932/8253/files/PDCSK21FEV-1910.jpg?v=1771862994" 
             alt="Somma Assessoria de Corrida" 
             className="w-full h-full object-cover"
           />
