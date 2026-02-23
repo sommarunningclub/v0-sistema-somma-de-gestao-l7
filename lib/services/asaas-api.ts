@@ -29,12 +29,9 @@ async function asaasRequest<T>(
       })
     }
 
-    console.log('[v0] Making Asaas request:', method, path)
-
     const response = await fetch(url.toString(), {
       method,
       headers: {
-        'x-api-key': ASAAS_API_KEY,
         'access_token': ASAAS_API_KEY,
         'Content-Type': 'application/json',
         'Accept': 'application/json',
@@ -44,12 +41,11 @@ async function asaasRequest<T>(
 
     if (!response.ok) {
       const errorText = await response.text()
-      console.error('[v0] Asaas API error:', response.status, errorText)
+      console.error('[v0] Asaas API error:', errorText)
       return { data: null, error: errorText }
     }
 
     const data = await response.json()
-    console.log('[v0] Asaas API success:', path, 'Status:', response.status)
     return { data, error: null }
   } catch (err) {
     console.error('[v0] Asaas request failed:', err)
