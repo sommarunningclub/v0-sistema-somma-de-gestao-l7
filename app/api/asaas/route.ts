@@ -13,9 +13,18 @@ const ASAAS_BASE_URL = 'https://api.asaas.com/v3'
 
 // Helper function to get fresh env vars on each request
 function getAsaasConfig() {
+  const apiKey = process.env.ASAAS_API_KEY || ''
+  const walletId = process.env.ASAAS_WALLET_ID || ''
+  
+  // Debug log para entender o problema no sandbox
+  if (!apiKey) {
+    console.error('[v0] ASAAS_API_KEY is not configured! Current value:', apiKey)
+    console.error('[v0] Available env vars:', Object.keys(process.env).filter(k => k.includes('ASAAS')))
+  }
+  
   return {
-    apiKey: process.env.ASAAS_API_KEY || '',
-    walletId: process.env.ASAAS_WALLET_ID || '',
+    apiKey,
+    walletId,
     baseUrl: 'https://api.asaas.com/v3'
   }
 }
@@ -75,8 +84,10 @@ export async function GET(request: NextRequest) {
   }
 
   if (!config.apiKey) {
-    console.error('[v0] ASAAS_API_KEY is not configured! Current value:', config.apiKey)
-    return NextResponse.json({ error: 'ASAAS_API_KEY not configured' }, { status: 500 })
+    return NextResponse.json({ 
+      error: 'ASAAS_API_KEY not configured',
+      message: 'A chave API do Asaas não está configurada. Em produção, configure a variável de ambiente ASAAS_API_KEY.'
+    }, { status: 500 })
   }
 
   // Converter searchParams para objeto, excluindo 'endpoint'
@@ -108,8 +119,10 @@ export async function POST(request: NextRequest) {
   }
 
   if (!config.apiKey) {
-    console.error('[v0] ASAAS_API_KEY is not configured!')
-    return NextResponse.json({ error: 'ASAAS_API_KEY not configured' }, { status: 500 })
+    return NextResponse.json({ 
+      error: 'ASAAS_API_KEY not configured',
+      message: 'A chave API do Asaas não está configurada. Em produção, configure a variável de ambiente ASAAS_API_KEY.'
+    }, { status: 500 })
   }
 
   const body = await request.json().catch(() => ({}))
@@ -135,8 +148,10 @@ export async function DELETE(request: NextRequest) {
   }
 
   if (!config.apiKey) {
-    console.error('[v0] ASAAS_API_KEY is not configured!')
-    return NextResponse.json({ error: 'ASAAS_API_KEY not configured' }, { status: 500 })
+    return NextResponse.json({ 
+      error: 'ASAAS_API_KEY not configured',
+      message: 'A chave API do Asaas não está configurada. Em produção, configure a variável de ambiente ASAAS_API_KEY.'
+    }, { status: 500 })
   }
 
   const result = await asaasRequest('DELETE', endpoint)
