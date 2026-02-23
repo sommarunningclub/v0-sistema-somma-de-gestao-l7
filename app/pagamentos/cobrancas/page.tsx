@@ -459,11 +459,7 @@ export default function Cobrancas() {
             <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Atualizar
           </Button>
-          <Button onClick={() => {
-            console.log("[v0] Nova Cobrança button clicked, showModal before:", showModal)
-            setShowModal(true)
-            console.log("[v0] Nova Cobrança button clicked, showModal after:", true)
-          }} className="bg-orange-500 hover:bg-orange-600 text-white">
+          <Button onClick={() => setShowModal(true)} className="bg-orange-500 hover:bg-orange-600 text-white">
             <Plus className="w-4 h-4 mr-2" />
             Nova Cobrança
           </Button>
