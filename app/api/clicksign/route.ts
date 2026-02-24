@@ -17,8 +17,8 @@ async function callClicksign(
   const options: RequestInit = {
     method,
     headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
+      "Content-Type": "application/vnd.api+json",
+      Accept: "application/vnd.api+json",
       Authorization: `Bearer ${accessToken}`,
     },
   }
