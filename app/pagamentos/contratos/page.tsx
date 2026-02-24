@@ -44,9 +44,9 @@ interface Contrato {
 }
 
 // ------- TEMPLATE PADRÃO -------
-const TEMPLATE_PADRAO = `CONTRATO DE PRESTAÇÃO DE SERVIÇOS DE ASSESSORIA ESPORTIVA
+const TEMPLATE_PADRAO = `CONTRATO E TERMO DE ADESÃO – ASSESSORIA SOMMA CLUB
 
-Pelo presente instrumento particular, as partes abaixo identificadas celebram o presente Contrato de Prestação de Serviços de Assessoria Esportiva, que se regerá pelas seguintes cláusulas e condições:
+Pelo presente instrumento particular, de um lado SOMMA CLUB ASSESSORIA DE CORRIDA, doravante denominada SOMMA, e de outro lado o(a) CONTRATANTE devidamente identificado no momento da adesão, firmam o presente Termo de Adesão à Assessoria Somma, mediante as cláusulas abaixo.
 
 CONTRATANTE:
 Nome: {{nome}}
@@ -55,39 +55,50 @@ E-mail: {{email}}
 Telefone: {{telefone}}
 Endereço: {{endereco}}
 
-CONTRATADA:
-SOMMA RUNNING CLUB
-CNPJ: [CNPJ DA EMPRESA]
-Endereço: [ENDEREÇO DA EMPRESA]
+CLÁUSULA 1 – OBJETO
+O presente contrato tem como objeto a prestação de serviços de assessoria esportiva em corrida de rua, incluindo planejamento de treinos, acompanhamento via aplicativo, benefícios exclusivos e participação em experiências promovidas pela SOMMA, conforme plano escolhido pelo CONTRATANTE.
 
-CLÁUSULA 1 – DO OBJETO
-1.1. A CONTRATADA se compromete a prestar serviços de assessoria esportiva ao CONTRATANTE, incluindo elaboração de planilhas de treino personalizadas, acompanhamento de evolução atlética e orientações técnicas para a prática de corrida de rua.
+CLÁUSULA 2 – PLANOS E VALORES
+Plano Mensal: valor de R$220 por mês, cobrado de forma recorrente no cartão de crédito.
+Plano Semestral: valor total de R$1.200, equivalente a seis meses de assessoria.
+Plano Anual: valor total de R$2.160, equivalente a doze meses de assessoria.
 
-CLÁUSULA 2 – DA DURAÇÃO
-2.1. O presente contrato terá vigência de 12 (doze) meses a contar da data de assinatura, podendo ser renovado por igual período mediante acordo entre as partes.
+O CONTRATANTE declara estar ciente de que os planos semestral e anual possuem condição promocional vinculada ao período mínimo contratado.
 
-CLÁUSULA 3 – DO VALOR E PAGAMENTO
-3.1. Pelo serviço descrito na Cláusula 1, o CONTRATANTE pagará à CONTRATADA o valor mensal conforme plano contratado, mediante boleto bancário, cartão de crédito ou Pix, com vencimento todo dia 10 (dez) de cada mês.
-3.2. O não pagamento na data estipulada implicará multa de 2% (dois por cento) sobre o valor em atraso, acrescido de juros de 1% (um por cento) ao mês.
+CLÁUSULA 3 – FORMA DE PAGAMENTO
+Nos planos semestral e anual, a SOMMA poderá oferecer pagamento recorrente mensal como mera forma de cobrança, sem descaracterizar o compromisso mínimo do período contratado. O valor recorrente poderá ser de R$180 mensais no plano anual, conforme condição comercial vigente. O CONTRATANTE reconhece que a recorrência mensal não representa plano mensal livre, mas sim parcelamento do plano contratado.
 
-CLÁUSULA 4 – DAS OBRIGAÇÕES DA CONTRATADA
-4.1. Elaborar planilhas de treino individualizadas, considerando o perfil, objetivos e disponibilidade do atleta.
-4.2. Realizar avaliações periódicas de desempenho.
-4.3. Estar disponível para comunicação via aplicativo oficial da Assessoria.
-4.4. Manter sigilo sobre dados e informações pessoais do CONTRATANTE.
+CLÁUSULA 4 – BENEFÍCIOS INCLUSOS
+- Presença VIP nas provas Somma com acesso privilegiado.
+- Estrutura Somma em eventos e competições.
+- Descontos em parceiros como Track&Field, Tex Barbearia, Dopahmina, Academia Evolve, Bugu Delícias e marcas de suplementos.
+- Participação em sorteios mensais exclusivos.
+- Encontros mensais com corridas temáticas, palestras e experiências.
+- Treinamento personalizado via aplicativo com integração Strava e relógios GPS e acompanhamento de métricas.
+- Camiseta oficial de membro nos planos semestral e anual.
+- Desconto de 50% em camisetas adicionais para membros ativos.
 
-CLÁUSULA 5 – DAS OBRIGAÇÕES DO CONTRATANTE
-5.1. Executar os treinos conforme orientação da assessoria.
-5.2. Informar à assessoria qualquer condição de saúde que possa interferir nos treinos.
-5.3. Efetuar os pagamentos nas datas convencionadas.
-5.4. Tratar com respeito e urbanidade os profissionais da CONTRATADA.
+Os benefícios poderão sofrer ajustes estratégicos sem descaracterizar a natureza do serviço.
 
-CLÁUSULA 6 – DA RESCISÃO
-6.1. O presente contrato poderá ser rescindido por qualquer das partes mediante aviso prévio de 30 (trinta) dias.
-6.2. A rescisão imotivada pelo CONTRATANTE antes do término do período contratado implicará no pagamento proporcional dos serviços prestados até a data da rescisão.
+CLÁUSULA 5 – FIDELIDADE E CANCELAMENTO
+Nos planos semestral e anual existe permanência mínima correspondente ao período contratado.
+O cancelamento deverá ser solicitado com antecedência mínima de 30 dias.
+Caso o CONTRATANTE solicite cancelamento antes do prazo mínimo, poderá ocorrer ajuste financeiro correspondente à diferença entre o valor promocional do plano escolhido e o valor do plano mensal vigente, proporcional ao período utilizado.
+Caso não haja aviso prévio de 30 dias, será devido o valor correspondente ao aviso prévio contratual.
 
-CLÁUSULA 7 – DO FORO
-7.1. As partes elegem o foro da comarca de [CIDADE/ESTADO] para dirimir quaisquer dúvidas ou conflitos oriundos do presente contrato, com renúncia expressa a qualquer outro, por mais privilegiado que seja.
+CLÁUSULA 6 – INADIMPLÊNCIA
+O não pagamento das parcelas recorrentes poderá resultar em suspensão imediata dos benefícios e acesso aos serviços.
+Poderão ser aplicadas multas e encargos conforme legislação vigente, além da possibilidade de cobrança administrativa ou judicial dos valores pendentes.
+
+CLÁUSULA 7 – ANÁLISE DE CRÉDITO E DADOS
+O CONTRATANTE autoriza expressamente a SOMMA a realizar análise cadastral e consulta de crédito para fins de validação da contratação, quando aplicável. Autoriza ainda o tratamento de seus dados pessoais exclusivamente para execução do presente contrato, conforme legislação de proteção de dados.
+
+CLÁUSULA 8 – CONDIÇÕES GERAIS
+A assessoria esportiva não substitui acompanhamento médico. O CONTRATANTE declara estar apto à prática esportiva.
+Os benefícios são pessoais e intransferíveis. A participação em eventos poderá depender de disponibilidade e regras específicas.
+
+CLÁUSULA 9 – ACEITE DIGITAL
+A adesão poderá ocorrer de forma eletrônica, sendo o aceite digital considerado válido e equivalente à assinatura física.
 
 Data: {{data_atual}}
 
@@ -96,7 +107,7 @@ CONTRATANTE: {{nome}}
 CPF: {{cpf}}
 
 _______________________________
-CONTRATADA: SOMMA RUNNING CLUB`
+SOMMA CLUB ASSESSORIA DE CORRIDA`
 
 // ------- STATUS BADGE -------
 function StatusBadge({ status }: { status: Contrato["status"] }) {
