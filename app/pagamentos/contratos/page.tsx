@@ -46,7 +46,15 @@ interface Contrato {
 // ------- TEMPLATE PADRÃO -------
 const TEMPLATE_PADRAO = `CONTRATO E TERMO DE ADESÃO – ASSESSORIA SOMMA CLUB
 
-Pelo presente instrumento particular, de um lado SOMMA CLUB ASSESSORIA DE CORRIDA, doravante denominada SOMMA, e de outro lado o(a) CONTRATANTE devidamente identificado no momento da adesão, firmam o presente Termo de Adesão à Assessoria Somma, mediante as cláusulas abaixo.
+Pelo presente instrumento particular, as partes abaixo identificadas celebram o presente Contrato de Prestação de Serviços de Assessoria Esportiva:
+
+CONTRATADA:
+Razão Social: SOMMA EMPREENDIMENTOS ESPORTIVOS LTDA
+Nome Fantasia: SOMMA EMPREENDIMENTOS ESPORTIVOS
+CNPJ: 61.315.987/0001-28
+Endereço: ST de Rádio e TV Sul, Quadra 701, Conj. L, Bloco 02, Sala 417 – Parte K 52, Asa Sul, Brasília/DF – CEP 70.340-906
+Telefone: (61) 9917-8033
+E-mail: sommarunningclub@gmail.com
 
 CONTRATANTE:
 Nome: {{nome}}
@@ -107,7 +115,8 @@ CONTRATANTE: {{nome}}
 CPF: {{cpf}}
 
 _______________________________
-SOMMA CLUB ASSESSORIA DE CORRIDA`
+SOMMA EMPREENDIMENTOS ESPORTIVOS LTDA
+CNPJ: 61.315.987/0001-28`
 
 // ------- STATUS BADGE -------
 function StatusBadge({ status }: { status: Contrato["status"] }) {
