@@ -206,7 +206,7 @@ function EditorContrato({
     return texto
       .split("\n")
       .map((line, i) => {
-        const isTitle = line.match(/^[A-ZÁÀÂÃÉÈÊÍÏÓÔÕÖÚÜÇ\s–\-]+$/) && line.trim().length > 3 && line.trim().length < 80
+        const isTitle = line.match(/^[A-ZÁÀÂÃÉÈÊÍÏÓÔÕÖÚÜ��\s–\-]+$/) && line.trim().length > 3 && line.trim().length < 80
         const isClausula = line.match(/^CLÁUSULA\s+\d+/)
         const isSeparator = line.match(/^_{10,}/)
         const isEmpty = line.trim() === ""
@@ -612,67 +612,104 @@ export default function ContratosPage() {
   const enviarClicksign = async () => {
     if (!contratoSelecionado) return
     setLoadingAcao("enviando")
+    setError(null)
     try {
-      const conteudoBase64 = btoa(unescape(encodeURIComponent(contratoSelecionado.conteudo)))
-      const criarDocRes = await fetch("/api/clicksign?endpoint=/documents", {
+      // PASSO 1: Criar o envelope
+      const envelopeRes = await fetch("/api/clicksign?endpoint=/envelopes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          envelope: {
+            name: `Contrato Somma - ${contratoSelecionado.clienteNome}`,
+            locale: "pt-BR",
+            auto_close: true,
+            deadline_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+            remind_interval: 3,
+            block_after_refusal: true,
+          },
+        }),
+      })
+      if (!envelopeRes.ok) {
+        const err = await envelopeRes.json()
+        throw new Error(err.details ? JSON.stringify(err.details) : err.error || "Erro ao criar envelope no Clicksign")
+      }
+      const envelopeData = await envelopeRes.json()
+      const envelopeId = envelopeData.data?.id || envelopeData.id
+      if (!envelopeId) throw new Error("Envelope criado sem ID válido. Resposta: " + JSON.stringify(envelopeData))
+
+      // PASSO 2: Adicionar o documento ao envelope (HTML do contrato em base64)
+      const htmlContrato = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Contrato Somma</title><style>body{font-family:Arial,sans-serif;font-size:12px;margin:40px;line-height:1.6}h1{font-size:16px;text-align:center}p{margin-bottom:8px}</style></head><body>${contratoSelecionado.conteudo.split("\n").map(l => `<p>${l || "&nbsp;"}</p>`).join("")}</body></html>`
+      const conteudoBase64 = btoa(unescape(encodeURIComponent(htmlContrato)))
+
+      const docRes = await fetch(`/api/clicksign?endpoint=/envelopes/${envelopeId}/documents`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           document: {
-            path: `/contratos/${contratoSelecionado.clienteNome.replace(/\s+/g, "_")}_${Date.now()}.txt`,
-            content_base64: `data:text/plain;base64,${conteudoBase64}`,
-            deadline_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-            auto_close: true,
-            locale: "pt-BR",
-            sequence_enabled: false,
+            filename: `Contrato_Somma_${contratoSelecionado.clienteNome.replace(/\s+/g, "_")}.html`,
+            content_base64: `data:text/html;base64,${conteudoBase64}`,
           },
         }),
       })
-      if (!criarDocRes.ok) {
-        const err = await criarDocRes.json()
-        throw new Error(err.error || "Erro ao criar documento no Clicksign")
+      if (!docRes.ok) {
+        const err = await docRes.json()
+        throw new Error(err.details ? JSON.stringify(err.details) : err.error || "Erro ao adicionar documento ao envelope")
       }
-      const docData = await criarDocRes.json()
-      const docKey = docData.document?.key
-      if (!docKey) throw new Error("Documento criado sem chave válida")
+      const docData = await docRes.json()
+      const documentId = docData.data?.id || docData.id
 
-      const addSignRes = await fetch("/api/clicksign?endpoint=/documents/" + docKey + "/signers", {
+      // PASSO 3: Adicionar signatário ao envelope
+      const signerRes = await fetch(`/api/clicksign?endpoint=/envelopes/${envelopeId}/signers`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           signer: {
-            email: emailEnvio,
             name: contratoSelecionado.clienteNome,
-            documentation: contratoSelecionado.clienteCpf,
-            has_documentation: true,
-            sign_as: "sign",
+            email: emailEnvio,
+            documentation: contratoSelecionado.clienteCpf?.replace(/\D/g, "") || "",
+            delivery: "email",
+            refusable: false,
           },
         }),
       })
-      if (!addSignRes.ok) {
-        const err = await addSignRes.json()
-        throw new Error(err.error || "Erro ao adicionar signatário")
+      if (!signerRes.ok) {
+        const err = await signerRes.json()
+        throw new Error(err.details ? JSON.stringify(err.details) : err.error || "Erro ao adicionar signatário")
       }
-      const signerData = await addSignRes.json()
-      const signerKey = signerData.signer?.key
-      if (signerKey) {
-        await fetch("/api/clicksign?endpoint=/documents/" + docKey + "/signers/" + signerKey, {
+      const signerData = await signerRes.json()
+      const signerId = signerData.data?.id || signerData.id
+
+      // PASSO 4: Vincular signatário ao documento com tipo de assinatura
+      if (documentId && signerId) {
+        await fetch(`/api/clicksign?endpoint=/envelopes/${envelopeId}/documents/${documentId}/signers`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: "Por favor, assine o contrato de assessoria esportiva da Somma Running Club." }),
+          body: JSON.stringify({
+            signer: {
+              id: signerId,
+              sign_as: "sign",
+            },
+          }),
         })
       }
-      await fetch("/api/clicksign?endpoint=/documents/" + docKey + "/finish", {
+
+      // PASSO 5: Ativar o envelope para enviar para assinatura
+      const activateRes = await fetch(`/api/clicksign?endpoint=/envelopes/${envelopeId}/activate`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       })
+      if (!activateRes.ok) {
+        const err = await activateRes.json()
+        throw new Error(err.details ? JSON.stringify(err.details) : err.error || "Erro ao ativar envelope")
+      }
+
       const agora = new Date().toISOString()
       const contratoAtualizado: Contrato = {
         ...contratoSelecionado,
         status: "enviado",
-        clicksignKey: docKey,
-        clicksignUrl: `https://app.clicksign.com/sign/${docKey}`,
+        clicksignKey: envelopeId,
+        clicksignUrl: `${process.env.NEXT_PUBLIC_CLICKSIGN_BASE_URL || "https://sandbox.clicksign.com"}/sign/${envelopeId}`,
         atualizadoEm: agora,
       }
       const lista = contratos.map(c => c.id === contratoSelecionado.id ? contratoAtualizado : c)
