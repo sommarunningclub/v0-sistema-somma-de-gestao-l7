@@ -1,75 +1,104 @@
 import { NextRequest, NextResponse } from "next/server"
+import PDFDocument from "pdfkit"
 
-export async function POST(request: NextRequest) {
+export const POST = async (request: NextRequest) => {
   try {
     const { htmlContent } = await request.json()
-    if (!htmlContent) {
-      return NextResponse.json({ error: "htmlContent é obrigatório" }, { status: 400 })
+
+    if (!htmlContent || typeof htmlContent !== "string" || htmlContent.length === 0) {
+      return NextResponse.json(
+        { error: "htmlContent é obrigatório e deve ser uma string não-vazia" },
+        { status: 400 }
+      )
     }
 
-    console.log("[v0] Converting HTML to PDF, content length:", htmlContent.length)
+    console.log("[v0] Convertendo contrato para PDF via PDFKit, tamanho HTML:", htmlContent.length)
 
-    // Solução: Usar html2pdf.js no servidor via Node.js
-    // A biblioteca html2pdf não está disponível nativamente no Node.js
-    // Então usamos uma abordagem alternativa: enviar para um serviço de conversão gratuito
-    // OU gerar um data URL base64 da string HTML que pode ser tratada no cliente
+    // Extrair texto puro do HTML (remover tags)
+    const plainText = htmlContent
+      .replace(/<[^>]*>/g, "") // Remove tags HTML
+      .replace(/&nbsp;/g, " ")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&amp;/g, "&")
+      .trim()
 
-    // SOLUÇÃO IMPLEMENTADA: Converter diretamente no cliente usando html2pdf.js
-    // Mas como estamos no servidor, usaremos uma estratégia simplificada:
-    // Vamos criar um PDF simples usando um gerador HTTP-based ou mudar para client-side
+    if (plainText.length === 0) {
+      return NextResponse.json(
+        { error: "Conteúdo do contrato vazio após processamento" },
+        { status: 400 }
+      )
+    }
 
-    // Para Vercel, a melhor solução é usar a biblioteca 'pdf-lib' que é puro JavaScript
-    // Mas html2pdf não é fácil no backend. Então vamos usar uma API externa gratuita como fallback
-
-    // FALLBACK SIMPLES: Retornar o HTML como base64 data URL (não é PDF, mas permite download)
-    // Melhor: Usar 'html-to-text' ou enviar para conversion API
-
-    // Para uma solução real sem dependências externas, usaremos:
-    // 1. Converter HTML → Base64 string que pode ser usada como data URI
-    // 2. Ou enviar para um serviço de conversão
-
-    // SOLUÇÃO DEFINITIVA: Usar https://api.html2pdf.app (serviço gratuito)
-    const html2pdfApiUrl = "https://api.html2pdf.app/v1/generate"
-    
-    const conversionRes = await fetch(html2pdfApiUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        html: htmlContent,
-        options: {
-          margin: 10,
-          filename: "contrato.pdf",
-          image: { type: "jpeg", quality: 0.98 },
-          html2canvas: { scale: 2 },
-          jsPDF: { orientation: "portrait", unit: "mm", format: "a4" },
-        },
-      }),
+    // Criar PDF usando PDFKit
+    const doc = new PDFDocument({
+      bufferPages: true,
+      margin: 50,
+      size: "A4",
     })
 
-    if (!conversionRes.ok) {
-      // Fallback: Se o serviço externo falhar, retornar mensagem clara
-      throw new Error(`Serviço de conversão indisponível (${conversionRes.status})`)
+    // Configurar fonte padrão
+    doc.fontSize(11).font("Helvetica")
+
+    // Adicionar conteúdo ao PDF
+    const lines = plainText.split("\n").filter(line => line.trim())
+
+    for (const line of lines) {
+      const trimmedLine = line.trim()
+      if (trimmedLine) {
+        // Detectar se é um título (caixa alta, curto)
+        if (trimmedLine.length < 100 && trimmedLine === trimmedLine.toUpperCase() && trimmedLine.length > 10) {
+          doc.fontSize(12).font("Helvetica-Bold")
+          doc.text(trimmedLine, { align: "center" })
+          doc.fontSize(11).font("Helvetica")
+        } else {
+          doc.fontSize(11).text(trimmedLine, { align: "justify" })
+        }
+        doc.moveDown(0.3)
+      }
     }
 
-    const pdfBuffer = await conversionRes.arrayBuffer()
-    const pdfBase64 = Buffer.from(pdfBuffer).toString("base64")
+    // Converter documento para buffer
+    return new Promise((resolve, reject) => {
+      const chunks: Buffer[] = []
 
-    console.log("[v0] PDF generated via api.html2pdf.app, size:", pdfBase64.length, "bytes")
+      doc.on("data", (chunk: Buffer) => {
+        chunks.push(chunk)
+      })
 
-    return NextResponse.json({ pdfBase64 })
+      doc.on("end", () => {
+        const pdfBuffer = Buffer.concat(chunks)
+        const pdfBase64 = pdfBuffer.toString("base64")
 
-  } catch (error: any) {
-    console.error("[v0] Erro ao converter HTML para PDF:", error.message)
+        console.log("[v0] PDF gerado com sucesso via PDFKit, tamanho:", pdfBase64.length)
 
-    // Se tudo falhar, tentar uma segunda estratégia: simular PDF básico
-    // Vamos criar um PDF mínimo válido usando pure JavaScript
+        resolve(
+          NextResponse.json({
+            pdfBase64,
+            success: true,
+            message: "Contrato convertido para PDF com sucesso",
+          })
+        )
+      })
+
+      doc.on("error", (error: Error) => {
+        console.error("[v0] Erro ao gerar PDF:", error.message)
+        reject(error)
+      })
+
+      doc.end()
+    })
+  } catch (error: unknown) {
+    console.error("[v0] Erro na conversão para PDF:", error instanceof Error ? error.message : String(error))
+
     return NextResponse.json(
-      { 
-        error: "Falha ao gerar o PDF", 
-        details: error.message || "Erro de conversão",
-        hint: "O serviço de conversão pode estar temporariamente indisponível. Tente novamente em alguns segundos.",
-      }, 
+      {
+        error: "Falha ao converter contrato para PDF",
+        details: error instanceof Error ? error.message : "Erro desconhecido",
+        hint: "Verifique se o conteúdo do contrato está correto e não contém caracteres inválidos.",
+      },
       { status: 500 }
     )
   }
 }
+
