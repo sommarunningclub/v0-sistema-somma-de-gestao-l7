@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from "next/server"
 
 function getClicksignConfig() {
-  const accessToken = process.env.CLICKSIGN_ACCESS_TOKEN || ""
+  const accessToken = (process.env.CLICKSIGN_ACCESS_TOKEN || "").trim()
   const baseUrl = (process.env.CLICKSIGN_BASE_URL || "https://sandbox.clicksign.com").replace(/\/$/, "")
+
+  if (!accessToken) {
+    console.error("[v0] CLICKSIGN_ACCESS_TOKEN not set!")
+  } else {
+    console.log(`[v0] Clicksign config OK - baseUrl: ${baseUrl}, token prefix: ${accessToken.slice(0, 8)}...`)
+  }
+
   return { accessToken, baseUrl }
 }
 
@@ -13,20 +20,23 @@ async function callClicksign(
   method: string,
   body?: unknown
 ) {
-  const url = `${baseUrl}/api/v3${endpoint}`
+  // A API Clicksign v3 aceita autenticação via query string (?access_token=) ou Bearer header
+  // Usamos query string pois é mais confiável em ambientes com proxies
+  const separator = endpoint.includes("?") ? "&" : "?"
+  const url = `${baseUrl}/api/v3${endpoint}${separator}access_token=${accessToken}`
+
   const options: RequestInit = {
     method,
     headers: {
       "Content-Type": "application/vnd.api+json",
       Accept: "application/vnd.api+json",
-      Authorization: `Bearer ${accessToken}`,
     },
   }
   if (body !== undefined) {
     options.body = JSON.stringify(body)
   }
 
-  console.log(`[v0] Clicksign ${method} ${url}`)
+  console.log(`[v0] Clicksign ${method} ${baseUrl}/api/v3${endpoint} (token: ${accessToken ? "set" : "MISSING"})`)
   const response = await fetch(url, options)
 
   // 204 No Content
@@ -36,14 +46,14 @@ async function callClicksign(
 
   let data: unknown
   const contentType = response.headers.get("content-type") || ""
-  if (contentType.includes("application/json")) {
+  if (contentType.includes("json")) {
     data = await response.json()
   } else {
     const text = await response.text()
     data = { raw: text }
   }
 
-  console.log(`[v0] Clicksign response status: ${response.status}`, JSON.stringify(data).slice(0, 300))
+  console.log(`[v0] Clicksign response ${response.status}:`, JSON.stringify(data).slice(0, 400))
 
   return { ok: response.ok, status: response.status, data }
 }
@@ -56,10 +66,25 @@ export async function GET(request: NextRequest) {
 
   if (!config.accessToken) {
     return NextResponse.json(
-      { error: "CLICKSIGN_ACCESS_TOKEN não configurado. Configure a variável de ambiente." },
+      { 
+        error: "CLICKSIGN_ACCESS_TOKEN não configurado.",
+        hint: "Configure a variável CLICKSIGN_ACCESS_TOKEN nas variáveis de ambiente da Vercel.",
+        baseUrl: config.baseUrl,
+      },
       { status: 500 }
     )
   }
+
+  // Diagnóstico: retorna status da configuração sem fazer chamada à API
+  if (endpoint === "/diagnostico") {
+    return NextResponse.json({
+      ok: true,
+      tokenConfigured: true,
+      tokenPrefix: config.accessToken.slice(0, 8) + "...",
+      baseUrl: config.baseUrl,
+    })
+  }
+
   if (!endpoint) {
     return NextResponse.json({ error: "Endpoint requerido" }, { status: 400 })
   }
