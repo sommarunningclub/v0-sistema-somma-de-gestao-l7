@@ -1,0 +1,866 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import {
+  FileText, Plus, Search, Send, Eye, Trash2, RefreshCw,
+  AlertCircle, CheckCircle, Clock, XCircle, User, ChevronDown,
+  ChevronUp, Copy, ExternalLink, Loader2, FileSignature, X,
+  Save, Edit3
+} from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+
+// ------- TIPOS -------
+interface AsaasCustomer {
+  id: string
+  name: string
+  cpfCnpj: string
+  email: string
+  mobilePhone?: string
+  phone?: string
+  address?: string
+  addressNumber?: string
+  complement?: string
+  province?: string
+  postalCode?: string
+  city?: string
+  state?: string
+}
+
+interface Contrato {
+  id: string
+  clienteId: string
+  clienteNome: string
+  clienteEmail: string
+  clienteCpf: string
+  conteudo: string
+  status: "rascunho" | "enviado" | "assinado" | "cancelado" | "aguardando"
+  clicksignKey?: string
+  clicksignUrl?: string
+  criadoEm: string
+  atualizadoEm: string
+}
+
+// ------- TEMPLATE PADRÃO -------
+const TEMPLATE_PADRAO = `CONTRATO DE PRESTAÇÃO DE SERVIÇOS DE ASSESSORIA ESPORTIVA
+
+Pelo presente instrumento particular, as partes abaixo identificadas celebram o presente Contrato de Prestação de Serviços de Assessoria Esportiva, que se regerá pelas seguintes cláusulas e condições:
+
+CONTRATANTE:
+Nome: {{nome}}
+CPF: {{cpf}}
+E-mail: {{email}}
+Telefone: {{telefone}}
+Endereço: {{endereco}}
+
+CONTRATADA:
+SOMMA RUNNING CLUB
+CNPJ: [CNPJ DA EMPRESA]
+Endereço: [ENDEREÇO DA EMPRESA]
+
+CLÁUSULA 1 – DO OBJETO
+1.1. A CONTRATADA se compromete a prestar serviços de assessoria esportiva ao CONTRATANTE, incluindo elaboração de planilhas de treino personalizadas, acompanhamento de evolução atlética e orientações técnicas para a prática de corrida de rua.
+
+CLÁUSULA 2 – DA DURAÇÃO
+2.1. O presente contrato terá vigência de 12 (doze) meses a contar da data de assinatura, podendo ser renovado por igual período mediante acordo entre as partes.
+
+CLÁUSULA 3 – DO VALOR E PAGAMENTO
+3.1. Pelo serviço descrito na Cláusula 1, o CONTRATANTE pagará à CONTRATADA o valor mensal conforme plano contratado, mediante boleto bancário, cartão de crédito ou Pix, com vencimento todo dia 10 (dez) de cada mês.
+3.2. O não pagamento na data estipulada implicará multa de 2% (dois por cento) sobre o valor em atraso, acrescido de juros de 1% (um por cento) ao mês.
+
+CLÁUSULA 4 – DAS OBRIGAÇÕES DA CONTRATADA
+4.1. Elaborar planilhas de treino individualizadas, considerando o perfil, objetivos e disponibilidade do atleta.
+4.2. Realizar avaliações periódicas de desempenho.
+4.3. Estar disponível para comunicação via aplicativo oficial da Assessoria.
+4.4. Manter sigilo sobre dados e informações pessoais do CONTRATANTE.
+
+CLÁUSULA 5 – DAS OBRIGAÇÕES DO CONTRATANTE
+5.1. Executar os treinos conforme orientação da assessoria.
+5.2. Informar à assessoria qualquer condição de saúde que possa interferir nos treinos.
+5.3. Efetuar os pagamentos nas datas convencionadas.
+5.4. Tratar com respeito e urbanidade os profissionais da CONTRATADA.
+
+CLÁUSULA 6 – DA RESCISÃO
+6.1. O presente contrato poderá ser rescindido por qualquer das partes mediante aviso prévio de 30 (trinta) dias.
+6.2. A rescisão imotivada pelo CONTRATANTE antes do término do período contratado implicará no pagamento proporcional dos serviços prestados até a data da rescisão.
+
+CLÁUSULA 7 – DO FORO
+7.1. As partes elegem o foro da comarca de [CIDADE/ESTADO] para dirimir quaisquer dúvidas ou conflitos oriundos do presente contrato, com renúncia expressa a qualquer outro, por mais privilegiado que seja.
+
+Data: {{data_atual}}
+
+_______________________________
+CONTRATANTE: {{nome}}
+CPF: {{cpf}}
+
+_______________________________
+CONTRATADA: SOMMA RUNNING CLUB`
+
+// ------- STATUS BADGE -------
+function StatusBadge({ status }: { status: Contrato["status"] }) {
+  const config = {
+    rascunho: { label: "Rascunho", className: "bg-neutral-700 text-neutral-300", icon: Edit3 },
+    enviado: { label: "Enviado", className: "bg-blue-500/20 text-blue-400 border border-blue-500/30", icon: Send },
+    aguardando: { label: "Aguardando", className: "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30", icon: Clock },
+    assinado: { label: "Assinado", className: "bg-green-500/20 text-green-400 border border-green-500/30", icon: CheckCircle },
+    cancelado: { label: "Cancelado", className: "bg-red-500/20 text-red-400 border border-red-500/30", icon: XCircle },
+  }
+  const c = config[status]
+  const Icon = c.icon
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${c.className}`}>
+      <Icon className="w-3 h-3" />
+      {c.label}
+    </span>
+  )
+}
+
+// ------- COMPONENTE PRINCIPAL -------
+export default function ContratosPage() {
+  const [contratos, setContratos] = useState<Contrato[]>([])
+  const [clientes, setClientes] = useState<AsaasCustomer[]>([])
+  const [searchTerm, setSearchTerm] = useState("")
+  const [loadingClientes, setLoadingClientes] = useState(false)
+  const [loadingAcao, setLoadingAcao] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [showNovoModal, setShowNovoModal] = useState(false)
+  const [showEditorModal, setShowEditorModal] = useState(false)
+  const [showVisualizarModal, setShowVisualizarModal] = useState(false)
+  const [contratoSelecionado, setContratoSelecionado] = useState<Contrato | null>(null)
+  const [clienteSelecionado, setClienteSelecionado] = useState<AsaasCustomer | null>(null)
+  const [searchCliente, setSearchCliente] = useState("")
+  const [conteudoEditor, setConteudoEditor] = useState("")
+  const [emailEnvio, setEmailEnvio] = useState("")
+  const [showEnviarModal, setShowEnviarModal] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+
+  // Carregar contratos do localStorage (até termos banco de dados)
+  useEffect(() => {
+    const saved = localStorage.getItem("somma_contratos")
+    if (saved) {
+      try {
+        setContratos(JSON.parse(saved))
+      } catch {}
+    }
+  }, [])
+
+  // Salvar contratos no localStorage
+  const salvarContratos = (lista: Contrato[]) => {
+    setContratos(lista)
+    localStorage.setItem("somma_contratos", JSON.stringify(lista))
+  }
+
+  // Buscar clientes do Asaas
+  const buscarClientes = async (query = "") => {
+    setLoadingClientes(true)
+    setError(null)
+    try {
+      const endpoint = query
+        ? `/api/asaas?endpoint=/customers&name=${encodeURIComponent(query)}&limit=50`
+        : `/api/asaas?endpoint=/customers&limit=100`
+      const res = await fetch(endpoint)
+      if (!res.ok) throw new Error("Erro ao buscar clientes do Asaas")
+      const data = await res.json()
+      setClientes(data.data || [])
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erro ao buscar clientes"
+      setError(msg)
+    } finally {
+      setLoadingClientes(false)
+    }
+  }
+
+  // Preencher template com dados do cliente
+  const preencherTemplate = (cliente: AsaasCustomer): string => {
+    const hoje = new Date().toLocaleDateString("pt-BR", {
+      day: "2-digit", month: "long", year: "numeric",
+    })
+    const endereco = [
+      cliente.address,
+      cliente.addressNumber,
+      cliente.complement,
+      cliente.province,
+      cliente.city,
+      cliente.state,
+    ].filter(Boolean).join(", ")
+
+    return TEMPLATE_PADRAO
+      .replace(/\{\{nome\}\}/g, cliente.name || "")
+      .replace(/\{\{cpf\}\}/g, cliente.cpfCnpj || "")
+      .replace(/\{\{email\}\}/g, cliente.email || "")
+      .replace(/\{\{telefone\}\}/g, cliente.mobilePhone || cliente.phone || "")
+      .replace(/\{\{endereco\}\}/g, endereco || "Não informado")
+      .replace(/\{\{data_atual\}\}/g, hoje)
+  }
+
+  // Abrir modal de novo contrato
+  const abrirNovoContrato = () => {
+    setClienteSelecionado(null)
+    setSearchCliente("")
+    buscarClientes()
+    setShowNovoModal(true)
+  }
+
+  // Selecionar cliente e abrir editor
+  const selecionarCliente = (cliente: AsaasCustomer) => {
+    setClienteSelecionado(cliente)
+    setConteudoEditor(preencherTemplate(cliente))
+    setEmailEnvio(cliente.email || "")
+    setShowNovoModal(false)
+    setContratoSelecionado(null)
+    setShowEditorModal(true)
+  }
+
+  // Salvar rascunho
+  const salvarRascunho = () => {
+    if (!clienteSelecionado) return
+    const agora = new Date().toISOString()
+    const novoContrato: Contrato = {
+      id: contratoSelecionado?.id || `contrato_${Date.now()}`,
+      clienteId: clienteSelecionado.id,
+      clienteNome: clienteSelecionado.name,
+      clienteEmail: clienteSelecionado.email,
+      clienteCpf: clienteSelecionado.cpfCnpj,
+      conteudo: conteudoEditor,
+      status: "rascunho",
+      criadoEm: contratoSelecionado?.criadoEm || agora,
+      atualizadoEm: agora,
+    }
+
+    const lista = contratoSelecionado
+      ? contratos.map(c => c.id === contratoSelecionado.id ? novoContrato : c)
+      : [...contratos, novoContrato]
+
+    salvarContratos(lista)
+    setShowEditorModal(false)
+    setContratoSelecionado(novoContrato)
+  }
+
+  // Editar contrato existente
+  const editarContrato = (contrato: Contrato) => {
+    const cliente: AsaasCustomer = {
+      id: contrato.clienteId,
+      name: contrato.clienteNome,
+      email: contrato.clienteEmail,
+      cpfCnpj: contrato.clienteCpf,
+    }
+    setClienteSelecionado(cliente)
+    setContratoSelecionado(contrato)
+    setConteudoEditor(contrato.conteudo)
+    setEmailEnvio(contrato.clienteEmail)
+    setShowEditorModal(true)
+  }
+
+  // Abrir modal de envio
+  const abrirEnviarModal = (contrato: Contrato) => {
+    setContratoSelecionado(contrato)
+    setEmailEnvio(contrato.clienteEmail)
+    setShowEnviarModal(true)
+  }
+
+  // Enviar para Clicksign
+  const enviarClicksign = async () => {
+    if (!contratoSelecionado) return
+    setLoadingAcao("enviando")
+
+    try {
+      // 1. Criar documento no Clicksign
+      const conteudoBase64 = btoa(unescape(encodeURIComponent(contratoSelecionado.conteudo)))
+      const criarDocRes = await fetch("/api/clicksign?endpoint=/documents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          document: {
+            path: `/contratos/${contratoSelecionado.clienteNome.replace(/\s+/g, "_")}_${Date.now()}.txt`,
+            content_base64: `data:text/plain;base64,${conteudoBase64}`,
+            deadline_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+            auto_close: true,
+            locale: "pt-BR",
+            sequence_enabled: false,
+          },
+        }),
+      })
+
+      if (!criarDocRes.ok) {
+        const err = await criarDocRes.json()
+        throw new Error(err.error || "Erro ao criar documento no Clicksign")
+      }
+
+      const docData = await criarDocRes.json()
+      const docKey = docData.document?.key
+
+      if (!docKey) throw new Error("Documento criado sem chave válida")
+
+      // 2. Adicionar signatário
+      const addSignRes = await fetch("/api/clicksign?endpoint=/documents/" + docKey + "/signers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          signer: {
+            email: emailEnvio,
+            phone_number: "",
+            name: contratoSelecionado.clienteNome,
+            documentation: contratoSelecionado.clienteCpf,
+            birthday: null,
+            has_documentation: true,
+            sign_as: "sign",
+          },
+        }),
+      })
+
+      if (!addSignRes.ok) {
+        const err = await addSignRes.json()
+        throw new Error(err.error || "Erro ao adicionar signatário")
+      }
+
+      const signerData = await addSignRes.json()
+      const signerKey = signerData.signer?.key
+
+      // 3. Adicionar signatário ao documento
+      if (signerKey) {
+        await fetch("/api/clicksign?endpoint=/documents/" + docKey + "/signers/" + signerKey, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: "Por favor, assine o contrato de assessoria esportiva da Somma Running Club." }),
+        })
+      }
+
+      // 4. Fechar documento para assinaturas
+      await fetch("/api/clicksign?endpoint=/documents/" + docKey + "/finish", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      })
+
+      // 5. Atualizar contrato local
+      const agora = new Date().toISOString()
+      const contratoAtualizado: Contrato = {
+        ...contratoSelecionado,
+        status: "enviado",
+        clicksignKey: docKey,
+        clicksignUrl: `https://app.clicksign.com/sign/${docKey}`,
+        atualizadoEm: agora,
+      }
+
+      const lista = contratos.map(c => c.id === contratoSelecionado.id ? contratoAtualizado : c)
+      salvarContratos(lista)
+      setContratoSelecionado(contratoAtualizado)
+      setShowEnviarModal(false)
+
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erro ao enviar contrato"
+      setError(msg)
+    } finally {
+      setLoadingAcao(null)
+    }
+  }
+
+  // Verificar status no Clicksign
+  const verificarStatus = async (contrato: Contrato) => {
+    if (!contrato.clicksignKey) return
+    setLoadingAcao(contrato.id)
+    try {
+      const res = await fetch(`/api/clicksign?endpoint=/documents/${contrato.clicksignKey}`)
+      if (!res.ok) throw new Error("Erro ao buscar status")
+      const data = await res.json()
+      const statusClicksign = data.document?.status
+
+      let novoStatus: Contrato["status"] = contrato.status
+      if (statusClicksign === "closed") novoStatus = "assinado"
+      else if (statusClicksign === "running") novoStatus = "aguardando"
+      else if (statusClicksign === "canceled") novoStatus = "cancelado"
+
+      const atualizado = { ...contrato, status: novoStatus, atualizadoEm: new Date().toISOString() }
+      const lista = contratos.map(c => c.id === contrato.id ? atualizado : c)
+      salvarContratos(lista)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erro ao verificar status"
+      setError(msg)
+    } finally {
+      setLoadingAcao(null)
+    }
+  }
+
+  // Excluir contrato
+  const excluirContrato = (id: string) => {
+    const lista = contratos.filter(c => c.id !== id)
+    salvarContratos(lista)
+  }
+
+  // Copiar link
+  const copiarLink = (url: string) => {
+    navigator.clipboard.writeText(url)
+  }
+
+  const contratosFiltrados = contratos.filter(c =>
+    c.clienteNome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    c.clienteEmail.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    c.clienteCpf.includes(searchTerm)
+  )
+
+  const clientesFiltrados = clientes.filter(c =>
+    c.name.toLowerCase().includes(searchCliente.toLowerCase()) ||
+    (c.cpfCnpj || "").includes(searchCliente) ||
+    (c.email || "").toLowerCase().includes(searchCliente.toLowerCase())
+  )
+
+  const stats = {
+    total: contratos.length,
+    rascunhos: contratos.filter(c => c.status === "rascunho").length,
+    enviados: contratos.filter(c => c.status === "enviado" || c.status === "aguardando").length,
+    assinados: contratos.filter(c => c.status === "assinado").length,
+  }
+
+  return (
+    <div className="flex-1 flex flex-col h-full bg-black p-3 md:p-6 overflow-auto">
+
+      {/* Header */}
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 md:gap-4 mb-4 md:mb-6">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold text-white flex items-center gap-2">
+            <FileSignature className="w-7 h-7 text-orange-500" />
+            Contratos
+          </h1>
+          <p className="text-neutral-400 text-xs md:text-sm mt-1">
+            Gestão de contratos integrado com Asaas e Clicksign
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={() => { setIsRefreshing(true); setTimeout(() => setIsRefreshing(false), 800) }}
+            variant="outline"
+            className="border-neutral-700 text-neutral-400 hover:bg-neutral-800 bg-transparent text-xs"
+          >
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`} />
+          </Button>
+          <Button
+            onClick={abrirNovoContrato}
+            className="bg-orange-500 hover:bg-orange-600 text-white gap-2 text-xs md:text-sm"
+          >
+            <Plus className="w-4 h-4" />
+            Novo Contrato
+          </Button>
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 md:mb-6">
+        {[
+          { label: "Total", value: stats.total, color: "text-white" },
+          { label: "Rascunhos", value: stats.rascunhos, color: "text-neutral-400" },
+          { label: "Enviados", value: stats.enviados, color: "text-blue-400" },
+          { label: "Assinados", value: stats.assinados, color: "text-green-400" },
+        ].map((s) => (
+          <Card key={s.label} className="bg-neutral-900 border-neutral-800">
+            <CardContent className="p-3 md:p-4">
+              <p className="text-neutral-400 text-xs">{s.label}</p>
+              <p className={`text-2xl md:text-3xl font-bold mt-1 ${s.color}`}>{s.value}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Busca */}
+      <div className="relative mb-4">
+        <Search className="absolute left-3 top-2.5 w-4 h-4 text-neutral-500" />
+        <Input
+          placeholder="Buscar por cliente, email ou CPF..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-10 bg-neutral-900 border-neutral-800 text-white text-sm"
+        />
+      </div>
+
+      {/* Erro */}
+      {error && (
+        <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg mb-4 text-red-400 text-sm">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          <span>{error}</span>
+          <button onClick={() => setError(null)} className="ml-auto"><X className="w-4 h-4" /></button>
+        </div>
+      )}
+
+      {/* Lista de contratos */}
+      {contratosFiltrados.length === 0 ? (
+        <div className="flex-1 flex flex-col items-center justify-center py-16 text-center">
+          <FileText className="w-14 h-14 text-neutral-700 mb-4" />
+          <p className="text-neutral-400 text-lg font-medium">Nenhum contrato encontrado</p>
+          <p className="text-neutral-600 text-sm mt-1 mb-6">Crie seu primeiro contrato vinculando a um cliente do Asaas</p>
+          <Button onClick={abrirNovoContrato} className="bg-orange-500 hover:bg-orange-600 text-white gap-2">
+            <Plus className="w-4 h-4" />
+            Criar Primeiro Contrato
+          </Button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {contratosFiltrados.map((contrato) => (
+            <Card key={contrato.id} className="bg-neutral-900 border-neutral-800 hover:border-orange-500/40 transition-colors">
+              <CardContent className="p-3 md:p-5">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-full bg-orange-500/20 flex items-center justify-center flex-shrink-0">
+                      <User className="w-4 h-4 text-orange-500" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-white font-semibold text-sm truncate">{contrato.clienteNome}</p>
+                        <StatusBadge status={contrato.status} />
+                      </div>
+                      <p className="text-neutral-400 text-xs mt-0.5">{contrato.clienteEmail}</p>
+                      <p className="text-neutral-500 text-xs">CPF: {contrato.clienteCpf}</p>
+                      <p className="text-neutral-600 text-xs mt-1">
+                        Criado em {new Date(contrato.criadoEm).toLocaleDateString("pt-BR")}
+                        {contrato.clicksignKey && (
+                          <span className="ml-2 text-blue-400">• Clicksign: {contrato.clicksignKey.slice(0, 8)}...</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {/* Visualizar */}
+                    <Button
+                      onClick={() => { setContratoSelecionado(contrato); setShowVisualizarModal(true) }}
+                      variant="outline"
+                      size="sm"
+                      className="border-neutral-700 text-neutral-400 hover:bg-neutral-800 bg-transparent h-8 px-2 text-xs"
+                      title="Visualizar"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                    </Button>
+
+                    {/* Editar (só rascunho) */}
+                    {contrato.status === "rascunho" && (
+                      <Button
+                        onClick={() => editarContrato(contrato)}
+                        variant="outline"
+                        size="sm"
+                        className="border-neutral-700 text-neutral-400 hover:bg-neutral-800 bg-transparent h-8 px-2 text-xs"
+                        title="Editar"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </Button>
+                    )}
+
+                    {/* Enviar (rascunho) */}
+                    {contrato.status === "rascunho" && (
+                      <Button
+                        onClick={() => abrirEnviarModal(contrato)}
+                        size="sm"
+                        className="bg-blue-500 hover:bg-blue-600 text-white h-8 px-2 text-xs gap-1"
+                        title="Enviar para assinatura"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        <span className="hidden md:inline">Enviar</span>
+                      </Button>
+                    )}
+
+                    {/* Verificar status (enviado/aguardando) */}
+                    {(contrato.status === "enviado" || contrato.status === "aguardando") && (
+                      <Button
+                        onClick={() => verificarStatus(contrato)}
+                        disabled={loadingAcao === contrato.id}
+                        size="sm"
+                        className="bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 border border-yellow-500/30 h-8 px-2 text-xs gap-1"
+                        title="Verificar status"
+                      >
+                        {loadingAcao === contrato.id
+                          ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          : <RefreshCw className="w-3.5 h-3.5" />}
+                        <span className="hidden md:inline">Status</span>
+                      </Button>
+                    )}
+
+                    {/* Link Clicksign */}
+                    {contrato.clicksignUrl && (
+                      <>
+                        <Button
+                          onClick={() => copiarLink(contrato.clicksignUrl!)}
+                          variant="outline"
+                          size="sm"
+                          className="border-neutral-700 text-neutral-400 hover:bg-neutral-800 bg-transparent h-8 px-2 text-xs"
+                          title="Copiar link"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                        </Button>
+                        <a href={contrato.clicksignUrl} target="_blank" rel="noopener noreferrer">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="border-neutral-700 text-neutral-400 hover:bg-neutral-800 bg-transparent h-8 px-2 text-xs"
+                            title="Abrir no Clicksign"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </Button>
+                        </a>
+                      </>
+                    )}
+
+                    {/* Excluir */}
+                    {(contrato.status === "rascunho" || contrato.status === "cancelado") && (
+                      <Button
+                        onClick={() => excluirContrato(contrato.id)}
+                        variant="outline"
+                        size="sm"
+                        className="border-red-500/30 text-red-400 hover:bg-red-500/10 bg-transparent h-8 px-2 text-xs"
+                        title="Excluir"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* ======= MODAL: SELECIONAR CLIENTE ======= */}
+      {showNovoModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-3 md:p-4 z-50 overflow-y-auto">
+          <Card className="bg-neutral-900 border-neutral-800 w-full max-w-lg my-4">
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <CardTitle className="text-white text-lg">Selecionar Cliente</CardTitle>
+              <button onClick={() => setShowNovoModal(false)} className="text-neutral-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-2.5 w-4 h-4 text-neutral-500" />
+                <Input
+                  placeholder="Buscar cliente por nome, CPF ou email..."
+                  value={searchCliente}
+                  onChange={(e) => {
+                    setSearchCliente(e.target.value)
+                    if (e.target.value.length > 2) buscarClientes(e.target.value)
+                  }}
+                  className="pl-10 bg-neutral-800 border-neutral-700 text-white text-sm"
+                />
+              </div>
+
+              {loadingClientes ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 text-orange-500 animate-spin" />
+                  <span className="ml-2 text-neutral-400 text-sm">Carregando clientes...</span>
+                </div>
+              ) : clientesFiltrados.length === 0 ? (
+                <div className="text-center py-8">
+                  <AlertCircle className="w-8 h-8 text-neutral-600 mx-auto mb-2" />
+                  <p className="text-neutral-400 text-sm">
+                    {error ? "Erro ao carregar clientes do Asaas." : "Nenhum cliente encontrado."}
+                  </p>
+                  {error && (
+                    <p className="text-neutral-500 text-xs mt-1">
+                      Verifique se a ASAAS_API_KEY está configurada.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-80 overflow-y-auto">
+                  {clientesFiltrados.map((cliente) => (
+                    <button
+                      key={cliente.id}
+                      onClick={() => selecionarCliente(cliente)}
+                      className="w-full flex items-center gap-3 p-3 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 hover:border-orange-500/50 transition-all text-left"
+                    >
+                      <div className="w-8 h-8 rounded-full bg-orange-500/20 flex items-center justify-center flex-shrink-0">
+                        <span className="text-orange-500 text-xs font-bold">{cliente.name.charAt(0)}</span>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-white text-sm font-medium truncate">{cliente.name}</p>
+                        <p className="text-neutral-400 text-xs">{cliente.email}</p>
+                        <p className="text-neutral-500 text-xs">CPF: {cliente.cpfCnpj}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ======= MODAL: EDITOR DE CONTRATO ======= */}
+      {showEditorModal && clienteSelecionado && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-3 md:p-4 z-50 overflow-y-auto">
+          <Card className="bg-neutral-900 border-neutral-800 w-full max-w-4xl my-4">
+            <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-neutral-800">
+              <div>
+                <CardTitle className="text-white text-lg flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-orange-500" />
+                  Editor de Contrato
+                </CardTitle>
+                <p className="text-neutral-400 text-xs mt-0.5">Cliente: <span className="text-orange-400">{clienteSelecionado.name}</span></p>
+              </div>
+              <button onClick={() => setShowEditorModal(false)} className="text-neutral-400 hover:text-white flex-shrink-0">
+                <X className="w-5 h-5" />
+              </button>
+            </CardHeader>
+            <CardContent className="pt-4 space-y-4">
+              <div className="text-xs text-neutral-500 bg-neutral-800 px-3 py-2 rounded-lg">
+                Campos preenchidos automaticamente: <span className="text-orange-400">&#123;&#123;nome&#125;&#125;</span>, <span className="text-orange-400">&#123;&#123;cpf&#125;&#125;</span>, <span className="text-orange-400">&#123;&#123;email&#125;&#125;</span>, <span className="text-orange-400">&#123;&#123;telefone&#125;&#125;</span>, <span className="text-orange-400">&#123;&#123;endereco&#125;&#125;</span>, <span className="text-orange-400">&#123;&#123;data_atual&#125;&#125;</span>
+              </div>
+              <textarea
+                value={conteudoEditor}
+                onChange={(e) => setConteudoEditor(e.target.value)}
+                className="w-full h-96 bg-neutral-800 border border-neutral-700 text-white text-xs md:text-sm font-mono p-4 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-orange-500/50 leading-relaxed"
+                spellCheck={false}
+              />
+              <div className="flex flex-col md:flex-row gap-2 justify-end">
+                <Button
+                  onClick={() => setShowEditorModal(false)}
+                  variant="outline"
+                  className="border-neutral-700 text-neutral-300 bg-transparent"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={() => setConteudoEditor(preencherTemplate(clienteSelecionado))}
+                  variant="outline"
+                  className="border-neutral-700 text-neutral-300 bg-transparent gap-1"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Restaurar Template
+                </Button>
+                <Button
+                  onClick={salvarRascunho}
+                  className="bg-orange-500 hover:bg-orange-600 text-white gap-1"
+                >
+                  <Save className="w-4 h-4" />
+                  Salvar Rascunho
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ======= MODAL: VISUALIZAR CONTRATO ======= */}
+      {showVisualizarModal && contratoSelecionado && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-3 md:p-4 z-50 overflow-y-auto">
+          <Card className="bg-neutral-900 border-neutral-800 w-full max-w-3xl my-4">
+            <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-neutral-800">
+              <div>
+                <CardTitle className="text-white text-lg">Contrato — {contratoSelecionado.clienteNome}</CardTitle>
+                <div className="flex items-center gap-2 mt-1">
+                  <StatusBadge status={contratoSelecionado.status} />
+                  {contratoSelecionado.clicksignKey && (
+                    <span className="text-xs text-neutral-500">Key: {contratoSelecionado.clicksignKey.slice(0, 12)}...</span>
+                  )}
+                </div>
+              </div>
+              <button onClick={() => setShowVisualizarModal(false)} className="text-neutral-400 hover:text-white flex-shrink-0">
+                <X className="w-5 h-5" />
+              </button>
+            </CardHeader>
+            <CardContent className="pt-4">
+              <pre className="whitespace-pre-wrap text-neutral-300 text-xs leading-relaxed font-mono bg-neutral-800 p-4 rounded-lg max-h-[65vh] overflow-y-auto border border-neutral-700">
+                {contratoSelecionado.conteudo}
+              </pre>
+              <div className="flex gap-2 justify-end mt-4">
+                <Button
+                  onClick={() => setShowVisualizarModal(false)}
+                  variant="outline"
+                  className="border-neutral-700 text-neutral-300 bg-transparent"
+                >
+                  Fechar
+                </Button>
+                {contratoSelecionado.status === "rascunho" && (
+                  <Button
+                    onClick={() => { setShowVisualizarModal(false); abrirEnviarModal(contratoSelecionado) }}
+                    className="bg-blue-500 hover:bg-blue-600 text-white gap-1"
+                  >
+                    <Send className="w-4 h-4" />
+                    Enviar para Assinatura
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* ======= MODAL: ENVIAR PARA CLICKSIGN ======= */}
+      {showEnviarModal && contratoSelecionado && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-3 md:p-4 z-50">
+          <Card className="bg-neutral-900 border-neutral-800 w-full max-w-md">
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <CardTitle className="text-white text-lg flex items-center gap-2">
+                <Send className="w-5 h-5 text-blue-400" />
+                Enviar para Assinatura
+              </CardTitle>
+              <button onClick={() => setShowEnviarModal(false)} className="text-neutral-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="bg-neutral-800 p-3 rounded-lg border border-neutral-700">
+                <p className="text-neutral-400 text-xs mb-1">Cliente</p>
+                <p className="text-white font-medium text-sm">{contratoSelecionado.clienteNome}</p>
+                <p className="text-neutral-400 text-xs">CPF: {contratoSelecionado.clienteCpf}</p>
+              </div>
+
+              <div>
+                <label className="text-neutral-400 text-xs block mb-1.5">
+                  E-mail para envio da assinatura
+                </label>
+                <Input
+                  type="email"
+                  value={emailEnvio}
+                  onChange={(e) => setEmailEnvio(e.target.value)}
+                  className="bg-neutral-800 border-neutral-700 text-white text-sm"
+                  placeholder="email@exemplo.com"
+                />
+              </div>
+
+              <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
+                <p className="text-blue-400 text-xs">
+                  O contrato será criado no Clicksign e o link de assinatura será enviado para o e-mail informado. O documento ficará disponível por 7 dias.
+                </p>
+              </div>
+
+              {error && (
+                <div className="flex items-center gap-2 p-2 bg-red-500/10 border border-red-500/30 rounded text-red-400 text-xs">
+                  <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                  {error}
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => { setShowEnviarModal(false); setError(null) }}
+                  variant="outline"
+                  className="flex-1 border-neutral-700 text-neutral-300 bg-transparent"
+                  disabled={loadingAcao === "enviando"}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={enviarClicksign}
+                  disabled={!emailEnvio || loadingAcao === "enviando"}
+                  className="flex-1 bg-blue-500 hover:bg-blue-600 text-white gap-1"
+                >
+                  {loadingAcao === "enviando" ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Enviando...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4" />
+                      Enviar Contrato
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+    </div>
+  )
+}
