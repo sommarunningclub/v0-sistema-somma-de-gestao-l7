@@ -714,7 +714,9 @@ export default function ContratosPage() {
               name: contratoSelecionado.clienteNome,
               email: emailEnvio,
               auths: ["email"],
-              delivery_method: "email",
+              sign_as: "sign",
+              delivery: "email",
+              refusable: false,
               ...(cpfLimpo ? { documentation: cpfLimpo } : {}),
             },
           },
@@ -806,7 +808,26 @@ export default function ContratosPage() {
       setContratoSelecionado(contratoAtualizado)
       setShowEnviarModal(false)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Erro ao enviar contrato")
+      let errorMessage = "Ocorreu um erro inesperado ao enviar o contrato. Tente novamente."
+      if (err instanceof Error) {
+        const msg = err.message.toLowerCase()
+        if (msg.includes("e-mail do usuário da api não configurado") || msg.includes("email do usuário da api")) {
+          errorMessage = "Configuração necessária na Clicksign: O e-mail do usuário da API não está configurado na sua conta. Acesse app.clicksign.com → Configurações → API e preencha o campo de e-mail. Após salvar, tente novamente."
+        } else if (msg.includes("passo 1")) {
+          errorMessage = `Falha ao criar envelope: ${err.message}`
+        } else if (msg.includes("passo 2")) {
+          errorMessage = `Falha ao adicionar documento: ${err.message}`
+        } else if (msg.includes("passo 3")) {
+          errorMessage = `Falha ao adicionar signatário: ${err.message}`
+        } else if (msg.includes("passo 4")) {
+          errorMessage = `Falha ao criar requisito de assinatura: ${err.message}`
+        } else if (msg.includes("passo 5")) {
+          errorMessage = `Falha ao ativar envelope: ${err.message}`
+        } else {
+          errorMessage = err.message
+        }
+      }
+      setError(errorMessage)
     } finally {
       setLoadingAcao(null)
     }
@@ -922,10 +943,23 @@ export default function ContratosPage() {
 
         {/* Erro */}
         {error && (
-          <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg mb-4 text-red-400 text-sm">
-            <AlertCircle className="w-4 h-4 flex-shrink-0" />
-            <span>{error}</span>
-            <button onClick={() => setError(null)} className="ml-auto"><X className="w-4 h-4" /></button>
+          <div className="flex items-start gap-3 p-3 bg-red-500/10 border border-red-500/30 rounded-lg mb-4 text-red-400 text-sm">
+            <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <span>{error}</span>
+              {error.includes("Clicksign") && (
+                <a
+                  href="https://app.clicksign.com/settings/api"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-white font-semibold mt-2 text-xs hover:underline"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  Ir para configurações da Clicksign
+                </a>
+              )}
+            </div>
+            <button onClick={() => setError(null)} className="ml-auto flex-shrink-0"><X className="w-4 h-4" /></button>
           </div>
         )}
 
