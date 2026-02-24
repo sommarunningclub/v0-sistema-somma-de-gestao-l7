@@ -1,11 +1,13 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import {
   FileText, Plus, Search, Send, Eye, Trash2, RefreshCw,
-  AlertCircle, CheckCircle, Clock, XCircle, User, ChevronDown,
-  ChevronUp, Copy, ExternalLink, Loader2, FileSignature, X,
-  Save, Edit3
+  AlertCircle, CheckCircle, Clock, XCircle, User, Copy,
+  ExternalLink, Loader2, FileSignature, X, Save, Edit3,
+  Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight,
+  List, ChevronDown, ChevronUp, Printer, Download, Columns,
+  PanelLeft, Tag, RotateCcw, CheckSquare
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -44,9 +46,17 @@ interface Contrato {
 }
 
 // ------- TEMPLATE PADRÃO -------
-const TEMPLATE_PADRAO = `CONTRATO DE PRESTAÇÃO DE SERVIÇOS DE ASSESSORIA ESPORTIVA
+const TEMPLATE_PADRAO = `CONTRATO E TERMO DE ADESÃO – ASSESSORIA SOMMA CLUB
 
-Pelo presente instrumento particular, as partes abaixo identificadas celebram o presente Contrato de Prestação de Serviços de Assessoria Esportiva, que se regerá pelas seguintes cláusulas e condições:
+Pelo presente instrumento particular, as partes abaixo identificadas celebram o presente Contrato de Prestação de Serviços de Assessoria Esportiva:
+
+CONTRATADA:
+Razão Social: SOMMA EMPREENDIMENTOS ESPORTIVOS LTDA
+Nome Fantasia: SOMMA EMPREENDIMENTOS ESPORTIVOS
+CNPJ: 61.315.987/0001-28
+Endereço: ST de Rádio e TV Sul, Quadra 701, Conj. L, Bloco 02, Sala 417 – Parte K 52, Asa Sul, Brasília/DF – CEP 70.340-906
+Telefone: (61) 9917-8033
+E-mail: sommarunningclub@gmail.com
 
 CONTRATANTE:
 Nome: {{nome}}
@@ -55,39 +65,50 @@ E-mail: {{email}}
 Telefone: {{telefone}}
 Endereço: {{endereco}}
 
-CONTRATADA:
-SOMMA RUNNING CLUB
-CNPJ: [CNPJ DA EMPRESA]
-Endereço: [ENDEREÇO DA EMPRESA]
+CLÁUSULA 1 – OBJETO
+O presente contrato tem como objeto a prestação de serviços de assessoria esportiva em corrida de rua, incluindo planejamento de treinos, acompanhamento via aplicativo, benefícios exclusivos e participação em experiências promovidas pela SOMMA, conforme plano escolhido pelo CONTRATANTE.
 
-CLÁUSULA 1 – DO OBJETO
-1.1. A CONTRATADA se compromete a prestar serviços de assessoria esportiva ao CONTRATANTE, incluindo elaboração de planilhas de treino personalizadas, acompanhamento de evolução atlética e orientações técnicas para a prática de corrida de rua.
+CLÁUSULA 2 – PLANOS E VALORES
+Plano Mensal: valor de R$220 por mês, cobrado de forma recorrente no cartão de crédito.
+Plano Semestral: valor total de R$1.200, equivalente a seis meses de assessoria.
+Plano Anual: valor total de R$2.160, equivalente a doze meses de assessoria.
 
-CLÁUSULA 2 – DA DURAÇÃO
-2.1. O presente contrato terá vigência de 12 (doze) meses a contar da data de assinatura, podendo ser renovado por igual período mediante acordo entre as partes.
+O CONTRATANTE declara estar ciente de que os planos semestral e anual possuem condição promocional vinculada ao período mínimo contratado.
 
-CLÁUSULA 3 – DO VALOR E PAGAMENTO
-3.1. Pelo serviço descrito na Cláusula 1, o CONTRATANTE pagará à CONTRATADA o valor mensal conforme plano contratado, mediante boleto bancário, cartão de crédito ou Pix, com vencimento todo dia 10 (dez) de cada mês.
-3.2. O não pagamento na data estipulada implicará multa de 2% (dois por cento) sobre o valor em atraso, acrescido de juros de 1% (um por cento) ao mês.
+CLÁUSULA 3 – FORMA DE PAGAMENTO
+Nos planos semestral e anual, a SOMMA poderá oferecer pagamento recorrente mensal como mera forma de cobrança, sem descaracterizar o compromisso mínimo do período contratado. O valor recorrente poderá ser de R$180 mensais no plano anual, conforme condição comercial vigente. O CONTRATANTE reconhece que a recorrência mensal não representa plano mensal livre, mas sim parcelamento do plano contratado.
 
-CLÁUSULA 4 – DAS OBRIGAÇÕES DA CONTRATADA
-4.1. Elaborar planilhas de treino individualizadas, considerando o perfil, objetivos e disponibilidade do atleta.
-4.2. Realizar avaliações periódicas de desempenho.
-4.3. Estar disponível para comunicação via aplicativo oficial da Assessoria.
-4.4. Manter sigilo sobre dados e informações pessoais do CONTRATANTE.
+CLÁUSULA 4 – BENEFÍCIOS INCLUSOS
+- Presença VIP nas provas Somma com acesso privilegiado.
+- Estrutura Somma em eventos e competições.
+- Descontos em parceiros como Track&Field, Tex Barbearia, Dopahmina, Academia Evolve, Bugu Delícias e marcas de suplementos.
+- Participação em sorteios mensais exclusivos.
+- Encontros mensais com corridas temáticas, palestras e experiências.
+- Treinamento personalizado via aplicativo com integração Strava e relógios GPS e acompanhamento de métricas.
+- Camiseta oficial de membro nos planos semestral e anual.
+- Desconto de 50% em camisetas adicionais para membros ativos.
 
-CLÁUSULA 5 – DAS OBRIGAÇÕES DO CONTRATANTE
-5.1. Executar os treinos conforme orientação da assessoria.
-5.2. Informar à assessoria qualquer condição de saúde que possa interferir nos treinos.
-5.3. Efetuar os pagamentos nas datas convencionadas.
-5.4. Tratar com respeito e urbanidade os profissionais da CONTRATADA.
+Os benefícios poderão sofrer ajustes estratégicos sem descaracterizar a natureza do serviço.
 
-CLÁUSULA 6 – DA RESCISÃO
-6.1. O presente contrato poderá ser rescindido por qualquer das partes mediante aviso prévio de 30 (trinta) dias.
-6.2. A rescisão imotivada pelo CONTRATANTE antes do término do período contratado implicará no pagamento proporcional dos serviços prestados até a data da rescisão.
+CLÁUSULA 5 – FIDELIDADE E CANCELAMENTO
+Nos planos semestral e anual existe permanência mínima correspondente ao período contratado.
+O cancelamento deverá ser solicitado com antecedência mínima de 30 dias.
+Caso o CONTRATANTE solicite cancelamento antes do prazo mínimo, poderá ocorrer ajuste financeiro correspondente à diferença entre o valor promocional do plano escolhido e o valor do plano mensal vigente, proporcional ao período utilizado.
+Caso não haja aviso prévio de 30 dias, será devido o valor correspondente ao aviso prévio contratual.
 
-CLÁUSULA 7 – DO FORO
-7.1. As partes elegem o foro da comarca de [CIDADE/ESTADO] para dirimir quaisquer dúvidas ou conflitos oriundos do presente contrato, com renúncia expressa a qualquer outro, por mais privilegiado que seja.
+CLÁUSULA 6 – INADIMPLÊNCIA
+O não pagamento das parcelas recorrentes poderá resultar em suspensão imediata dos benefícios e acesso aos serviços.
+Poderão ser aplicadas multas e encargos conforme legislação vigente, além da possibilidade de cobrança administrativa ou judicial dos valores pendentes.
+
+CLÁUSULA 7 – ANÁLISE DE CRÉDITO E DADOS
+O CONTRATANTE autoriza expressamente a SOMMA a realizar análise cadastral e consulta de crédito para fins de validação da contratação, quando aplicável. Autoriza ainda o tratamento de seus dados pessoais exclusivamente para execução do presente contrato, conforme legislação de proteção de dados.
+
+CLÁUSULA 8 – CONDIÇÕES GERAIS
+A assessoria esportiva não substitui acompanhamento médico. O CONTRATANTE declara estar apto à prática esportiva.
+Os benefícios são pessoais e intransferíveis. A participação em eventos poderá depender de disponibilidade e regras específicas.
+
+CLÁUSULA 9 – ACEITE DIGITAL
+A adesão poderá ocorrer de forma eletrônica, sendo o aceite digital considerado válido e equivalente à assinatura física.
 
 Data: {{data_atual}}
 
@@ -96,7 +117,18 @@ CONTRATANTE: {{nome}}
 CPF: {{cpf}}
 
 _______________________________
-CONTRATADA: SOMMA RUNNING CLUB`
+SOMMA EMPREENDIMENTOS ESPORTIVOS LTDA
+CNPJ: 61.315.987/0001-28`
+
+// ------- CAMPOS VARIÁVEIS -------
+const CAMPOS_VARIAVEIS = [
+  { key: "{{nome}}", label: "Nome do cliente", desc: "Nome completo" },
+  { key: "{{cpf}}", label: "CPF", desc: "CPF formatado" },
+  { key: "{{email}}", label: "E-mail", desc: "E-mail do cliente" },
+  { key: "{{telefone}}", label: "Telefone", desc: "Celular ou telefone" },
+  { key: "{{endereco}}", label: "Endereço", desc: "Endereço completo" },
+  { key: "{{data_atual}}", label: "Data atual", desc: "Data de hoje" },
+]
 
 // ------- STATUS BADGE -------
 function StatusBadge({ status }: { status: Contrato["status"] }) {
@@ -117,6 +149,342 @@ function StatusBadge({ status }: { status: Contrato["status"] }) {
   )
 }
 
+// ------- EDITOR SOFISTICADO -------
+function EditorContrato({
+  conteudo,
+  onChange,
+  clienteNome,
+  onSalvar,
+  onFechar,
+  salvando,
+}: {
+  conteudo: string
+  onChange: (v: string) => void
+  clienteNome: string
+  onSalvar: () => void
+  onFechar: () => void
+  salvando: boolean
+}) {
+  const [modo, setModo] = useState<"editar" | "preview" | "split">("split")
+  const [showCampos, setShowCampos] = useState(true)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  const inserirCampo = useCallback((campo: string) => {
+    const el = textareaRef.current
+    if (!el) return
+    const start = el.selectionStart
+    const end = el.selectionEnd
+    const novo = conteudo.substring(0, start) + campo + conteudo.substring(end)
+    onChange(novo)
+    setTimeout(() => {
+      el.selectionStart = el.selectionEnd = start + campo.length
+      el.focus()
+    }, 0)
+  }, [conteudo, onChange])
+
+  const wrapTexto = useCallback((antes: string, depois: string) => {
+    const el = textareaRef.current
+    if (!el) return
+    const start = el.selectionStart
+    const end = el.selectionEnd
+    const selecionado = conteudo.substring(start, end)
+    const novo = conteudo.substring(0, start) + antes + selecionado + depois + conteudo.substring(end)
+    onChange(novo)
+    setTimeout(() => {
+      el.selectionStart = start + antes.length
+      el.selectionEnd = end + antes.length
+      el.focus()
+    }, 0)
+  }, [conteudo, onChange])
+
+  const totalPalavras = conteudo.trim().split(/\s+/).filter(Boolean).length
+  const totalCaracteres = conteudo.length
+  const camposNaoPreenchidos = CAMPOS_VARIAVEIS.filter(c => conteudo.includes(c.key))
+
+  // Renderizar preview
+  const renderPreview = (texto: string) => {
+    return texto
+      .split("\n")
+      .map((line, i) => {
+        const isTitle = line.match(/^[A-ZÁÀÂÃÉÈÊÍÏÓÔÕÖÚÜ��\s–\-]+$/) && line.trim().length > 3 && line.trim().length < 80
+        const isClausula = line.match(/^CLÁUSULA\s+\d+/)
+        const isSeparator = line.match(/^_{10,}/)
+        const isEmpty = line.trim() === ""
+
+        if (isEmpty) return <div key={i} className="h-3" />
+        if (isSeparator) return <hr key={i} className="border-neutral-600 my-4" />
+        if (isClausula) return (
+          <p key={i} className="font-bold text-orange-400 mt-4 mb-1 text-sm">{line}</p>
+        )
+        if (isTitle && i < 5) return (
+          <h2 key={i} className="text-base font-bold text-white text-center mb-2">{line}</h2>
+        )
+        if (isTitle) return (
+          <p key={i} className="font-semibold text-white mt-3 mb-1 text-sm uppercase tracking-wide">{line}</p>
+        )
+        return <p key={i} className="text-neutral-300 text-sm leading-relaxed">{line}</p>
+      })
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/90 z-50 flex flex-col">
+      {/* Barra superior */}
+      <div className="flex items-center justify-between px-4 py-2.5 bg-neutral-900 border-b border-neutral-800 flex-shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <FileSignature className="w-5 h-5 text-orange-500" />
+            <div>
+              <p className="text-white text-sm font-semibold leading-none">Editor de Contrato</p>
+              <p className="text-neutral-500 text-xs mt-0.5">{clienteNome}</p>
+            </div>
+          </div>
+
+          {/* Divider */}
+          <div className="w-px h-8 bg-neutral-700 mx-1" />
+
+          {/* Toolbar de formatação */}
+          <div className="flex items-center gap-0.5">
+            <button
+              onClick={() => wrapTexto("**", "**")}
+              className="p-1.5 rounded text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors"
+              title="Negrito"
+            >
+              <Bold className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => wrapTexto("_", "_")}
+              className="p-1.5 rounded text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors"
+              title="Itálico"
+            >
+              <Italic className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => {
+                const el = textareaRef.current
+                if (!el) return
+                const start = el.selectionStart
+                const lineStart = conteudo.lastIndexOf("\n", start - 1) + 1
+                const novo = conteudo.substring(0, lineStart) + "- " + conteudo.substring(lineStart)
+                onChange(novo)
+              }}
+              className="p-1.5 rounded text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors"
+              title="Lista"
+            >
+              <List className="w-3.5 h-3.5" />
+            </button>
+            <div className="w-px h-5 bg-neutral-700 mx-1" />
+            <button
+              onClick={() => {
+                if (window.confirm("Restaurar o template original? Isso apagará as edições atuais.")) {
+                  onChange(TEMPLATE_PADRAO)
+                }
+              }}
+              className="p-1.5 rounded text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors"
+              title="Restaurar template"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Controles de modo e ações */}
+        <div className="flex items-center gap-2">
+          {/* Seletor de modo */}
+          <div className="flex items-center bg-neutral-800 rounded-lg p-0.5 border border-neutral-700">
+            {[
+              { id: "editar", icon: Edit3, label: "Editar" },
+              { id: "split", icon: Columns, label: "Split" },
+              { id: "preview", icon: Eye, label: "Preview" },
+            ].map(({ id, icon: Icon, label }) => (
+              <button
+                key={id}
+                onClick={() => setModo(id as typeof modo)}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs transition-all ${
+                  modo === id
+                    ? "bg-orange-500 text-white"
+                    : "text-neutral-400 hover:text-white"
+                }`}
+                title={label}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                <span className="hidden md:inline">{label}</span>
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={() => setShowCampos(!showCampos)}
+            className={`p-1.5 rounded border transition-colors ${
+              showCampos
+                ? "bg-orange-500/20 border-orange-500/50 text-orange-400"
+                : "border-neutral-700 text-neutral-400 hover:text-white"
+            }`}
+            title="Campos variáveis"
+          >
+            <Tag className="w-3.5 h-3.5" />
+          </button>
+
+          <div className="w-px h-6 bg-neutral-700" />
+
+          <Button
+            onClick={onSalvar}
+            disabled={salvando}
+            className="bg-orange-500 hover:bg-orange-600 text-white h-8 px-3 text-xs gap-1.5"
+          >
+            {salvando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+            Salvar
+          </Button>
+          <button onClick={onFechar} className="text-neutral-400 hover:text-white p-1.5">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Status bar */}
+      <div className="flex items-center justify-between px-4 py-1 bg-neutral-950 border-b border-neutral-800 flex-shrink-0 text-xs text-neutral-500">
+        <div className="flex items-center gap-4">
+          <span>{totalPalavras} palavras</span>
+          <span>{totalCaracteres} caracteres</span>
+          {camposNaoPreenchidos.length > 0 && (
+            <span className="text-yellow-500 flex items-center gap-1">
+              <AlertCircle className="w-3 h-3" />
+              {camposNaoPreenchidos.length} campo(s) variável(is) no texto
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          {camposNaoPreenchidos.length === 0 && (
+            <span className="text-green-500 flex items-center gap-1">
+              <CheckSquare className="w-3 h-3" />
+              Todos os campos preenchidos
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Área principal */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Painel de campos variáveis */}
+        {showCampos && (
+          <div className="w-56 bg-neutral-950 border-r border-neutral-800 flex flex-col flex-shrink-0 overflow-y-auto">
+            <div className="p-3 border-b border-neutral-800">
+              <p className="text-white text-xs font-semibold">Campos Variáveis</p>
+              <p className="text-neutral-500 text-xs mt-0.5">Clique para inserir</p>
+            </div>
+            <div className="p-2 space-y-1">
+              {CAMPOS_VARIAVEIS.map((campo) => {
+                const noTexto = conteudo.includes(campo.key)
+                return (
+                  <button
+                    key={campo.key}
+                    onClick={() => inserirCampo(campo.key)}
+                    className={`w-full text-left p-2.5 rounded-lg border transition-all hover:border-orange-500/50 hover:bg-orange-500/5 ${
+                      noTexto
+                        ? "border-orange-500/30 bg-orange-500/5"
+                        : "border-neutral-800 bg-neutral-900"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className={`text-xs font-mono ${noTexto ? "text-orange-400" : "text-neutral-400"}`}>
+                        {campo.key}
+                      </span>
+                      {noTexto && <CheckCircle className="w-3 h-3 text-orange-500 flex-shrink-0" />}
+                    </div>
+                    <p className="text-neutral-300 text-xs mt-0.5">{campo.label}</p>
+                    <p className="text-neutral-600 text-xs">{campo.desc}</p>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Editor */}
+        {(modo === "editar" || modo === "split") && (
+          <div className={`flex flex-col ${modo === "split" ? "flex-1" : "flex-1"} border-r border-neutral-800`}>
+            <div className="px-3 py-1.5 bg-neutral-950 border-b border-neutral-800 flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-red-500" />
+              <div className="w-2 h-2 rounded-full bg-yellow-500" />
+              <div className="w-2 h-2 rounded-full bg-green-500" />
+              <span className="text-neutral-500 text-xs ml-2">contrato.txt</span>
+            </div>
+            <textarea
+              ref={textareaRef}
+              value={conteudo}
+              onChange={(e) => onChange(e.target.value)}
+              className="flex-1 bg-neutral-950 text-neutral-200 text-sm font-mono p-6 resize-none focus:outline-none leading-relaxed"
+              spellCheck={false}
+              style={{ tabSize: 2 }}
+            />
+          </div>
+        )}
+
+        {/* Preview */}
+        {(modo === "preview" || modo === "split") && (
+          <div className={`${modo === "split" ? "flex-1" : "flex-1"} flex flex-col overflow-hidden`}>
+            <div className="px-3 py-1.5 bg-neutral-950 border-b border-neutral-800 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Eye className="w-3.5 h-3.5 text-neutral-500" />
+                <span className="text-neutral-500 text-xs">Pré-visualização</span>
+              </div>
+            </div>
+            {/* Folha de papel */}
+            <div className="flex-1 overflow-y-auto bg-neutral-800 p-6">
+              <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-2xl overflow-hidden">
+                {/* Cabeçalho do documento */}
+                <div className="bg-neutral-900 px-8 py-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-orange-500 font-bold text-sm tracking-widest">SOMMA</p>
+                    <p className="text-neutral-400 text-xs">Assessoria Esportiva</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-neutral-400 text-xs">CNPJ: 61.315.987/0001-28</p>
+                    <p className="text-neutral-500 text-xs">sommarunningclub@gmail.com</p>
+                  </div>
+                </div>
+                {/* Conteúdo */}
+                <div className="px-8 py-6 bg-white min-h-96 text-neutral-900">
+                  {conteudo.split("\n").map((line, i) => {
+                    const isMainTitle = i === 0 && line.trim().length > 0
+                    const isClausula = line.match(/^CLÁUSULA\s+\d+/)
+                    const isSection = line.match(/^(CONTRATADA|CONTRATANTE):?$/)
+                    const isSeparator = line.match(/^_{10,}/)
+                    const isEmpty = line.trim() === ""
+                    const isBullet = line.trim().startsWith("- ")
+
+                    if (isEmpty) return <div key={i} className="h-3" />
+                    if (isSeparator) return <hr key={i} className="border-neutral-300 my-4" />
+                    if (isMainTitle) return (
+                      <h1 key={i} className="text-center text-base font-bold text-neutral-900 mb-4 uppercase tracking-wide border-b-2 border-orange-500 pb-3">{line}</h1>
+                    )
+                    if (isClausula) return (
+                      <p key={i} className="font-bold text-orange-600 mt-5 mb-1.5 text-sm uppercase tracking-wide">{line}</p>
+                    )
+                    if (isSection) return (
+                      <p key={i} className="font-bold text-neutral-900 mt-4 mb-1 text-sm uppercase border-b border-neutral-200 pb-1">{line}</p>
+                    )
+                    if (isBullet) return (
+                      <p key={i} className="text-neutral-700 text-sm leading-relaxed pl-4 flex gap-2">
+                        <span className="text-orange-500 font-bold flex-shrink-0">•</span>
+                        <span>{line.replace(/^- /, "")}</span>
+                      </p>
+                    )
+                    return <p key={i} className="text-neutral-700 text-sm leading-relaxed">{line}</p>
+                  })}
+                </div>
+                {/* Rodapé */}
+                <div className="bg-neutral-50 px-8 py-3 border-t border-neutral-200 text-center">
+                  <p className="text-neutral-400 text-xs">Documento gerado pelo Sistema Somma de Gestão · v2.1.11</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ------- COMPONENTE PRINCIPAL -------
 export default function ContratosPage() {
   const [contratos, setContratos] = useState<Contrato[]>([])
@@ -128,31 +496,27 @@ export default function ContratosPage() {
   const [showNovoModal, setShowNovoModal] = useState(false)
   const [showEditorModal, setShowEditorModal] = useState(false)
   const [showVisualizarModal, setShowVisualizarModal] = useState(false)
+  const [showEnviarModal, setShowEnviarModal] = useState(false)
   const [contratoSelecionado, setContratoSelecionado] = useState<Contrato | null>(null)
   const [clienteSelecionado, setClienteSelecionado] = useState<AsaasCustomer | null>(null)
   const [searchCliente, setSearchCliente] = useState("")
   const [conteudoEditor, setConteudoEditor] = useState("")
   const [emailEnvio, setEmailEnvio] = useState("")
-  const [showEnviarModal, setShowEnviarModal] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [salvando, setSalvando] = useState(false)
 
-  // Carregar contratos do localStorage (até termos banco de dados)
   useEffect(() => {
     const saved = localStorage.getItem("somma_contratos")
     if (saved) {
-      try {
-        setContratos(JSON.parse(saved))
-      } catch {}
+      try { setContratos(JSON.parse(saved)) } catch {}
     }
   }, [])
 
-  // Salvar contratos no localStorage
   const salvarContratos = (lista: Contrato[]) => {
     setContratos(lista)
     localStorage.setItem("somma_contratos", JSON.stringify(lista))
   }
 
-  // Buscar clientes do Asaas
   const buscarClientes = async (query = "") => {
     setLoadingClientes(true)
     setError(null)
@@ -165,27 +529,15 @@ export default function ContratosPage() {
       const data = await res.json()
       setClientes(data.data || [])
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Erro ao buscar clientes"
-      setError(msg)
+      setError(err instanceof Error ? err.message : "Erro ao buscar clientes")
     } finally {
       setLoadingClientes(false)
     }
   }
 
-  // Preencher template com dados do cliente
   const preencherTemplate = (cliente: AsaasCustomer): string => {
-    const hoje = new Date().toLocaleDateString("pt-BR", {
-      day: "2-digit", month: "long", year: "numeric",
-    })
-    const endereco = [
-      cliente.address,
-      cliente.addressNumber,
-      cliente.complement,
-      cliente.province,
-      cliente.city,
-      cliente.state,
-    ].filter(Boolean).join(", ")
-
+    const hoje = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })
+    const endereco = [cliente.address, cliente.addressNumber, cliente.complement, cliente.province, cliente.city, cliente.state].filter(Boolean).join(", ")
     return TEMPLATE_PADRAO
       .replace(/\{\{nome\}\}/g, cliente.name || "")
       .replace(/\{\{cpf\}\}/g, cliente.cpfCnpj || "")
@@ -195,7 +547,6 @@ export default function ContratosPage() {
       .replace(/\{\{data_atual\}\}/g, hoje)
   }
 
-  // Abrir modal de novo contrato
   const abrirNovoContrato = () => {
     setClienteSelecionado(null)
     setSearchCliente("")
@@ -203,7 +554,6 @@ export default function ContratosPage() {
     setShowNovoModal(true)
   }
 
-  // Selecionar cliente e abrir editor
   const selecionarCliente = (cliente: AsaasCustomer) => {
     setClienteSelecionado(cliente)
     setConteudoEditor(preencherTemplate(cliente))
@@ -213,9 +563,9 @@ export default function ContratosPage() {
     setShowEditorModal(true)
   }
 
-  // Salvar rascunho
   const salvarRascunho = () => {
     if (!clienteSelecionado) return
+    setSalvando(true)
     const agora = new Date().toISOString()
     const novoContrato: Contrato = {
       id: contratoSelecionado?.id || `contrato_${Date.now()}`,
@@ -228,17 +578,17 @@ export default function ContratosPage() {
       criadoEm: contratoSelecionado?.criadoEm || agora,
       atualizadoEm: agora,
     }
-
     const lista = contratoSelecionado
       ? contratos.map(c => c.id === contratoSelecionado.id ? novoContrato : c)
       : [...contratos, novoContrato]
-
     salvarContratos(lista)
-    setShowEditorModal(false)
-    setContratoSelecionado(novoContrato)
+    setTimeout(() => {
+      setSalvando(false)
+      setShowEditorModal(false)
+      setContratoSelecionado(novoContrato)
+    }, 600)
   }
 
-  // Editar contrato existente
   const editarContrato = (contrato: Contrato) => {
     const cliente: AsaasCustomer = {
       id: contrato.clienteId,
@@ -253,145 +603,210 @@ export default function ContratosPage() {
     setShowEditorModal(true)
   }
 
-  // Abrir modal de envio
   const abrirEnviarModal = (contrato: Contrato) => {
     setContratoSelecionado(contrato)
     setEmailEnvio(contrato.clienteEmail)
     setShowEnviarModal(true)
   }
 
-  // Enviar para Clicksign
   const enviarClicksign = async () => {
     if (!contratoSelecionado) return
     setLoadingAcao("enviando")
-
+    setError(null)
     try {
-      // 1. Criar documento no Clicksign
-      const conteudoBase64 = btoa(unescape(encodeURIComponent(contratoSelecionado.conteudo)))
-      const criarDocRes = await fetch("/api/clicksign?endpoint=/documents", {
+      // PASSO 1: Criar o envelope (JSON:API format)
+      const deadlineAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+      const envelopeRes = await fetch("/api/clicksign?endpoint=/envelopes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          document: {
-            path: `/contratos/${contratoSelecionado.clienteNome.replace(/\s+/g, "_")}_${Date.now()}.txt`,
-            content_base64: `data:text/plain;base64,${conteudoBase64}`,
-            deadline_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-            auto_close: true,
-            locale: "pt-BR",
-            sequence_enabled: false,
+          data: {
+            type: "envelopes",
+            attributes: {
+              name: `Contrato Somma - ${contratoSelecionado.clienteNome}`,
+              locale: "pt-BR",
+              auto_close: true,
+              deadline_at: deadlineAt,
+              remind_interval: "3",
+              block_after_refusal: false,
+              default_subject: "Contrato de Assessoria Esportiva - Somma Club",
+              default_message: "Por favor, assine o seu contrato de assessoria esportiva da Somma Running Club.",
+            },
           },
         }),
       })
-
-      if (!criarDocRes.ok) {
-        const err = await criarDocRes.json()
-        throw new Error(err.error || "Erro ao criar documento no Clicksign")
+      if (!envelopeRes.ok) {
+        const err = await envelopeRes.json()
+        const detail = err.errors?.[0]?.detail || err.error || "Erro ao criar envelope"
+        throw new Error(`Passo 1 (Envelope): ${detail}`)
       }
+      const envelopeData = await envelopeRes.json()
+      const envelopeId = envelopeData.data?.id
+      if (!envelopeId) throw new Error("Envelope criado sem ID. Resposta: " + JSON.stringify(envelopeData))
 
-      const docData = await criarDocRes.json()
-      const docKey = docData.document?.key
+      // PASSO 2: Adicionar documento ao envelope em base64 (PDF via HTML)
+      const htmlContrato = [
+        "<!DOCTYPE html>",
+        '<html lang="pt-BR">',
+        "<head>",
+        '<meta charset="UTF-8">',
+        "<title>Contrato Somma</title>",
+        "<style>",
+        "body { font-family: Arial, sans-serif; font-size: 12pt; margin: 60px; line-height: 1.8; color: #222; }",
+        "h1 { font-size: 14pt; text-align: center; text-transform: uppercase; margin-bottom: 24px; }",
+        "p { margin-bottom: 10px; text-align: justify; }",
+        "</style>",
+        "</head>",
+        "<body>",
+        ...contratoSelecionado.conteudo.split("\n").map(l => `<p>${l.trim() || "&nbsp;"}</p>`),
+        "</body>",
+        "</html>",
+      ].join("")
+      const conteudoBase64 = Buffer.from(htmlContrato).toString("base64")
+      const nomeArquivo = `Contrato_Somma_${contratoSelecionado.clienteNome.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_]/g, "")}.html`
 
-      if (!docKey) throw new Error("Documento criado sem chave válida")
-
-      // 2. Adicionar signatário
-      const addSignRes = await fetch("/api/clicksign?endpoint=/documents/" + docKey + "/signers", {
+      const docRes = await fetch(`/api/clicksign?endpoint=/envelopes/${envelopeId}/documents`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          signer: {
-            email: emailEnvio,
-            phone_number: "",
-            name: contratoSelecionado.clienteNome,
-            documentation: contratoSelecionado.clienteCpf,
-            birthday: null,
-            has_documentation: true,
-            sign_as: "sign",
+          data: {
+            type: "documents",
+            attributes: {
+              filename: nomeArquivo,
+              content_base64: `data:text/html;base64,${conteudoBase64}`,
+            },
           },
         }),
       })
-
-      if (!addSignRes.ok) {
-        const err = await addSignRes.json()
-        throw new Error(err.error || "Erro ao adicionar signatário")
+      if (!docRes.ok) {
+        const err = await docRes.json()
+        const detail = err.errors?.[0]?.detail || err.error || "Erro ao adicionar documento"
+        throw new Error(`Passo 2 (Documento): ${detail}`)
       }
+      const docData = await docRes.json()
+      const documentId = docData.data?.id
 
-      const signerData = await addSignRes.json()
-      const signerKey = signerData.signer?.key
+      // PASSO 3: Adicionar signatário ao envelope (JSON:API format)
+      const cpfLimpo = contratoSelecionado.clienteCpf?.replace(/\D/g, "") || ""
+      const signerRes = await fetch(`/api/clicksign?endpoint=/envelopes/${envelopeId}/signers`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          data: {
+            type: "signers",
+            attributes: {
+              name: contratoSelecionado.clienteNome,
+              email: emailEnvio,
+              ...(cpfLimpo ? { documentation: cpfLimpo } : {}),
+              delivery: "email",
+              refusable: false,
+            },
+          },
+        }),
+      })
+      if (!signerRes.ok) {
+        const err = await signerRes.json()
+        const detail = err.errors?.[0]?.detail || err.error || "Erro ao adicionar signatário"
+        throw new Error(`Passo 3 (Signatário): ${detail}`)
+      }
+      const signerData = await signerRes.json()
+      const signerId = signerData.data?.id
 
-      // 3. Adicionar signatário ao documento
-      if (signerKey) {
-        await fetch("/api/clicksign?endpoint=/documents/" + docKey + "/signers/" + signerKey, {
+      // PASSO 4: Criar requisito de assinatura vinculando signatário ao documento
+      if (documentId && signerId) {
+        const reqRes = await fetch(`/api/clicksign?endpoint=/envelopes/${envelopeId}/requirements`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: "Por favor, assine o contrato de assessoria esportiva da Somma Running Club." }),
+          body: JSON.stringify({
+            data: {
+              type: "requirements",
+              attributes: {
+                action: "sign",
+              },
+              relationships: {
+                document: {
+                  data: { type: "documents", id: documentId },
+                },
+                signer: {
+                  data: { type: "signers", id: signerId },
+                },
+              },
+            },
+          }),
         })
+        if (!reqRes.ok) {
+          const err = await reqRes.json()
+          const detail = err.errors?.[0]?.detail || err.error || "Erro ao criar requisito"
+          throw new Error(`Passo 4 (Requisito): ${detail}`)
+        }
       }
 
-      // 4. Fechar documento para assinaturas
-      await fetch("/api/clicksign?endpoint=/documents/" + docKey + "/finish", {
+      // PASSO 5: Ativar o envelope (status: "running")
+      const activateRes = await fetch(`/api/clicksign?endpoint=/envelopes/${envelopeId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({
+          data: {
+            type: "envelopes",
+            id: envelopeId,
+            attributes: {
+              status: "running",
+            },
+          },
+        }),
       })
+      if (!activateRes.ok) {
+        const err = await activateRes.json()
+        const detail = err.errors?.[0]?.detail || err.error || "Erro ao ativar envelope"
+        throw new Error(`Passo 5 (Ativar): ${detail}`)
+      }
 
-      // 5. Atualizar contrato local
       const agora = new Date().toISOString()
+      const baseUrl = process.env.NEXT_PUBLIC_CLICKSIGN_BASE_URL || "https://sandbox.clicksign.com"
       const contratoAtualizado: Contrato = {
         ...contratoSelecionado,
         status: "enviado",
-        clicksignKey: docKey,
-        clicksignUrl: `https://app.clicksign.com/sign/${docKey}`,
+        clicksignKey: envelopeId,
+        clicksignUrl: `${baseUrl}/envelopes/${envelopeId}`,
         atualizadoEm: agora,
       }
-
       const lista = contratos.map(c => c.id === contratoSelecionado.id ? contratoAtualizado : c)
       salvarContratos(lista)
       setContratoSelecionado(contratoAtualizado)
       setShowEnviarModal(false)
-
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Erro ao enviar contrato"
-      setError(msg)
+      setError(err instanceof Error ? err.message : "Erro ao enviar contrato")
     } finally {
       setLoadingAcao(null)
     }
   }
 
-  // Verificar status no Clicksign
   const verificarStatus = async (contrato: Contrato) => {
     if (!contrato.clicksignKey) return
     setLoadingAcao(contrato.id)
     try {
-      const res = await fetch(`/api/clicksign?endpoint=/documents/${contrato.clicksignKey}`)
-      if (!res.ok) throw new Error("Erro ao buscar status")
+      // API v3: envelopes endpoint
+      const res = await fetch(`/api/clicksign?endpoint=/envelopes/${contrato.clicksignKey}`)
+      if (!res.ok) throw new Error("Erro ao buscar status do envelope")
       const data = await res.json()
-      const statusClicksign = data.document?.status
-
+      const statusClicksign = data.data?.attributes?.status
       let novoStatus: Contrato["status"] = contrato.status
       if (statusClicksign === "closed") novoStatus = "assinado"
-      else if (statusClicksign === "running") novoStatus = "aguardando"
+      else if (statusClicksign === "running") novoStatus = "enviado"
       else if (statusClicksign === "canceled") novoStatus = "cancelado"
-
+      else if (statusClicksign === "draft") novoStatus = "rascunho"
       const atualizado = { ...contrato, status: novoStatus, atualizadoEm: new Date().toISOString() }
       const lista = contratos.map(c => c.id === contrato.id ? atualizado : c)
       salvarContratos(lista)
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Erro ao verificar status"
-      setError(msg)
+      setError(err instanceof Error ? err.message : "Erro ao verificar status")
     } finally {
       setLoadingAcao(null)
     }
   }
 
-  // Excluir contrato
   const excluirContrato = (id: string) => {
-    const lista = contratos.filter(c => c.id !== id)
-    salvarContratos(lista)
-  }
-
-  // Copiar link
-  const copiarLink = (url: string) => {
-    navigator.clipboard.writeText(url)
+    salvarContratos(contratos.filter(c => c.id !== id))
   }
 
   const contratosFiltrados = contratos.filter(c =>
@@ -414,267 +829,256 @@ export default function ContratosPage() {
   }
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-black p-3 md:p-6 overflow-auto">
-
-      {/* Header */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 md:gap-4 mb-4 md:mb-6">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-white flex items-center gap-2">
-            <FileSignature className="w-7 h-7 text-orange-500" />
-            Contratos
-          </h1>
-          <p className="text-neutral-400 text-xs md:text-sm mt-1">
-            Gestão de contratos integrado com Asaas e Clicksign
-          </p>
+    <>
+      <div className="flex-1 flex flex-col h-full bg-black p-3 md:p-6 overflow-auto">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 mb-5">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-white flex items-center gap-2">
+              <FileSignature className="w-7 h-7 text-orange-500" />
+              Contratos
+            </h1>
+            <p className="text-neutral-400 text-xs md:text-sm mt-1">
+              Gestão de contratos integrado com Asaas e Clicksign
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => { setIsRefreshing(true); setTimeout(() => setIsRefreshing(false), 800) }}
+              variant="outline"
+              className="border-neutral-700 text-neutral-400 hover:bg-neutral-800 bg-transparent"
+              size="sm"
+            >
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`} />
+            </Button>
+            <Button
+              onClick={abrirNovoContrato}
+              className="bg-orange-500 hover:bg-orange-600 text-white gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Novo Contrato
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            onClick={() => { setIsRefreshing(true); setTimeout(() => setIsRefreshing(false), 800) }}
-            variant="outline"
-            className="border-neutral-700 text-neutral-400 hover:bg-neutral-800 bg-transparent text-xs"
-          >
-            <RefreshCw className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`} />
-          </Button>
-          <Button
-            onClick={abrirNovoContrato}
-            className="bg-orange-500 hover:bg-orange-600 text-white gap-2 text-xs md:text-sm"
-          >
-            <Plus className="w-4 h-4" />
-            Novo Contrato
-          </Button>
-        </div>
-      </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 md:mb-6">
-        {[
-          { label: "Total", value: stats.total, color: "text-white" },
-          { label: "Rascunhos", value: stats.rascunhos, color: "text-neutral-400" },
-          { label: "Enviados", value: stats.enviados, color: "text-blue-400" },
-          { label: "Assinados", value: stats.assinados, color: "text-green-400" },
-        ].map((s) => (
-          <Card key={s.label} className="bg-neutral-900 border-neutral-800">
-            <CardContent className="p-3 md:p-4">
-              <p className="text-neutral-400 text-xs">{s.label}</p>
-              <p className={`text-2xl md:text-3xl font-bold mt-1 ${s.color}`}>{s.value}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Busca */}
-      <div className="relative mb-4">
-        <Search className="absolute left-3 top-2.5 w-4 h-4 text-neutral-500" />
-        <Input
-          placeholder="Buscar por cliente, email ou CPF..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-10 bg-neutral-900 border-neutral-800 text-white text-sm"
-        />
-      </div>
-
-      {/* Erro */}
-      {error && (
-        <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg mb-4 text-red-400 text-sm">
-          <AlertCircle className="w-4 h-4 flex-shrink-0" />
-          <span>{error}</span>
-          <button onClick={() => setError(null)} className="ml-auto"><X className="w-4 h-4" /></button>
-        </div>
-      )}
-
-      {/* Lista de contratos */}
-      {contratosFiltrados.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center py-16 text-center">
-          <FileText className="w-14 h-14 text-neutral-700 mb-4" />
-          <p className="text-neutral-400 text-lg font-medium">Nenhum contrato encontrado</p>
-          <p className="text-neutral-600 text-sm mt-1 mb-6">Crie seu primeiro contrato vinculando a um cliente do Asaas</p>
-          <Button onClick={abrirNovoContrato} className="bg-orange-500 hover:bg-orange-600 text-white gap-2">
-            <Plus className="w-4 h-4" />
-            Criar Primeiro Contrato
-          </Button>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {contratosFiltrados.map((contrato) => (
-            <Card key={contrato.id} className="bg-neutral-900 border-neutral-800 hover:border-orange-500/40 transition-colors">
-              <CardContent className="p-3 md:p-5">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-                  <div className="flex items-start gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-full bg-orange-500/20 flex items-center justify-center flex-shrink-0">
-                      <User className="w-4 h-4 text-orange-500" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-white font-semibold text-sm truncate">{contrato.clienteNome}</p>
-                        <StatusBadge status={contrato.status} />
-                      </div>
-                      <p className="text-neutral-400 text-xs mt-0.5">{contrato.clienteEmail}</p>
-                      <p className="text-neutral-500 text-xs">CPF: {contrato.clienteCpf}</p>
-                      <p className="text-neutral-600 text-xs mt-1">
-                        Criado em {new Date(contrato.criadoEm).toLocaleDateString("pt-BR")}
-                        {contrato.clicksignKey && (
-                          <span className="ml-2 text-blue-400">• Clicksign: {contrato.clicksignKey.slice(0, 8)}...</span>
-                        )}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {/* Visualizar */}
-                    <Button
-                      onClick={() => { setContratoSelecionado(contrato); setShowVisualizarModal(true) }}
-                      variant="outline"
-                      size="sm"
-                      className="border-neutral-700 text-neutral-400 hover:bg-neutral-800 bg-transparent h-8 px-2 text-xs"
-                      title="Visualizar"
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                    </Button>
-
-                    {/* Editar (só rascunho) */}
-                    {contrato.status === "rascunho" && (
-                      <Button
-                        onClick={() => editarContrato(contrato)}
-                        variant="outline"
-                        size="sm"
-                        className="border-neutral-700 text-neutral-400 hover:bg-neutral-800 bg-transparent h-8 px-2 text-xs"
-                        title="Editar"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                      </Button>
-                    )}
-
-                    {/* Enviar (rascunho) */}
-                    {contrato.status === "rascunho" && (
-                      <Button
-                        onClick={() => abrirEnviarModal(contrato)}
-                        size="sm"
-                        className="bg-blue-500 hover:bg-blue-600 text-white h-8 px-2 text-xs gap-1"
-                        title="Enviar para assinatura"
-                      >
-                        <Send className="w-3.5 h-3.5" />
-                        <span className="hidden md:inline">Enviar</span>
-                      </Button>
-                    )}
-
-                    {/* Verificar status (enviado/aguardando) */}
-                    {(contrato.status === "enviado" || contrato.status === "aguardando") && (
-                      <Button
-                        onClick={() => verificarStatus(contrato)}
-                        disabled={loadingAcao === contrato.id}
-                        size="sm"
-                        className="bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 border border-yellow-500/30 h-8 px-2 text-xs gap-1"
-                        title="Verificar status"
-                      >
-                        {loadingAcao === contrato.id
-                          ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          : <RefreshCw className="w-3.5 h-3.5" />}
-                        <span className="hidden md:inline">Status</span>
-                      </Button>
-                    )}
-
-                    {/* Link Clicksign */}
-                    {contrato.clicksignUrl && (
-                      <>
-                        <Button
-                          onClick={() => copiarLink(contrato.clicksignUrl!)}
-                          variant="outline"
-                          size="sm"
-                          className="border-neutral-700 text-neutral-400 hover:bg-neutral-800 bg-transparent h-8 px-2 text-xs"
-                          title="Copiar link"
-                        >
-                          <Copy className="w-3.5 h-3.5" />
-                        </Button>
-                        <a href={contrato.clicksignUrl} target="_blank" rel="noopener noreferrer">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="border-neutral-700 text-neutral-400 hover:bg-neutral-800 bg-transparent h-8 px-2 text-xs"
-                            title="Abrir no Clicksign"
-                          >
-                            <ExternalLink className="w-3.5 h-3.5" />
-                          </Button>
-                        </a>
-                      </>
-                    )}
-
-                    {/* Excluir */}
-                    {(contrato.status === "rascunho" || contrato.status === "cancelado") && (
-                      <Button
-                        onClick={() => excluirContrato(contrato.id)}
-                        variant="outline"
-                        size="sm"
-                        className="border-red-500/30 text-red-400 hover:bg-red-500/10 bg-transparent h-8 px-2 text-xs"
-                        title="Excluir"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    )}
-                  </div>
-                </div>
+        {/* Stats */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
+          {[
+            { label: "Total", value: stats.total, color: "text-white", bg: "bg-neutral-800" },
+            { label: "Rascunhos", value: stats.rascunhos, color: "text-neutral-400", bg: "bg-neutral-800" },
+            { label: "Enviados", value: stats.enviados, color: "text-blue-400", bg: "bg-blue-500/10" },
+            { label: "Assinados", value: stats.assinados, color: "text-green-400", bg: "bg-green-500/10" },
+          ].map((s) => (
+            <Card key={s.label} className="bg-neutral-900 border-neutral-800">
+              <CardContent className="p-4">
+                <p className="text-neutral-500 text-xs">{s.label}</p>
+                <p className={`text-3xl font-bold mt-1 ${s.color}`}>{s.value}</p>
               </CardContent>
             </Card>
           ))}
         </div>
-      )}
 
-      {/* ======= MODAL: SELECIONAR CLIENTE ======= */}
+        {/* Busca */}
+        <div className="relative mb-4">
+          <Search className="absolute left-3 top-2.5 w-4 h-4 text-neutral-500" />
+          <Input
+            placeholder="Buscar por cliente, email ou CPF..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10 bg-neutral-900 border-neutral-800 text-white text-sm"
+          />
+        </div>
+
+        {/* Erro */}
+        {error && (
+          <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg mb-4 text-red-400 text-sm">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            <span>{error}</span>
+            <button onClick={() => setError(null)} className="ml-auto"><X className="w-4 h-4" /></button>
+          </div>
+        )}
+
+        {/* Lista */}
+        {contratosFiltrados.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center py-20 text-center">
+            <div className="w-20 h-20 rounded-full bg-neutral-900 flex items-center justify-center mb-4 border border-neutral-800">
+              <FileText className="w-10 h-10 text-neutral-700" />
+            </div>
+            <p className="text-neutral-400 text-lg font-medium">Nenhum contrato ainda</p>
+            <p className="text-neutral-600 text-sm mt-1 mb-6 max-w-xs">Crie seu primeiro contrato vinculando um cliente do Asaas</p>
+            <Button onClick={abrirNovoContrato} className="bg-orange-500 hover:bg-orange-600 text-white gap-2">
+              <Plus className="w-4 h-4" />
+              Criar Primeiro Contrato
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {contratosFiltrados.map((contrato) => (
+              <Card key={contrato.id} className="bg-neutral-900 border-neutral-800 hover:border-orange-500/40 transition-colors">
+                <CardContent className="p-4">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                    <div className="flex items-start gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-full bg-orange-500/20 flex items-center justify-center flex-shrink-0 border border-orange-500/30">
+                        <span className="text-orange-500 text-sm font-bold">{contrato.clienteNome.charAt(0)}</span>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-white font-semibold text-sm truncate">{contrato.clienteNome}</p>
+                          <StatusBadge status={contrato.status} />
+                        </div>
+                        <p className="text-neutral-400 text-xs mt-0.5">{contrato.clienteEmail}</p>
+                        <p className="text-neutral-500 text-xs">CPF: {contrato.clienteCpf}</p>
+                        <p className="text-neutral-600 text-xs mt-1">
+                          Criado em {new Date(contrato.criadoEm).toLocaleDateString("pt-BR")} · Atualizado {new Date(contrato.atualizadoEm).toLocaleDateString("pt-BR")}
+                          {contrato.clicksignKey && (
+                            <span className="ml-2 text-blue-400">· Clicksign ativo</span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <Button
+                        onClick={() => { setContratoSelecionado(contrato); setShowVisualizarModal(true) }}
+                        variant="outline"
+                        size="sm"
+                        className="border-neutral-700 text-neutral-400 hover:bg-neutral-800 bg-transparent h-8 px-2 text-xs"
+                        title="Visualizar"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </Button>
+                      {contrato.status === "rascunho" && (
+                        <Button
+                          onClick={() => editarContrato(contrato)}
+                          variant="outline"
+                          size="sm"
+                          className="border-neutral-700 text-neutral-400 hover:bg-neutral-800 bg-transparent h-8 px-2 text-xs gap-1"
+                          title="Editar"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          <span className="hidden md:inline">Editar</span>
+                        </Button>
+                      )}
+                      {contrato.status === "rascunho" && (
+                        <Button
+                          onClick={() => abrirEnviarModal(contrato)}
+                          size="sm"
+                          className="bg-blue-500 hover:bg-blue-600 text-white h-8 px-2 text-xs gap-1"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                          <span className="hidden md:inline">Enviar</span>
+                        </Button>
+                      )}
+                      {(contrato.status === "enviado" || contrato.status === "aguardando") && (
+                        <Button
+                          onClick={() => verificarStatus(contrato)}
+                          disabled={loadingAcao === contrato.id}
+                          size="sm"
+                          className="bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 border border-yellow-500/30 h-8 px-2 text-xs gap-1"
+                        >
+                          {loadingAcao === contrato.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                          <span className="hidden md:inline">Status</span>
+                        </Button>
+                      )}
+                      {contrato.clicksignUrl && (
+                        <>
+                          <Button
+                            onClick={() => navigator.clipboard.writeText(contrato.clicksignUrl!)}
+                            variant="outline"
+                            size="sm"
+                            className="border-neutral-700 text-neutral-400 hover:bg-neutral-800 bg-transparent h-8 px-2"
+                            title="Copiar link"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </Button>
+                          <a href={contrato.clicksignUrl} target="_blank" rel="noopener noreferrer">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="border-neutral-700 text-neutral-400 hover:bg-neutral-800 bg-transparent h-8 px-2"
+                              title="Abrir no Clicksign"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </Button>
+                          </a>
+                        </>
+                      )}
+                      {(contrato.status === "rascunho" || contrato.status === "cancelado") && (
+                        <Button
+                          onClick={() => excluirContrato(contrato.id)}
+                          variant="outline"
+                          size="sm"
+                          className="border-red-500/30 text-red-400 hover:bg-red-500/10 bg-transparent h-8 px-2"
+                          title="Excluir"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* MODAL: SELECIONAR CLIENTE */}
       {showNovoModal && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-3 md:p-4 z-50 overflow-y-auto">
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-3 z-50 overflow-y-auto">
           <Card className="bg-neutral-900 border-neutral-800 w-full max-w-lg my-4">
             <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <CardTitle className="text-white text-lg">Selecionar Cliente</CardTitle>
+              <CardTitle className="text-white text-lg flex items-center gap-2">
+                <User className="w-5 h-5 text-orange-500" />
+                Selecionar Cliente
+              </CardTitle>
               <button onClick={() => setShowNovoModal(false)} className="text-neutral-400 hover:text-white">
                 <X className="w-5 h-5" />
               </button>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-3">
               <div className="relative">
                 <Search className="absolute left-3 top-2.5 w-4 h-4 text-neutral-500" />
                 <Input
-                  placeholder="Buscar cliente por nome, CPF ou email..."
+                  placeholder="Buscar por nome, CPF ou email..."
                   value={searchCliente}
                   onChange={(e) => {
                     setSearchCliente(e.target.value)
                     if (e.target.value.length > 2) buscarClientes(e.target.value)
                   }}
                   className="pl-10 bg-neutral-800 border-neutral-700 text-white text-sm"
+                  autoFocus
                 />
               </div>
-
               {loadingClientes ? (
-                <div className="flex items-center justify-center py-8">
+                <div className="flex items-center justify-center py-10">
                   <Loader2 className="w-6 h-6 text-orange-500 animate-spin" />
-                  <span className="ml-2 text-neutral-400 text-sm">Carregando clientes...</span>
+                  <span className="ml-2 text-neutral-400 text-sm">Carregando clientes do Asaas...</span>
                 </div>
               ) : clientesFiltrados.length === 0 ? (
-                <div className="text-center py-8">
+                <div className="text-center py-10">
                   <AlertCircle className="w-8 h-8 text-neutral-600 mx-auto mb-2" />
                   <p className="text-neutral-400 text-sm">
-                    {error ? "Erro ao carregar clientes do Asaas." : "Nenhum cliente encontrado."}
+                    {error ? "Erro ao carregar clientes." : "Nenhum cliente encontrado."}
                   </p>
-                  {error && (
-                    <p className="text-neutral-500 text-xs mt-1">
-                      Verifique se a ASAAS_API_KEY está configurada.
-                    </p>
-                  )}
+                  {error && <p className="text-neutral-500 text-xs mt-1">Verifique se a ASAAS_API_KEY está configurada.</p>}
                 </div>
               ) : (
-                <div className="space-y-2 max-h-80 overflow-y-auto">
+                <div className="space-y-1.5 max-h-80 overflow-y-auto pr-1">
                   {clientesFiltrados.map((cliente) => (
                     <button
                       key={cliente.id}
                       onClick={() => selecionarCliente(cliente)}
-                      className="w-full flex items-center gap-3 p-3 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 hover:border-orange-500/50 transition-all text-left"
+                      className="w-full flex items-center gap-3 p-3 rounded-lg bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 hover:border-orange-500/50 transition-all text-left group"
                     >
-                      <div className="w-8 h-8 rounded-full bg-orange-500/20 flex items-center justify-center flex-shrink-0">
-                        <span className="text-orange-500 text-xs font-bold">{cliente.name.charAt(0)}</span>
+                      <div className="w-9 h-9 rounded-full bg-orange-500/20 flex items-center justify-center flex-shrink-0 border border-orange-500/30 group-hover:border-orange-500/60 transition-colors">
+                        <span className="text-orange-500 text-sm font-bold">{cliente.name.charAt(0)}</span>
                       </div>
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <p className="text-white text-sm font-medium truncate">{cliente.name}</p>
                         <p className="text-neutral-400 text-xs">{cliente.email}</p>
                         <p className="text-neutral-500 text-xs">CPF: {cliente.cpfCnpj}</p>
                       </div>
+                      <ChevronDown className="w-4 h-4 text-neutral-600 group-hover:text-orange-500 rotate-[-90deg] flex-shrink-0 transition-colors" />
                     </button>
                   ))}
                 </div>
@@ -684,110 +1088,107 @@ export default function ContratosPage() {
         </div>
       )}
 
-      {/* ======= MODAL: EDITOR DE CONTRATO ======= */}
+      {/* EDITOR SOFISTICADO (fullscreen) */}
       {showEditorModal && clienteSelecionado && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-3 md:p-4 z-50 overflow-y-auto">
-          <Card className="bg-neutral-900 border-neutral-800 w-full max-w-4xl my-4">
-            <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-neutral-800">
-              <div>
-                <CardTitle className="text-white text-lg flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-orange-500" />
-                  Editor de Contrato
-                </CardTitle>
-                <p className="text-neutral-400 text-xs mt-0.5">Cliente: <span className="text-orange-400">{clienteSelecionado.name}</span></p>
-              </div>
-              <button onClick={() => setShowEditorModal(false)} className="text-neutral-400 hover:text-white flex-shrink-0">
-                <X className="w-5 h-5" />
-              </button>
-            </CardHeader>
-            <CardContent className="pt-4 space-y-4">
-              <div className="text-xs text-neutral-500 bg-neutral-800 px-3 py-2 rounded-lg">
-                Campos preenchidos automaticamente: <span className="text-orange-400">&#123;&#123;nome&#125;&#125;</span>, <span className="text-orange-400">&#123;&#123;cpf&#125;&#125;</span>, <span className="text-orange-400">&#123;&#123;email&#125;&#125;</span>, <span className="text-orange-400">&#123;&#123;telefone&#125;&#125;</span>, <span className="text-orange-400">&#123;&#123;endereco&#125;&#125;</span>, <span className="text-orange-400">&#123;&#123;data_atual&#125;&#125;</span>
-              </div>
-              <textarea
-                value={conteudoEditor}
-                onChange={(e) => setConteudoEditor(e.target.value)}
-                className="w-full h-96 bg-neutral-800 border border-neutral-700 text-white text-xs md:text-sm font-mono p-4 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-orange-500/50 leading-relaxed"
-                spellCheck={false}
-              />
-              <div className="flex flex-col md:flex-row gap-2 justify-end">
-                <Button
-                  onClick={() => setShowEditorModal(false)}
-                  variant="outline"
-                  className="border-neutral-700 text-neutral-300 bg-transparent"
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  onClick={() => setConteudoEditor(preencherTemplate(clienteSelecionado))}
-                  variant="outline"
-                  className="border-neutral-700 text-neutral-300 bg-transparent gap-1"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                  Restaurar Template
-                </Button>
-                <Button
-                  onClick={salvarRascunho}
-                  className="bg-orange-500 hover:bg-orange-600 text-white gap-1"
-                >
-                  <Save className="w-4 h-4" />
-                  Salvar Rascunho
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        <EditorContrato
+          conteudo={conteudoEditor}
+          onChange={setConteudoEditor}
+          clienteNome={clienteSelecionado.name}
+          onSalvar={salvarRascunho}
+          onFechar={() => setShowEditorModal(false)}
+          salvando={salvando}
+        />
       )}
 
-      {/* ======= MODAL: VISUALIZAR CONTRATO ======= */}
+      {/* MODAL: VISUALIZAR */}
       {showVisualizarModal && contratoSelecionado && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-3 md:p-4 z-50 overflow-y-auto">
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-3 z-50 overflow-y-auto">
           <Card className="bg-neutral-900 border-neutral-800 w-full max-w-3xl my-4">
             <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-neutral-800">
               <div>
-                <CardTitle className="text-white text-lg">Contrato — {contratoSelecionado.clienteNome}</CardTitle>
-                <div className="flex items-center gap-2 mt-1">
-                  <StatusBadge status={contratoSelecionado.status} />
-                  {contratoSelecionado.clicksignKey && (
-                    <span className="text-xs text-neutral-500">Key: {contratoSelecionado.clicksignKey.slice(0, 12)}...</span>
-                  )}
-                </div>
+                <CardTitle className="text-white text-lg flex items-center gap-2">
+                  <Eye className="w-5 h-5 text-orange-500" />
+                  Visualizar Contrato
+                </CardTitle>
+                <p className="text-neutral-400 text-xs mt-0.5">{contratoSelecionado.clienteNome} · <StatusBadge status={contratoSelecionado.status} /></p>
               </div>
-              <button onClick={() => setShowVisualizarModal(false)} className="text-neutral-400 hover:text-white flex-shrink-0">
+              <button onClick={() => setShowVisualizarModal(false)} className="text-neutral-400 hover:text-white">
                 <X className="w-5 h-5" />
               </button>
             </CardHeader>
-            <CardContent className="pt-4">
-              <pre className="whitespace-pre-wrap text-neutral-300 text-xs leading-relaxed font-mono bg-neutral-800 p-4 rounded-lg max-h-[65vh] overflow-y-auto border border-neutral-700">
-                {contratoSelecionado.conteudo}
-              </pre>
-              <div className="flex gap-2 justify-end mt-4">
-                <Button
-                  onClick={() => setShowVisualizarModal(false)}
-                  variant="outline"
-                  className="border-neutral-700 text-neutral-300 bg-transparent"
-                >
-                  Fechar
-                </Button>
+            <CardContent className="p-0">
+              <div className="bg-neutral-800 p-4 max-h-[70vh] overflow-y-auto">
+                <div className="bg-white rounded-lg overflow-hidden">
+                  <div className="bg-neutral-900 px-6 py-3 flex items-center justify-between">
+                    <div>
+                      <p className="text-orange-500 font-bold text-sm tracking-widest">SOMMA</p>
+                      <p className="text-neutral-400 text-xs">Assessoria Esportiva</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-neutral-400 text-xs">CNPJ: 61.315.987/0001-28</p>
+                    </div>
+                  </div>
+                  <div className="px-8 py-6">
+                    {contratoSelecionado.conteudo.split("\n").map((line, i) => {
+                      const isMainTitle = i === 0
+                      const isClausula = line.match(/^CLÁUSULA\s+\d+/)
+                      const isSection = line.match(/^(CONTRATADA|CONTRATANTE):?$/)
+                      const isSeparator = line.match(/^_{10,}/)
+                      const isEmpty = line.trim() === ""
+                      const isBullet = line.trim().startsWith("- ")
+                      if (isEmpty) return <div key={i} className="h-3" />
+                      if (isSeparator) return <hr key={i} className="border-neutral-300 my-4" />
+                      if (isMainTitle) return <h1 key={i} className="text-center text-base font-bold text-neutral-900 mb-4 uppercase tracking-wide border-b-2 border-orange-500 pb-3">{line}</h1>
+                      if (isClausula) return <p key={i} className="font-bold text-orange-600 mt-5 mb-1.5 text-sm uppercase tracking-wide">{line}</p>
+                      if (isSection) return <p key={i} className="font-bold text-neutral-900 mt-4 mb-1 text-sm uppercase border-b border-neutral-200 pb-1">{line}</p>
+                      if (isBullet) return (
+                        <p key={i} className="text-neutral-700 text-sm leading-relaxed pl-4 flex gap-2">
+                          <span className="text-orange-500 font-bold flex-shrink-0">•</span>
+                          <span>{line.replace(/^- /, "")}</span>
+                        </p>
+                      )
+                      return <p key={i} className="text-neutral-700 text-sm leading-relaxed">{line}</p>
+                    })}
+                  </div>
+                </div>
+              </div>
+              <div className="p-4 flex justify-end gap-2 border-t border-neutral-800">
+                {contratoSelecionado.status === "rascunho" && (
+                  <Button
+                    onClick={() => { setShowVisualizarModal(false); editarContrato(contratoSelecionado) }}
+                    variant="outline"
+                    className="border-neutral-700 text-neutral-400 hover:bg-neutral-800 bg-transparent gap-2"
+                  >
+                    <Edit3 className="w-4 h-4" />
+                    Editar
+                  </Button>
+                )}
                 {contratoSelecionado.status === "rascunho" && (
                   <Button
                     onClick={() => { setShowVisualizarModal(false); abrirEnviarModal(contratoSelecionado) }}
-                    className="bg-blue-500 hover:bg-blue-600 text-white gap-1"
+                    className="bg-blue-500 hover:bg-blue-600 text-white gap-2"
                   >
                     <Send className="w-4 h-4" />
                     Enviar para Assinatura
                   </Button>
                 )}
+                <Button
+                  onClick={() => setShowVisualizarModal(false)}
+                  variant="outline"
+                  className="border-neutral-700 text-neutral-400 hover:bg-neutral-800 bg-transparent"
+                >
+                  Fechar
+                </Button>
               </div>
             </CardContent>
           </Card>
         </div>
       )}
 
-      {/* ======= MODAL: ENVIAR PARA CLICKSIGN ======= */}
+      {/* MODAL: ENVIAR */}
       {showEnviarModal && contratoSelecionado && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-3 md:p-4 z-50">
-          <Card className="bg-neutral-900 border-neutral-800 w-full max-w-md">
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-3 z-50 overflow-y-auto">
+          <Card className="bg-neutral-900 border-neutral-800 w-full max-w-md my-4">
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="text-white text-lg flex items-center gap-2">
                 <Send className="w-5 h-5 text-blue-400" />
@@ -798,16 +1199,19 @@ export default function ContratosPage() {
               </button>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="bg-neutral-800 p-3 rounded-lg border border-neutral-700">
-                <p className="text-neutral-400 text-xs mb-1">Cliente</p>
-                <p className="text-white font-medium text-sm">{contratoSelecionado.clienteNome}</p>
-                <p className="text-neutral-400 text-xs">CPF: {contratoSelecionado.clienteCpf}</p>
+              <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                <p className="text-blue-400 text-sm font-medium">Integração Clicksign</p>
+                <p className="text-blue-300/70 text-xs mt-1">O contrato será enviado para o cliente assinar digitalmente via Clicksign.</p>
               </div>
-
               <div>
-                <label className="text-neutral-400 text-xs block mb-1.5">
-                  E-mail para envio da assinatura
-                </label>
+                <label className="text-neutral-400 text-xs block mb-1.5">Cliente</label>
+                <div className="p-3 bg-neutral-800 rounded-lg border border-neutral-700">
+                  <p className="text-white text-sm font-medium">{contratoSelecionado.clienteNome}</p>
+                  <p className="text-neutral-400 text-xs">CPF: {contratoSelecionado.clienteCpf}</p>
+                </div>
+              </div>
+              <div>
+                <label className="text-neutral-400 text-xs block mb-1.5">E-mail para envio</label>
                 <Input
                   type="email"
                   value={emailEnvio}
@@ -816,44 +1220,23 @@ export default function ContratosPage() {
                   placeholder="email@exemplo.com"
                 />
               </div>
-
-              <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
-                <p className="text-blue-400 text-xs">
-                  O contrato será criado no Clicksign e o link de assinatura será enviado para o e-mail informado. O documento ficará disponível por 7 dias.
-                </p>
-              </div>
-
-              {error && (
-                <div className="flex items-center gap-2 p-2 bg-red-500/10 border border-red-500/30 rounded text-red-400 text-xs">
-                  <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
-                  {error}
-                </div>
-              )}
-
-              <div className="flex gap-2">
+              <div className="flex gap-2 pt-2">
                 <Button
-                  onClick={() => { setShowEnviarModal(false); setError(null) }}
+                  onClick={() => setShowEnviarModal(false)}
                   variant="outline"
-                  className="flex-1 border-neutral-700 text-neutral-300 bg-transparent"
-                  disabled={loadingAcao === "enviando"}
+                  className="flex-1 border-neutral-700 text-neutral-400 bg-transparent"
                 >
                   Cancelar
                 </Button>
                 <Button
                   onClick={enviarClicksign}
-                  disabled={!emailEnvio || loadingAcao === "enviando"}
-                  className="flex-1 bg-blue-500 hover:bg-blue-600 text-white gap-1"
+                  disabled={!emailEnvio || !!loadingAcao}
+                  className="flex-1 bg-blue-500 hover:bg-blue-600 text-white gap-2"
                 >
                   {loadingAcao === "enviando" ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Enviando...
-                    </>
+                    <><Loader2 className="w-4 h-4 animate-spin" /> Enviando...</>
                   ) : (
-                    <>
-                      <Send className="w-4 h-4" />
-                      Enviar Contrato
-                    </>
+                    <><Send className="w-4 h-4" /> Enviar pelo Clicksign</>
                   )}
                 </Button>
               </div>
@@ -861,6 +1244,6 @@ export default function ContratosPage() {
           </Card>
         </div>
       )}
-    </div>
+    </>
   )
 }
