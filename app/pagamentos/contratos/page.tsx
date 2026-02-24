@@ -622,8 +622,26 @@ export default function ContratosPage() {
     if (!contratoSelecionado) return
     setLoadingAcao("enviando")
     setError(null)
+
     try {
-      // PASSO 1: Criar envelope (JSON:API v3)
+      // ETAPA PRELIMINAR: GERAR O PDF A PARTIR DO HTML
+      const htmlContrato = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Contrato Somma</title><style>body{font-family:Arial,sans-serif;font-size:12pt;margin:60px;line-height:1.6;}h1,h2{text-align:center;}p{text-align:justify;}</style></head><body>${contratoSelecionado.conteudo.replace(/\n/g, "<br/>")}</body></html>`
+
+      console.log("[v0] Enviando contrato para conversão PDF, tamanho do HTML:", htmlContrato.length)
+      const pdfRes = await fetch("/api/convert-to-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ htmlContent: htmlContrato }),
+      })
+
+      if (!pdfRes.ok) {
+        const err = await pdfRes.json()
+        throw new Error(`Falha na conversão para PDF: ${err.details || err.error || "Erro interno"}`)
+      }
+      const { pdfBase64 } = await pdfRes.json()
+      console.log("[v0] PDF gerado com sucesso, tamanho base64:", pdfBase64.length)
+
+      // PASSO 1: Criar o envelope
       const deadlineAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
       const envelopeRes = await fetch("/api/clicksign?endpoint=/envelopes", {
         method: "POST",
@@ -636,46 +654,21 @@ export default function ContratosPage() {
               locale: "pt-BR",
               auto_close: true,
               deadline_at: deadlineAt,
-              remind_interval: "3",
-              block_after_refusal: false,
             },
           },
         }),
       })
       if (!envelopeRes.ok) {
         const err = await envelopeRes.json()
-        const detail =
-          err.details?.errors?.[0]?.detail ||
-          err.details?.error ||
-          err.errors?.[0]?.detail ||
-          err.error ||
-          "Erro ao criar envelope"
+        const detail = err.details?.errors?.[0]?.detail || err.details?.error || err.errors?.[0]?.detail || err.error || "Erro ao criar"
         throw new Error(`Passo 1 (Envelope): ${detail}`)
       }
       const envelopeData = await envelopeRes.json()
       const envelopeId = envelopeData.data?.id
-      if (!envelopeId) throw new Error("Envelope criado sem ID. Resposta: " + JSON.stringify(envelopeData))
+      console.log("[v0] Envelope criado:", envelopeId)
 
-      // PASSO 2: Adicionar documento HTML em base64 ao envelope (JSON:API v3)
-      // Usa btoa() em vez de Buffer.from() pois este é um Client Component
-      const htmlContrato = [
-        "<!DOCTYPE html>",
-        '<html lang="pt-BR">',
-        "<head>",
-        '<meta charset="UTF-8">',
-        "<title>Contrato Somma</title>",
-        "<style>body{font-family:Arial,sans-serif;font-size:12pt;margin:60px;line-height:1.8;color:#222}p{margin-bottom:10px;text-align:justify}</style>",
-        "</head>",
-        "<body>",
-        ...contratoSelecionado.conteudo.split("\n").map(l => `<p>${l.trim() || "&nbsp;"}</p>`),
-        "</body>",
-        "</html>",
-      ].join("")
-      const conteudoBase64 = toBase64(htmlContrato)
-      const nomeArquivo = `Contrato_Somma_${contratoSelecionado.clienteNome
-        .replace(/\s+/g, "_")
-        .replace(/[^a-zA-Z0-9_]/g, "")}.html`
-
+      // PASSO 2: Adicionar documento (AGORA COMO PDF REAL)
+      const nomeArquivo = `Contrato_Somma_${contratoSelecionado.clienteNome.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_]/g, "")}.pdf`
       const docRes = await fetch(`/api/clicksign?endpoint=/envelopes/${envelopeId}/documents`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -684,26 +677,21 @@ export default function ContratosPage() {
             type: "documents",
             attributes: {
               filename: nomeArquivo,
-              content_base64: `data:text/html;base64,${conteudoBase64}`,
+              content_base64: `data:application/pdf;base64,${pdfBase64}`,
             },
           },
         }),
       })
       if (!docRes.ok) {
         const err = await docRes.json()
-        const detail =
-          err.details?.errors?.[0]?.detail ||
-          err.details?.error ||
-          err.errors?.[0]?.detail ||
-          err.error ||
-          "Erro ao adicionar documento"
+        const detail = err.details?.errors?.[0]?.detail || err.details?.error || err.errors?.[0]?.detail || err.error || "Erro ao adicionar"
         throw new Error(`Passo 2 (Documento): ${detail}`)
       }
       const docData = await docRes.json()
       const documentId = docData.data?.id
+      console.log("[v0] Documento adicionado:", documentId)
 
-      // PASSO 3: Adicionar signatário ao envelope (JSON:API v3)
-      const cpfLimpo = contratoSelecionado.clienteCpf?.replace(/\D/g, "") || ""
+      // PASSO 3: Adicionar signatário (SIMPLIFICADO)
       const signerRes = await fetch(`/api/clicksign?endpoint=/envelopes/${envelopeId}/signers`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -713,62 +701,64 @@ export default function ContratosPage() {
             attributes: {
               name: contratoSelecionado.clienteNome,
               email: emailEnvio,
-              auths: ["email"],
-              delivery_method: "email",
-              ...(cpfLimpo ? { documentation: cpfLimpo } : {}),
             },
           },
         }),
       })
       if (!signerRes.ok) {
         const err = await signerRes.json()
-        const detail =
-          err.details?.errors?.[0]?.detail ||
-          err.details?.error ||
-          err.errors?.[0]?.detail ||
-          err.error ||
-          "Erro ao adicionar signatário"
+        const detail = err.details?.errors?.[0]?.detail || err.details?.error || err.errors?.[0]?.detail || err.error || "Erro ao adicionar"
         throw new Error(`Passo 3 (Signatário): ${detail}`)
       }
       const signerData = await signerRes.json()
       const signerId = signerData.data?.id
+      console.log("[v0] Signatário adicionado:", signerId)
 
-      // PASSO 4: Criar requisito vinculando signatário ao documento (JSON:API v3)
-      if (documentId && signerId) {
-        const reqRes = await fetch(`/api/clicksign?endpoint=/envelopes/${envelopeId}/requirements`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            data: {
-              type: "requirements",
-              attributes: {
-                action: "sign",
-                role: "sign",
-              },
-              relationships: {
-                document: {
-                  data: { type: "documents", id: documentId },
-                },
-                signer: {
-                  data: { type: "signers", id: signerId },
-                },
-              },
-            },
-          }),
-        })
-        if (!reqRes.ok) {
-          const err = await reqRes.json()
-          const detail =
-            err.details?.errors?.[0]?.detail ||
-            err.details?.error ||
-            err.errors?.[0]?.detail ||
-            err.error ||
-            "Erro ao criar requisito"
-          throw new Error(`Passo 4 (Requisito): ${detail}`)
-        }
+      // PASSO 4: Criar DOIS requisitos obrigatórios
+      const relationships = {
+        document: { data: { type: "documents", id: documentId } },
+        signer: { data: { type: "signers", id: signerId } },
       }
 
-      // PASSO 5: Ativar envelope alterando status para "active" (JSON:API v3)
+      // 4a - Requisito de Qualificação
+      const reqQualRes = await fetch(`/api/clicksign?endpoint=/envelopes/${envelopeId}/requirements`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          data: {
+            type: "requirements",
+            attributes: { action: "agree", role: "sign" },
+            relationships,
+          },
+        }),
+      })
+      if (!reqQualRes.ok) {
+        const err = await reqQualRes.json()
+        const detail = err.details?.errors?.[0]?.detail || err.details?.error || err.errors?.[0]?.detail || err.error || "Erro ao criar"
+        throw new Error(`Passo 4a (Req. Qualificação): ${detail}`)
+      }
+      console.log("[v0] Requisito de qualificação criado")
+
+      // 4b - Requisito de Autenticação
+      const reqAuthRes = await fetch(`/api/clicksign?endpoint=/envelopes/${envelopeId}/requirements`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          data: {
+            type: "requirements",
+            attributes: { action: "provide_evidence", auth: "email" },
+            relationships,
+          },
+        }),
+      })
+      if (!reqAuthRes.ok) {
+        const err = await reqAuthRes.json()
+        const detail = err.details?.errors?.[0]?.detail || err.details?.error || err.errors?.[0]?.detail || err.error || "Erro ao criar"
+        throw new Error(`Passo 4b (Req. Autenticação): ${detail}`)
+      }
+      console.log("[v0] Requisito de autenticação criado")
+
+      // PASSO 5: Ativar o envelope
       const activateRes = await fetch(`/api/clicksign?endpoint=/envelopes/${envelopeId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -776,37 +766,41 @@ export default function ContratosPage() {
           data: {
             type: "envelopes",
             id: envelopeId,
-            attributes: {
-              status: "active",
-            },
+            attributes: { status: "running" },
           },
         }),
       })
       if (!activateRes.ok) {
         const err = await activateRes.json()
-        const detail =
-          err.details?.errors?.[0]?.detail ||
-          err.details?.error ||
-          err.errors?.[0]?.detail ||
-          err.error ||
-          "Erro ao ativar envelope"
+        const detail = err.details?.errors?.[0]?.detail || err.details?.error || err.errors?.[0]?.detail || err.error || "Erro ao ativar"
         throw new Error(`Passo 5 (Ativar): ${detail}`)
       }
+      console.log("[v0] Envelope ativado para assinatura")
 
+      // Atualizar estado local
       const agora = new Date().toISOString()
+      const baseUrl = process.env.NEXT_PUBLIC_CLICKSIGN_BASE_URL || "https://app.clicksign.com"
       const contratoAtualizado: Contrato = {
         ...contratoSelecionado,
         status: "enviado",
         clicksignKey: envelopeId,
-        clicksignUrl: `https://app.clicksign.com/envelopes/${envelopeId}`,
+        clicksignUrl: `${baseUrl}/envelopes/${envelopeId}`,
         atualizadoEm: agora,
       }
-      const lista = contratos.map(c => c.id === contratoSelecionado.id ? contratoAtualizado : c)
-      salvarContratos(lista)
+      salvarContratos(contratos.map(c => c.id === contratoSelecionado.id ? contratoAtualizado : c))
       setContratoSelecionado(contratoAtualizado)
       setShowEnviarModal(false)
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Erro ao enviar contrato")
+      const errorMessage = err instanceof Error ? err.message : "Erro desconhecido ao enviar contrato"
+      
+      // Tratamento de erro melhorado
+      if (errorMessage.toLowerCase().includes("e-mail do usuário da api não configurado") || errorMessage.toLowerCase().includes("email do usuário da api")) {
+        setError("⚙️ Configuração necessária na Clicksign: O e-mail do usuário da API não está configurado. Acesse app.clicksign.com → Configurações → API e preencha o campo de e-mail.")
+      } else if (errorMessage.includes("conversão para PDF")) {
+        setError("Erro ao converter contrato para PDF. Verifique se o conteúdo do contrato está correto.")
+      } else {
+        setError(errorMessage)
+      }
     } finally {
       setLoadingAcao(null)
     }
@@ -922,10 +916,25 @@ export default function ContratosPage() {
 
         {/* Erro */}
         {error && (
-          <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg mb-4 text-red-400 text-sm">
-            <AlertCircle className="w-4 h-4 flex-shrink-0" />
-            <span>{error}</span>
-            <button onClick={() => setError(null)} className="ml-auto"><X className="w-4 h-4" /></button>
+          <div className="flex items-start gap-3 p-3 bg-red-900/30 border border-red-500/40 rounded-lg mb-4 text-red-400 text-sm">
+            <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <span>{error}</span>
+              {(error.includes("Clicksign") || error.includes("API")) && (
+                <a
+                  href="https://app.clicksign.com/settings/api"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 text-white font-semibold mt-2 text-xs hover:underline"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  Ir para configurações da Clicksign
+                </a>
+              )}
+            </div>
+            <button onClick={() => setError(null)} className="ml-auto flex-shrink-0">
+              <X className="w-4 h-4" />
+            </button>
           </div>
         )}
 
