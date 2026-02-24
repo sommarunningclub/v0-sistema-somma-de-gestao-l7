@@ -107,7 +107,7 @@ export default function TacticalDashboard() {
                   alt="SOMMA Logo" 
                   className="h-10 w-auto mb-2"
                 />
-                <p className="text-neutral-500 text-xs">v2.1.10</p>
+                <p className="text-neutral-500 text-xs">v2.1.11</p>
               </div>
               <div className="flex items-center gap-2">
                 <button
