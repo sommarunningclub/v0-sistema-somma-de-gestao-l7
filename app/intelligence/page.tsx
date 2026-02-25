@@ -132,8 +132,8 @@ export default function CarteirasPage() {
       setIsAdmin(true)
     }
     
-    fetchProfessors()
-    fetchProfessorClients()
+    fetchProfessors(session)
+    fetchProfessorClients(session)
     fetchCommissionConfig()
   }, [])
 
@@ -141,32 +141,55 @@ export default function CarteirasPage() {
     if (activeTab === "commissions") {
       fetchCommissionData()
     }
-  }, [activeTab, professors, professorClients])
+  }, [activeTab, professors, professorClients, sommaFixedFee])
 
-  const fetchProfessors = async () => {
+  const fetchProfessors = async (session: any) => {
     setLoading(true)
-    const { data, error } = await supabase
-      .from("professors")
-      .select("*")
-      .order("created_at", { ascending: false })
+    let query = supabase.from("professors").select("*")
+    
+    // Se não for admin, filtra apenas o professor do usuário logado
+    if (session && session.role !== 'admin') {
+      query = query.eq("email", session.email)
+    }
+    
+    const { data, error } = await query.order("created_at", { ascending: false })
 
     if (error) {
       console.error("[v0] Error fetching professors:", error)
     } else {
+      console.log("[v0] Fetched professors, count:", data?.length || 0, "isAdmin:", !session || session.role === 'admin')
       setProfessors(data || [])
     }
     setLoading(false)
   }
 
-  const fetchProfessorClients = async () => {
-    const { data, error } = await supabase
-      .from("professor_clients")
-      .select("*")
-      .eq("status", "active")
+  const fetchProfessorClients = async (session: any) => {
+    let query = supabase.from("professor_clients").select("*").eq("status", "active")
+    
+    // Se não for admin, filtra apenas os clientes do professor do usuário logado
+    if (session && session.role !== 'admin') {
+      // Primeiro, encontra o professor com o email do usuário
+      const { data: professorData } = await supabase
+        .from("professors")
+        .select("id")
+        .eq("email", session.email)
+        .single()
+      
+      if (professorData) {
+        query = query.eq("professor_id", professorData.id)
+      } else {
+        // Se não encontrar professor, retorna lista vazia
+        setProfessorClients([])
+        return
+      }
+    }
+    
+    const { data, error } = await query
 
     if (error) {
       console.error("[v0] Error fetching professor clients:", error)
     } else {
+      console.log("[v0] Fetched professor clients, count:", data?.length || 0)
       setProfessorClients(data || [])
     }
   }
