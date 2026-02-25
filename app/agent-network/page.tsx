@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Search, MoreHorizontal, Mail, Phone, Trash2, MessageCircle, Plus, ChevronDown, ChevronUp } from "lucide-react"
 import type { CadastroSite } from "@/lib/supabase-client"
+import { TagManager } from "@/components/tag-manager"
 import { getMembers, getMembersCount, searchMembers, deleteMember, PAGE_SIZE_EXPORT } from "@/lib/services/members"
 import { AddMemberModal } from "@/components/add-member-modal"
 import { EditMemberModal } from "@/components/edit-member-modal"
@@ -424,6 +425,11 @@ export default function AgentNetworkPage() {
                 </Button>
               </div>
               
+              {/* Tags Section */}
+              <div className="pt-4 border-t border-neutral-700">
+                <TagManager entityType="membro" entityId={selectedMember.id} />
+              </div>
+
               {/* Charges Section */}
               <div className="pt-4 border-t border-neutral-700">
                 <h3 className="text-sm font-semibold text-white mb-4 tracking-wider">COBRANÇAS</h3>

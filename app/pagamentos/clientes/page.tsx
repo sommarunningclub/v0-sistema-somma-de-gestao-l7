@@ -33,6 +33,7 @@ import {
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import type { CustomerCreatePayload } from "@/lib/types/asaas"
+import { TagManager } from "@/components/tag-manager"
 
 type FilterType = "all" | "active" | "pf" | "pj" | "archived"
 
@@ -676,6 +677,11 @@ export default function ClientesAsaas() {
                   ) : (
                     <p className="text-sm text-neutral-500">Sem grupo</p>
                   )}
+                </div>
+
+                {/* Tags */}
+                <div className="pt-2 border-t border-neutral-700">
+                  <TagManager entityType="asaas_customer" entityId={selectedCustomer.id} />
                 </div>
               </CardContent>
             </Card>

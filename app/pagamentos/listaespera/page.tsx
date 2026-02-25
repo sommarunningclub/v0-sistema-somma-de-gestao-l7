@@ -23,6 +23,7 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/lib/supabase-client"
 import { WhatsAppMessageModal } from "@/components/whatsapp-message-modal"
+import { TagManager } from "@/components/tag-manager"
 
 interface ListaVipAssessoria {
   id: string
@@ -463,6 +464,11 @@ export default function ListaEsperaPage() {
               <div>
                 <p className="text-neutral-400 text-xs md:text-sm">Data e Hora de Registro</p>
                 <p className="text-white font-medium text-sm md:text-base">{formatDate(selectedEntry.data_hora)}</p>
+              </div>
+
+              {/* Tags */}
+              <div className="pt-2 border-t border-neutral-700">
+                <TagManager entityType="lista_espera" entityId={selectedEntry.id} />
               </div>
               
               <div className="grid grid-cols-2 gap-2 mt-4 md:mt-6">
