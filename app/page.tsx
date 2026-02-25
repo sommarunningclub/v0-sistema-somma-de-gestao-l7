@@ -57,7 +57,6 @@ export default function TacticalDashboard() {
     { id: "cobrancas", icon: Receipt, label: "Cobrancas" },
     { id: "assinaturas", icon: CreditCard, label: "Assinaturas" },
     { id: "insiders", icon: Star, label: "Insiders" },
-    { id: "cupons", icon: Ticket, label: "Cupons" },
     { id: "sincronizacao", icon: RefreshCw, label: "Sincronizacao" },
   ]
 
