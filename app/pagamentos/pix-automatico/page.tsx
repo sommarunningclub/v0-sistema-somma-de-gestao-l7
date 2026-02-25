@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import {
   Search, Plus, X, RefreshCw, Copy, Loader2, QrCode,
   CheckCircle, Clock, AlertTriangle, Ban, Zap, ReceiptText,
-  Calendar, DollarSign, Hash, ChevronRight,
+  Calendar, DollarSign, Hash, ChevronRight, Link2, MessageCircle, ExternalLink,
 } from "lucide-react"
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
@@ -25,8 +25,9 @@ interface PixAuthorization {
   frequency: PixFrequency
   startDate?: string
   finishDate?: string
-  payload?: string       // chave copia-e-cola
-  encodedImage?: string  // QR Code base64
+  payload?: string        // chave copia-e-cola
+  encodedImage?: string   // QR Code base64
+  paymentLink?: string    // link de pagamento
   expirationDate?: string
   cancellationDate?: string
   cancellationReason?: string
@@ -479,42 +480,125 @@ export default function PixAutomaticoPage() {
       )}
 
       {/* ─── Modal QR Code ─────────────────────────────────────────────── */}
-      {showQrModal && (
-        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setShowQrModal(null)}>
-          <div className="bg-neutral-900 border border-neutral-700 rounded-xl w-full max-w-sm p-6 text-center space-y-4" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between">
-              <h2 className="text-white font-bold">QR Code Pix Automático</h2>
-              <button onClick={() => setShowQrModal(null)} className="text-neutral-400 hover:text-white"><X className="w-5 h-5" /></button>
-            </div>
-            <p className="text-neutral-400 text-sm">Escaneie para autorizar o débito recorrente</p>
-            {showQrModal.encodedImage ? (
-              <img
-                src={`data:image/png;base64,${showQrModal.encodedImage}`}
-                alt="QR Code Pix Automático"
-                className="mx-auto w-56 h-56 rounded-lg border border-neutral-700"
-              />
-            ) : (
-              <div className="mx-auto w-56 h-56 bg-neutral-800 rounded-lg flex items-center justify-center text-neutral-500">
-                <QrCode className="w-16 h-16" />
-              </div>
-            )}
-            {showQrModal.expirationDate && (
-              <p className="text-xs text-neutral-500">Expira em: {fmt(showQrModal.expirationDate)}</p>
-            )}
-            {showQrModal.payload && (
-              <div className="bg-neutral-800 rounded-lg p-3 text-left">
-                <p className="text-neutral-400 text-xs mb-1">Copia e cola</p>
-                <div className="flex items-center gap-2">
-                  <p className="text-white text-xs font-mono truncate flex-1">{showQrModal.payload}</p>
-                  <button onClick={() => copyToClipboard(showQrModal.payload!, showQrModal.id)} className="text-blue-400 hover:text-blue-300 shrink-0">
-                    {copied === showQrModal.id ? <CheckCircle className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                  </button>
+      {showQrModal && (() => {
+        const paymentUrl = showQrModal.paymentLink ||
+          (showQrModal.payload ? `https://asaas.com/i/${showQrModal.id}` : null)
+        const whatsAppMsg = encodeURIComponent(
+          `Olá! Segue o link para autorizar seu Pix Automático Somma:\n\n` +
+          `Contrato: ${showQrModal.contractId}\n` +
+          `Valor: ${fmtCurrency(showQrModal.value)} / ${FREQUENCY_LABELS[showQrModal.frequency] || showQrModal.frequency}\n\n` +
+          (paymentUrl ? `Link de pagamento: ${paymentUrl}\n\n` : "") +
+          (showQrModal.payload ? `Ou use a chave Pix copia e cola:\n${showQrModal.payload}` : "")
+        )
+        return (
+          <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setShowQrModal(null)}>
+            <div className="bg-neutral-900 border border-neutral-700 rounded-xl w-full max-w-md p-6 space-y-5" onClick={e => e.stopPropagation()}>
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-white font-bold text-lg">QR Code Pix Automático</h2>
+                  <p className="text-neutral-400 text-xs mt-0.5">Contrato: {showQrModal.contractId} · {fmtCurrency(showQrModal.value)}</p>
                 </div>
+                <button onClick={() => setShowQrModal(null)} className="text-neutral-400 hover:text-white"><X className="w-5 h-5" /></button>
               </div>
-            )}
+
+              {/* QR Code */}
+              <div className="flex flex-col items-center gap-3">
+                {showQrModal.encodedImage ? (
+                  <div className="bg-white p-3 rounded-xl">
+                    <img
+                      src={`data:image/png;base64,${showQrModal.encodedImage}`}
+                      alt="QR Code Pix Automático"
+                      className="w-64 h-64 rounded"
+                    />
+                  </div>
+                ) : (
+                  <div className="w-64 h-64 bg-neutral-800 rounded-xl flex items-center justify-center text-neutral-500 border border-neutral-700">
+                    <QrCode className="w-20 h-20" />
+                  </div>
+                )}
+                <p className="text-neutral-400 text-xs text-center">Escaneie com o app do banco para autorizar o débito recorrente</p>
+                {showQrModal.expirationDate && (
+                  <p className="text-xs text-yellow-400/80">Expira em: {fmt(showQrModal.expirationDate)}</p>
+                )}
+              </div>
+
+              {/* Copia e cola */}
+              {showQrModal.payload && (
+                <div className="bg-neutral-800 rounded-lg p-3">
+                  <p className="text-neutral-400 text-xs mb-1.5">Chave Pix — copia e cola</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-white text-xs font-mono truncate flex-1">{showQrModal.payload}</p>
+                    <button
+                      onClick={() => copyToClipboard(showQrModal.payload!, showQrModal.id + "-payload")}
+                      className="shrink-0 text-blue-400 hover:text-blue-300 transition-colors"
+                      title="Copiar chave"
+                    >
+                      {copied === showQrModal.id + "-payload" ? <CheckCircle className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Link de pagamento */}
+              {paymentUrl && (
+                <div className="bg-neutral-800 rounded-lg p-3">
+                  <p className="text-neutral-400 text-xs mb-1.5">Link de pagamento</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-blue-400 text-xs truncate flex-1">{paymentUrl}</p>
+                    <div className="flex gap-1.5 shrink-0">
+                      <button
+                        onClick={() => copyToClipboard(paymentUrl, showQrModal.id + "-link")}
+                        className="text-neutral-400 hover:text-white transition-colors"
+                        title="Copiar link"
+                      >
+                        {copied === showQrModal.id + "-link" ? <CheckCircle className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+                      </button>
+                      <a
+                        href={paymentUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-neutral-400 hover:text-white transition-colors"
+                        title="Abrir link"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Ações */}
+              <div className="flex gap-2 pt-1">
+                {paymentUrl && (
+                  <Button
+                    onClick={() => copyToClipboard(paymentUrl, showQrModal.id + "-link-btn")}
+                    size="sm"
+                    className="flex-1 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 gap-2"
+                  >
+                    {copied === showQrModal.id + "-link-btn" ? <CheckCircle className="w-4 h-4" /> : <Link2 className="w-4 h-4" />}
+                    Copiar Link
+                  </Button>
+                )}
+                <a
+                  href={`https://wa.me/?text=${whatsAppMsg}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1"
+                >
+                  <Button
+                    size="sm"
+                    className="w-full bg-green-600/20 hover:bg-green-600/30 text-green-400 border border-green-500/30 gap-2"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    Enviar via WhatsApp
+                  </Button>
+                </a>
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* ─── Modal Instruções de Pagamento ─────────────────────────────── */}
       {showInstructions && (
