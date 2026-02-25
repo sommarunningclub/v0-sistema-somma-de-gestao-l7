@@ -38,9 +38,7 @@ interface Contrato {
   clienteEmail: string
   clienteCpf: string
   conteudo: string
-  status: "rascunho" | "enviado" | "assinado" | "cancelado" | "aguardando"
-  clicksignKey?: string
-  clicksignUrl?: string
+  status: "rascunho" | "gerado" | "baixado"
   criadoEm: string
   atualizadoEm: string
 }
@@ -603,9 +601,8 @@ export default function ContratosPage() {
     setShowEditorModal(true)
   }
 
-  const abrirEnviarModal = (contrato: Contrato) => {
+  const abrirBaixarModal = (contrato: Contrato) => {
     setContratoSelecionado(contrato)
-    setEmailEnvio(contrato.clienteEmail)
     setShowEnviarModal(true)
   }
 
@@ -618,16 +615,22 @@ export default function ContratosPage() {
     }
   }
 
-  const enviarClicksign = async () => {
+  const baixarContratoPDF = async () => {
     if (!contratoSelecionado) return
-    setLoadingAcao("enviando")
+    setLoadingAcao("baixando")
     setError(null)
 
     try {
-      // ETAPA PRELIMINAR: GERAR O PDF A PARTIR DO HTML
-      const htmlContrato = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Contrato Somma</title><style>body{font-family:Arial,sans-serif;font-size:12pt;margin:60px;line-height:1.6;}h1,h2{text-align:center;}p{text-align:justify;}</style></head><body>${contratoSelecionado.conteudo.replace(/\n/g, "<br/>")}</body></html>`
+      // Gerar contrato com dados substituídos (sem variáveis {{nome}}, {{cpf}}, etc)
+      let conteudoFinal = contratoSelecionado.conteudo
+      conteudoFinal = conteudoFinal.replace(/\{\{nome\}\}/gi, contratoSelecionado.clienteNome)
+      conteudoFinal = conteudoFinal.replace(/\{\{cpf\}\}/gi, contratoSelecionado.clienteCpf)
+      conteudoFinal = conteudoFinal.replace(/\{\{email\}\}/gi, contratoSelecionado.clienteEmail)
+      conteudoFinal = conteudoFinal.replace(/\{\{data_atual\}\}/gi, new Date().toLocaleDateString("pt-BR"))
 
-      console.log("[v0] Enviando contrato para conversão PDF, tamanho do HTML:", htmlContrato.length)
+      const htmlContrato = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Contrato Somma</title><style>body{font-family:Arial,sans-serif;font-size:12pt;margin:60px;line-height:1.6;}h1,h2{text-align:center;}p{text-align:justify;}</style></head><body>${conteudoFinal.replace(/\n/g, "<br/>")}</body></html>`
+
+      console.log("[v0] Gerando PDF do contrato, tamanho HTML:", htmlContrato.length)
       const pdfRes = await fetch("/api/convert-to-pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -641,163 +644,38 @@ export default function ContratosPage() {
       const { pdfBase64 } = await pdfRes.json()
       console.log("[v0] PDF gerado com sucesso, tamanho base64:", pdfBase64.length)
 
-      // PASSO 1: Criar o envelope
-      const deadlineAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-      const envelopeRes = await fetch("/api/clicksign?endpoint=/envelopes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          data: {
-            type: "envelopes",
-            attributes: {
-              name: `Contrato Somma - ${contratoSelecionado.clienteNome}`,
-              locale: "pt-BR",
-              auto_close: true,
-              deadline_at: deadlineAt,
-            },
-          },
-        }),
-      })
-      if (!envelopeRes.ok) {
-        const err = await envelopeRes.json()
-        const detail = err.details?.errors?.[0]?.detail || err.details?.error || err.errors?.[0]?.detail || err.error || "Erro ao criar"
-        throw new Error(`Passo 1 (Envelope): ${detail}`)
+      // Converter base64 para Blob e fazer download
+      const binaryString = atob(pdfBase64)
+      const bytes = new Uint8Array(binaryString.length)
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i)
       }
-      const envelopeData = await envelopeRes.json()
-      const envelopeId = envelopeData.data?.id
-      console.log("[v0] Envelope criado:", envelopeId)
+      const blob = new Blob([bytes], { type: "application/pdf" })
 
-      // PASSO 2: Adicionar documento (AGORA COMO PDF REAL)
-      const nomeArquivo = `Contrato_Somma_${contratoSelecionado.clienteNome.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_]/g, "")}.pdf`
-      const docRes = await fetch(`/api/clicksign?endpoint=/envelopes/${envelopeId}/documents`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          data: {
-            type: "documents",
-            attributes: {
-              filename: nomeArquivo,
-              content_base64: `data:application/pdf;base64,${pdfBase64}`,
-            },
-          },
-        }),
-      })
-      if (!docRes.ok) {
-        const err = await docRes.json()
-        const detail = err.details?.errors?.[0]?.detail || err.details?.error || err.errors?.[0]?.detail || err.error || "Erro ao adicionar"
-        throw new Error(`Passo 2 (Documento): ${detail}`)
-      }
-      const docData = await docRes.json()
-      const documentId = docData.data?.id
-      console.log("[v0] Documento adicionado:", documentId)
+      // Criar link de download
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = `Contrato_Somma_${contratoSelecionado.clienteNome.replace(/\s+/g, "_")}_${new Date().toISOString().split("T")[0]}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
 
-      // PASSO 3: Adicionar signatário (SIMPLIFICADO)
-      const signerRes = await fetch(`/api/clicksign?endpoint=/envelopes/${envelopeId}/signers`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          data: {
-            type: "signers",
-            attributes: {
-              name: contratoSelecionado.clienteNome,
-              email: emailEnvio,
-            },
-          },
-        }),
-      })
-      if (!signerRes.ok) {
-        const err = await signerRes.json()
-        const detail = err.details?.errors?.[0]?.detail || err.details?.error || err.errors?.[0]?.detail || err.error || "Erro ao adicionar"
-        throw new Error(`Passo 3 (Signatário): ${detail}`)
-      }
-      const signerData = await signerRes.json()
-      const signerId = signerData.data?.id
-      console.log("[v0] Signatário adicionado:", signerId)
-
-      // PASSO 4: Criar DOIS requisitos obrigatórios
-      const relationships = {
-        document: { data: { type: "documents", id: documentId } },
-        signer: { data: { type: "signers", id: signerId } },
-      }
-
-      // 4a - Requisito de Qualificação
-      const reqQualRes = await fetch(`/api/clicksign?endpoint=/envelopes/${envelopeId}/requirements`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          data: {
-            type: "requirements",
-            attributes: { action: "agree", role: "sign" },
-            relationships,
-          },
-        }),
-      })
-      if (!reqQualRes.ok) {
-        const err = await reqQualRes.json()
-        const detail = err.details?.errors?.[0]?.detail || err.details?.error || err.errors?.[0]?.detail || err.error || "Erro ao criar"
-        throw new Error(`Passo 4a (Req. Qualificação): ${detail}`)
-      }
-      console.log("[v0] Requisito de qualificação criado")
-
-      // 4b - Requisito de Autenticação
-      const reqAuthRes = await fetch(`/api/clicksign?endpoint=/envelopes/${envelopeId}/requirements`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          data: {
-            type: "requirements",
-            attributes: { action: "provide_evidence", auth: "email" },
-            relationships,
-          },
-        }),
-      })
-      if (!reqAuthRes.ok) {
-        const err = await reqAuthRes.json()
-        const detail = err.details?.errors?.[0]?.detail || err.details?.error || err.errors?.[0]?.detail || err.error || "Erro ao criar"
-        throw new Error(`Passo 4b (Req. Autenticação): ${detail}`)
-      }
-      console.log("[v0] Requisito de autenticação criado")
-
-      // PASSO 5: Ativar o envelope
-      const activateRes = await fetch(`/api/clicksign?endpoint=/envelopes/${envelopeId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          data: {
-            type: "envelopes",
-            id: envelopeId,
-            attributes: { status: "running" },
-          },
-        }),
-      })
-      if (!activateRes.ok) {
-        const err = await activateRes.json()
-        const detail = err.details?.errors?.[0]?.detail || err.details?.error || err.errors?.[0]?.detail || err.error || "Erro ao ativar"
-        throw new Error(`Passo 5 (Ativar): ${detail}`)
-      }
-      console.log("[v0] Envelope ativado para assinatura")
-
-      // Atualizar estado local
+      // Atualizar status local
       const agora = new Date().toISOString()
-      const baseUrl = process.env.NEXT_PUBLIC_CLICKSIGN_BASE_URL || "https://app.clicksign.com"
       const contratoAtualizado: Contrato = {
         ...contratoSelecionado,
-        status: "enviado",
-        clicksignKey: envelopeId,
-        clicksignUrl: `${baseUrl}/envelopes/${envelopeId}`,
+        status: "baixado",
         atualizadoEm: agora,
       }
       salvarContratos(contratos.map(c => c.id === contratoSelecionado.id ? contratoAtualizado : c))
       setContratoSelecionado(contratoAtualizado)
       setShowEnviarModal(false)
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : "Erro desconhecido ao enviar contrato"
-      
-      // Tratamento de erro melhorado
-      if (errorMessage.toLowerCase().includes("e-mail do usuário da api não configurado") || errorMessage.toLowerCase().includes("email do usuário da api")) {
-        setError("⚙️ Configuração necessária na Clicksign: O e-mail do usuário da API não está configurado. Acesse app.clicksign.com → Configurações → API e preencha o campo de e-mail.")
-      } else if (errorMessage.includes("conversão para PDF")) {
-        setError("Erro ao converter contrato para PDF. Verifique se o conteúdo do contrato está correto.")
+      const errorMessage = err instanceof Error ? err.message : "Erro desconhecido ao gerar contrato"
+      if (errorMessage.includes("conversão para PDF")) {
+        setError("Erro ao gerar PDF do contrato. Verifique se o conteúdo está correto.")
       } else {
         setError(errorMessage)
       }
@@ -806,29 +684,7 @@ export default function ContratosPage() {
     }
   }
 
-  const verificarStatus = async (contrato: Contrato) => {
-    if (!contrato.clicksignKey) return
-    setLoadingAcao(contrato.id)
-    try {
-      // API v3: envelopes endpoint
-      const res = await fetch(`/api/clicksign?endpoint=/envelopes/${contrato.clicksignKey}`)
-      if (!res.ok) throw new Error("Erro ao buscar status do envelope")
-      const data = await res.json()
-      const statusClicksign = data.data?.attributes?.status
-      let novoStatus: Contrato["status"] = contrato.status
-      if (statusClicksign === "closed") novoStatus = "assinado"
-      else if (statusClicksign === "running") novoStatus = "enviado"
-      else if (statusClicksign === "canceled") novoStatus = "cancelado"
-      else if (statusClicksign === "draft") novoStatus = "rascunho"
-      const atualizado = { ...contrato, status: novoStatus, atualizadoEm: new Date().toISOString() }
-      const lista = contratos.map(c => c.id === contrato.id ? atualizado : c)
-      salvarContratos(lista)
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Erro ao verificar status")
-    } finally {
-      setLoadingAcao(null)
-    }
-  }
+  // Função removida - não é mais necessária sem integração Clicksign
 
   const excluirContrato = (id: string) => {
     salvarContratos(contratos.filter(c => c.id !== id))
@@ -1000,12 +856,12 @@ export default function ContratosPage() {
                       )}
                       {contrato.status === "rascunho" && (
                         <Button
-                          onClick={() => abrirEnviarModal(contrato)}
+                          onClick={() => abrirBaixarModal(contrato)}
                           size="sm"
-                          className="bg-blue-500 hover:bg-blue-600 text-white h-8 px-2 text-xs gap-1"
+                          className="bg-green-500 hover:bg-green-600 text-white h-8 px-2 text-xs gap-1"
                         >
-                          <Send className="w-3.5 h-3.5" />
-                          <span className="hidden md:inline">Enviar</span>
+                          <Download className="w-3.5 h-3.5" />
+                          <span className="hidden md:inline">Baixar</span>
                         </Button>
                       )}
                       {(contrato.status === "enviado" || contrato.status === "aguardando") && (
@@ -1205,11 +1061,11 @@ export default function ContratosPage() {
                 )}
                 {contratoSelecionado.status === "rascunho" && (
                   <Button
-                    onClick={() => { setShowVisualizarModal(false); abrirEnviarModal(contratoSelecionado) }}
+                    onClick={() => { setShowVisualizarModal(false); abrirBaixarModal(contratoSelecionado) }}
                     className="bg-blue-500 hover:bg-blue-600 text-white gap-2"
                   >
-                    <Send className="w-4 h-4" />
-                    Enviar para Assinatura
+                    <Download className="w-4 h-4" />
+                    Baixar Contrato
                   </Button>
                 )}
                 <Button
@@ -1225,40 +1081,31 @@ export default function ContratosPage() {
         </div>
       )}
 
-      {/* MODAL: ENVIAR */}
+      {/* MODAL: BAIXAR CONTRATO */}
       {showEnviarModal && contratoSelecionado && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-3 z-50 overflow-y-auto">
           <Card className="bg-neutral-900 border-neutral-800 w-full max-w-md my-4">
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="text-white text-lg flex items-center gap-2">
-                <Send className="w-5 h-5 text-blue-400" />
-                Enviar para Assinatura
+                <Download className="w-5 h-5 text-green-400" />
+                Baixar Contrato em PDF
               </CardTitle>
               <button onClick={() => setShowEnviarModal(false)} className="text-neutral-400 hover:text-white">
                 <X className="w-5 h-5" />
               </button>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-                <p className="text-blue-400 text-sm font-medium">Integração Clicksign</p>
-                <p className="text-blue-300/70 text-xs mt-1">O contrato será enviado para o cliente assinar digitalmente via Clicksign.</p>
+              <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+                <p className="text-green-400 text-sm font-medium">Gerador de Contrato</p>
+                <p className="text-green-300/70 text-xs mt-1">O contrato será gerado em PDF com os dados do cliente já preenchidos e disponível para download.</p>
               </div>
               <div>
                 <label className="text-neutral-400 text-xs block mb-1.5">Cliente</label>
                 <div className="p-3 bg-neutral-800 rounded-lg border border-neutral-700">
                   <p className="text-white text-sm font-medium">{contratoSelecionado.clienteNome}</p>
                   <p className="text-neutral-400 text-xs">CPF: {contratoSelecionado.clienteCpf}</p>
+                  <p className="text-neutral-400 text-xs">E-mail: {contratoSelecionado.clienteEmail}</p>
                 </div>
-              </div>
-              <div>
-                <label className="text-neutral-400 text-xs block mb-1.5">E-mail para envio</label>
-                <Input
-                  type="email"
-                  value={emailEnvio}
-                  onChange={(e) => setEmailEnvio(e.target.value)}
-                  className="bg-neutral-800 border-neutral-700 text-white text-sm"
-                  placeholder="email@exemplo.com"
-                />
               </div>
               <div className="flex gap-2 pt-2">
                 <Button
@@ -1269,14 +1116,14 @@ export default function ContratosPage() {
                   Cancelar
                 </Button>
                 <Button
-                  onClick={enviarClicksign}
-                  disabled={!emailEnvio || !!loadingAcao}
-                  className="flex-1 bg-blue-500 hover:bg-blue-600 text-white gap-2"
+                  onClick={baixarContratoPDF}
+                  disabled={!!loadingAcao}
+                  className="flex-1 bg-green-500 hover:bg-green-600 text-white gap-2"
                 >
-                  {loadingAcao === "enviando" ? (
-                    <><Loader2 className="w-4 h-4 animate-spin" /> Enviando...</>
+                  {loadingAcao === "baixando" ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" /> Gerando PDF...</>
                   ) : (
-                    <><Send className="w-4 h-4" /> Enviar pelo Clicksign</>
+                    <><Download className="w-4 h-4" /> Baixar PDF</>
                   )}
                 </Button>
               </div>
