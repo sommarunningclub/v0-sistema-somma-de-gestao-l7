@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import { supabase } from "@/lib/supabase-client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Download, Search, Plus, Eye, Edit, Trash2, X } from "lucide-react"
+import { Download, Search, Plus, Eye, Edit, Trash2, X, Filter } from "lucide-react"
 import { Input } from "@/components/ui/input"
 
 interface Insider {
@@ -24,6 +24,15 @@ export default function InsidersPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
+  const [showFilters, setShowFilters] = useState(false)
+  const [filters, setFilters] = useState({
+    evolve: "",
+    dopahmina: "",
+    tex_barbearia: "",
+    big_box: "",
+    cupom_loja_somma: "",
+    assessoria_somma: "",
+  })
   const [showViewModal, setShowViewModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -62,10 +71,23 @@ export default function InsidersPage() {
     }
   }
 
-  const filteredInsiders = insiders.filter((insider) =>
-    insider.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    insider.cpf.includes(searchTerm)
-  )
+  const filteredInsiders = insiders.filter((insider) => {
+    // Filtro de busca por nome/CPF
+    const searchMatch = insider.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      insider.cpf.includes(searchTerm)
+    
+    if (!searchMatch) return false
+    
+    // Filtros avançados
+    if (filters.evolve && insider.evolve !== filters.evolve) return false
+    if (filters.dopahmina && insider.dopahmina !== filters.dopahmina) return false
+    if (filters.tex_barbearia && insider.tex_barbearia !== filters.tex_barbearia) return false
+    if (filters.big_box && insider.big_box !== filters.big_box) return false
+    if (filters.cupom_loja_somma && !insider.cupom_loja_somma?.toLowerCase().includes(filters.cupom_loja_somma.toLowerCase())) return false
+    if (filters.assessoria_somma && !insider.assessoria_somma?.toLowerCase().includes(filters.assessoria_somma.toLowerCase())) return false
+    
+    return true
+  })
 
   const openViewModal = (insider: Insider) => {
     setSelectedInsider(insider)
@@ -92,6 +114,19 @@ export default function InsidersPage() {
     })
     setShowCreateModal(true)
   }
+
+  const resetFilters = () => {
+    setFilters({
+      evolve: "",
+      dopahmina: "",
+      tex_barbearia: "",
+      big_box: "",
+      cupom_loja_somma: "",
+      assessoria_somma: "",
+    })
+  }
+
+  const hasActiveFilters = Object.values(filters).some((f) => f !== "")
 
   const handleSave = async () => {
     if (!formData) return
@@ -198,6 +233,13 @@ export default function InsidersPage() {
               />
             </div>
             <Button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`gap-2 ${hasActiveFilters ? "bg-blue-600 hover:bg-blue-700" : "bg-neutral-700 hover:bg-neutral-600"} text-white`}
+            >
+              <Filter className="w-4 h-4" />
+              Filtros {hasActiveFilters && `(${Object.values(filters).filter(f => f !== "").length})`}
+            </Button>
+            <Button
               onClick={openCreateModal}
               className="bg-green-600 hover:bg-green-700 text-white gap-2"
             >
@@ -221,6 +263,96 @@ export default function InsidersPage() {
             </Button>
           </CardContent>
         </Card>
+
+        {/* Advanced Filters */}
+        {showFilters && (
+          <Card className="bg-neutral-800 border-neutral-700">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-white">Filtros Avançados</CardTitle>
+                <Button
+                  onClick={resetFilters}
+                  variant="outline"
+                  size="sm"
+                  className="border-neutral-600 text-neutral-400 text-xs"
+                  disabled={!hasActiveFilters}
+                >
+                  Limpar Filtros
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                <div>
+                  <label className="text-neutral-400 text-xs block mb-2">Evolve</label>
+                  <select
+                    value={filters.evolve}
+                    onChange={(e) => setFilters({ ...filters, evolve: e.target.value })}
+                    className="w-full bg-neutral-700 border border-neutral-600 text-white px-3 py-2 rounded-md text-sm"
+                  >
+                    <option value="">Todos</option>
+                    <option value="Sim">Sim</option>
+                    <option value="Não">Não</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-neutral-400 text-xs block mb-2">Dopamina</label>
+                  <select
+                    value={filters.dopahmina}
+                    onChange={(e) => setFilters({ ...filters, dopahmina: e.target.value })}
+                    className="w-full bg-neutral-700 border border-neutral-600 text-white px-3 py-2 rounded-md text-sm"
+                  >
+                    <option value="">Todos</option>
+                    <option value="Sim">Sim</option>
+                    <option value="Não">Não</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-neutral-400 text-xs block mb-2">Tex Barbearia</label>
+                  <select
+                    value={filters.tex_barbearia}
+                    onChange={(e) => setFilters({ ...filters, tex_barbearia: e.target.value })}
+                    className="w-full bg-neutral-700 border border-neutral-600 text-white px-3 py-2 rounded-md text-sm"
+                  >
+                    <option value="">Todos</option>
+                    <option value="Sim">Sim</option>
+                    <option value="Não">Não</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-neutral-400 text-xs block mb-2">Big Box</label>
+                  <select
+                    value={filters.big_box}
+                    onChange={(e) => setFilters({ ...filters, big_box: e.target.value })}
+                    className="w-full bg-neutral-700 border border-neutral-600 text-white px-3 py-2 rounded-md text-sm"
+                  >
+                    <option value="">Todos</option>
+                    <option value="Sim">Sim</option>
+                    <option value="Não">Não</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-neutral-400 text-xs block mb-2">Cupom Loja Somma</label>
+                  <Input
+                    value={filters.cupom_loja_somma}
+                    onChange={(e) => setFilters({ ...filters, cupom_loja_somma: e.target.value })}
+                    placeholder="Buscar..."
+                    className="bg-neutral-700 border-neutral-600 text-white text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-neutral-400 text-xs block mb-2">Assessoria Somma</label>
+                  <Input
+                    value={filters.assessoria_somma}
+                    onChange={(e) => setFilters({ ...filters, assessoria_somma: e.target.value })}
+                    placeholder="Buscar..."
+                    className="bg-neutral-700 border-neutral-600 text-white text-sm"
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Status */}
         <div className="flex gap-4">
