@@ -14,7 +14,6 @@ import PagamentosPage from "./pagamentos/page"
 import CheckInPage from "./checkin/page"
 import ParcerioSommaPage from "./parceiro/page"
 import OperationsPage from "./operations/page"
-import InsidersPage from "./assessoria-somma/insiders/page"
 
 export default function TacticalDashboard() {
   const [activeSection, setActiveSection] = useState("overview")
@@ -23,8 +22,6 @@ export default function TacticalDashboard() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [pagamentosOpen, setPagamentosOpen] = useState(false)
   const [pagamentosTab, setPagamentosTab] = useState("dashboard")
-  const [assessoriaOpen, setAssessoriaOpen] = useState(false)
-  const [assessoriaTab, setAssessoriaTab] = useState("insiders")
   const [permissions, setPermissions] = useState<Record<string, boolean>>({})
 
   // Carrega permissoes quando o componente monta
@@ -60,10 +57,6 @@ export default function TacticalDashboard() {
     { id: "assinaturas", icon: CreditCard, label: "Assinaturas" },
     { id: "cupons", icon: Ticket, label: "Cupons" },
     { id: "sincronizacao", icon: RefreshCw, label: "Sincronizacao" },
-  ]
-
-  const assessoriaSubItems = [
-    { id: "insiders", icon: Users, label: "Insiders" },
   ]
 
   const handleRefresh = async () => {
@@ -175,13 +168,13 @@ export default function TacticalDashboard() {
                 <div>
                   <button
                     onClick={() => {
-                      setAssessoriaOpen(!assessoriaOpen)
-                      if (!assessoriaOpen) {
-                        setActiveSection("assessoria")
+                      setPagamentosOpen(!pagamentosOpen)
+                      if (!pagamentosOpen) {
+                        setActiveSection("pagamentos")
                       }
                     }}
                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all active:scale-95 md:active:scale-100 ${
-                      activeSection === "assessoria"
+                      activeSection === "pagamentos"
                         ? "bg-orange-500 text-white shadow-lg shadow-orange-500/20"
                         : "text-neutral-400 hover:text-white hover:bg-neutral-800"
                     }`}
@@ -189,22 +182,22 @@ export default function TacticalDashboard() {
                   >
                     <CreditCard className="w-5 h-5 flex-shrink-0" />
                     <span className={`text-sm font-medium truncate flex-1 text-left ${sidebarCollapsed ? "hidden md:hidden" : ""}`}>ASSESSORIA SOMMA</span>
-                    <ChevronDown className={`w-4 h-4 transition-transform ${assessoriaOpen ? "rotate-180" : ""} ${sidebarCollapsed ? "hidden md:hidden" : ""}`} />
+                    <ChevronDown className={`w-4 h-4 transition-transform ${pagamentosOpen ? "rotate-180" : ""} ${sidebarCollapsed ? "hidden md:hidden" : ""}`} />
                   </button>
 
                   {/* Submenu Dropdown */}
-                  {assessoriaOpen && !sidebarCollapsed && (
+                  {pagamentosOpen && !sidebarCollapsed && (
                     <div className="ml-4 mt-1 space-y-1 border-l border-neutral-700 pl-3">
-                      {assessoriaSubItems.map((subItem) => (
+                      {pagamentosSubItems.map((subItem) => (
                         <button
                           key={subItem.id}
                           onClick={() => {
-                            setActiveSection("assessoria")
-                            setAssessoriaTab(subItem.id)
+                            setActiveSection("pagamentos")
+                            setPagamentosTab(subItem.id)
                             setSidebarOpen(false)
                           }}
                           className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-sm ${
-                            activeSection === "assessoria" && assessoriaTab === subItem.id
+                            activeSection === "pagamentos" && pagamentosTab === subItem.id
                               ? "bg-orange-500/20 text-orange-500"
                               : "text-neutral-400 hover:text-white hover:bg-neutral-800"
                           }`}
@@ -319,7 +312,6 @@ export default function TacticalDashboard() {
             {activeSection === "parceiro" && permissions.parceiro && <ParcerioSommaPage />}
             {activeSection === "intelligence" && permissions.carteiras && <IntelligencePage />}
             {activeSection === "pagamentos" && permissions.pagamentos && <PagamentosPage activeTab={pagamentosTab} />}
-            {activeSection === "assessoria" && permissions.pagamentos && assessoriaTab === "insiders" && <InsidersPage />}
             {activeSection === "systems" && permissions.admin && <SystemsPage />}
           </div>
         </main>
