@@ -1,8 +1,8 @@
 "use client"
 
 import PaymentsDashboard from "./dashboard/page"
-import GestorClientes from "./clientes/page"
-import ClientesAsaas from "./clientes-asaas/page"
+import GestorClientes from "./gestorclientes/page"
+import ClientesAsaas from "./clientes/page"
 import ListaEspera from "./listaespera/page"
 import Cobrancas from "./cobrancas/page"
 import Assinaturas from "./assinaturas/page"
