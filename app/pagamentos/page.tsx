@@ -7,6 +7,7 @@ import Cobrancas from "./cobrancas/page"
 import Assinaturas from "./assinaturas/page"
 import Cupons from "./cupons/page"
 import Sincronizacao from "./sincronizacao/page"
+import InsidersPage from "./insiders/page"
 
 interface PagamentosPageProps {
   activeTab?: string
@@ -22,6 +23,7 @@ export default function PagamentosPage({ activeTab = "dashboard" }: PagamentosPa
       {activeTab === "assinaturas" && <Assinaturas />}
       {activeTab === "cupons" && <Cupons />}
       {activeTab === "sincronizacao" && <Sincronizacao />}
+      {activeTab === "insiders" && <InsidersPage />}
     </div>
   )
 }
