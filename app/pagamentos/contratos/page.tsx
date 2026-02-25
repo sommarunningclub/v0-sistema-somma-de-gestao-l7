@@ -621,46 +621,64 @@ export default function ContratosPage() {
     setError(null)
 
     try {
-      // Gerar contrato com dados substituídos (sem variáveis {{nome}}, {{cpf}}, etc)
-      let conteudoFinal = contratoSelecionado.conteudo
-      conteudoFinal = conteudoFinal.replace(/\{\{nome\}\}/gi, contratoSelecionado.clienteNome)
-      conteudoFinal = conteudoFinal.replace(/\{\{cpf\}\}/gi, contratoSelecionado.clienteCpf)
-      conteudoFinal = conteudoFinal.replace(/\{\{email\}\}/gi, contratoSelecionado.clienteEmail)
-      conteudoFinal = conteudoFinal.replace(/\{\{data_atual\}\}/gi, new Date().toLocaleDateString("pt-BR"))
-
-      const htmlContrato = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Contrato Somma</title><style>body{font-family:Arial,sans-serif;font-size:12pt;margin:60px;line-height:1.6;}h1,h2{text-align:center;}p{text-align:justify;}</style></head><body>${conteudoFinal.replace(/\n/g, "<br/>")}</body></html>`
-
-      console.log("[v0] Gerando PDF do contrato, tamanho HTML:", htmlContrato.length)
-      const pdfRes = await fetch("/api/convert-to-pdf", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ htmlContent: htmlContrato }),
-      })
-
-      if (!pdfRes.ok) {
-        const err = await pdfRes.json()
-        throw new Error(`Falha na conversão para PDF: ${err.details || err.error || "Erro interno"}`)
+      // Adicionar script html2pdf no head se não existir
+      if (!document.querySelector('script[src*="html2pdf"]')) {
+        const script = document.createElement("script")
+        script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"
+        document.head.appendChild(script)
       }
-      const { pdfBase64 } = await pdfRes.json()
-      console.log("[v0] PDF gerado com sucesso, tamanho base64:", pdfBase64.length)
 
-      // Converter base64 para Blob e fazer download
-      const binaryString = atob(pdfBase64)
-      const bytes = new Uint8Array(binaryString.length)
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i)
+      // Criar elemento div temporário com o HTML do contrato (preservando formatação)
+      const tempDiv = document.createElement("div")
+      tempDiv.style.display = "none"
+      tempDiv.innerHTML = `
+        <div style="font-family: Arial, sans-serif; font-size: 12pt; line-height: 1.6; padding: 40px; background: white; color: #333;">
+          ${contratoSelecionado.conteudo}
+        </div>
+      `
+      document.body.appendChild(tempDiv)
+
+      console.log("[v0] Gerando PDF com html2pdf.js")
+
+      // Esperar html2pdf estar disponível
+      const waitForHtml2Pdf = () => {
+        return new Promise((resolve) => {
+          const checkInterval = setInterval(() => {
+            if ((window as any).html2pdf) {
+              clearInterval(checkInterval)
+              resolve(true)
+            }
+          }, 100)
+          setTimeout(() => {
+            clearInterval(checkInterval)
+            resolve(true)
+          }, 5000) // Timeout após 5 segundos
+        })
       }
-      const blob = new Blob([bytes], { type: "application/pdf" })
 
-      // Criar link de download
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement("a")
-      link.href = url
-      link.download = `Contrato_Somma_${contratoSelecionado.clienteNome.replace(/\s+/g, "_")}_${new Date().toISOString().split("T")[0]}.pdf`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      window.URL.revokeObjectURL(url)
+      await waitForHtml2Pdf()
+
+      const html2pdf = (window as any).html2pdf
+      if (!html2pdf) {
+        throw new Error("Biblioteca html2pdf não foi carregada. Tente novamente.")
+      }
+
+      // Configurar opções do PDF
+      const options = {
+        margin: [10, 10, 10, 10],
+        filename: `Contrato_Somma_${contratoSelecionado.clienteNome.replace(/\s+/g, "_")}_${new Date().toISOString().split("T")[0]}.pdf`,
+        image: { type: "jpeg", quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, allowTaint: true },
+        jsPDF: { orientation: "portrait", unit: "mm", format: "a4" },
+      }
+
+      // Gerar PDF
+      await html2pdf().set(options).from(tempDiv.innerHTML).save()
+
+      console.log("[v0] PDF gerado e baixado com sucesso")
+
+      // Limpar elemento temporário
+      document.body.removeChild(tempDiv)
 
       // Atualizar status local
       const agora = new Date().toISOString()
@@ -673,12 +691,9 @@ export default function ContratosPage() {
       setContratoSelecionado(contratoAtualizado)
       setShowEnviarModal(false)
     } catch (err: unknown) {
+      console.error("[v0] Erro ao gerar PDF:", err instanceof Error ? err.message : String(err))
       const errorMessage = err instanceof Error ? err.message : "Erro desconhecido ao gerar contrato"
-      if (errorMessage.includes("conversão para PDF")) {
-        setError("Erro ao gerar PDF do contrato. Verifique se o conteúdo está correto.")
-      } else {
-        setError(errorMessage)
-      }
+      setError(errorMessage || "Erro ao gerar PDF do contrato. Tente novamente.")
     } finally {
       setLoadingAcao(null)
     }
