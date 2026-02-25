@@ -1,7 +1,6 @@
 "use client"
 
 import PaymentsDashboard from "./dashboard/page"
-import GestorClientes from "./gestorclientes/page"
 import ClientesAsaas from "./clientes/page"
 import ListaEspera from "./listaespera/page"
 import Cobrancas from "./cobrancas/page"
@@ -18,7 +17,6 @@ export default function PagamentosPage({ activeTab = "dashboard" }: PagamentosPa
   return (
     <div className="flex-1 overflow-auto bg-neutral-900 h-full">
       {activeTab === "dashboard" && <PaymentsDashboard />}
-      {activeTab === "gestorclientes" && <GestorClientes />}
       {activeTab === "clientes" && <ClientesAsaas />}
       {activeTab === "listaespera" && <ListaEspera />}
       {activeTab === "cobrancas" && <Cobrancas />}
