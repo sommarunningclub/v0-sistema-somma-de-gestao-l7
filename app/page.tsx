@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { ChevronRight, ChevronDown, Monitor, Settings, Shield, Target, Users, Bell, RefreshCw, CreditCard, LogOut, CheckSquare, Briefcase, LayoutDashboard, Receipt, Ticket, Zap, ChevronLeft } from "lucide-react"
+import { ChevronRight, ChevronDown, Monitor, Settings, Shield, Target, Users, Bell, RefreshCw, CreditCard, LogOut, CheckSquare, Briefcase, LayoutDashboard, Receipt, Ticket, Zap, ChevronLeft, Star } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { UserProfile } from "@/components/user-profile"
 import ProtectedRouteComponent from "@/components/protected-route"
@@ -9,6 +9,7 @@ import { logout, hasPermission } from "@/components/protected-route"
 import CommandCenterPage from "./command-center/page"
 import AgentNetworkPage from "./agent-network/page"
 import IntelligencePage from "./intelligence/page"
+import InsidersPage from "./pagamentos/insiders/page"
 import SystemsPage from "./systems/page"
 import PagamentosPage from "./pagamentos/page"
 import CheckInPage from "./checkin/page"
@@ -55,6 +56,7 @@ export default function TacticalDashboard() {
     { id: "listaespera", icon: Users, label: "Lista de Espera" },
     { id: "cobrancas", icon: Receipt, label: "Cobrancas" },
     { id: "assinaturas", icon: CreditCard, label: "Assinaturas" },
+    { id: "insiders", icon: Star, label: "Insiders" },
     { id: "cupons", icon: Ticket, label: "Cupons" },
     { id: "sincronizacao", icon: RefreshCw, label: "Sincronizacao" },
   ]
@@ -134,6 +136,7 @@ export default function TacticalDashboard() {
                 { id: "checkin", icon: CheckSquare, label: "CHECK-IN", permissionKey: "checkin" },
                 { id: "agents", icon: Users, label: "MEMBROS", permissionKey: "membros" },
                 { id: "parceiro", icon: Briefcase, label: "PARCEIRO SOMMA", permissionKey: "parceiro" },
+                { id: "insiders", icon: Star, label: "INSIDERS", permissionKey: "pagamentos" },
                 { id: "intelligence", icon: Target, label: "CARTEIRAS", permissionKey: "carteiras" },
               ].map((item) => {
                 const hasAccess = permissions[item.permissionKey] !== false
@@ -310,7 +313,8 @@ export default function TacticalDashboard() {
             {activeSection === "checkin" && permissions.checkin && <CheckInPage />}
             {activeSection === "agents" && permissions.membros && <AgentNetworkPage />}
             {activeSection === "parceiro" && permissions.parceiro && <ParcerioSommaPage />}
-            {activeSection === "intelligence" && permissions.carteiras && <IntelligencePage />}
+              {activeSection === "insiders" && permissions.pagamentos && <InsidersPage />}
+              {activeSection === "intelligence" && permissions.carteiras && <IntelligencePage />}
             {activeSection === "pagamentos" && permissions.pagamentos && <PagamentosPage activeTab={pagamentosTab} />}
             {activeSection === "systems" && permissions.admin && <SystemsPage />}
           </div>
