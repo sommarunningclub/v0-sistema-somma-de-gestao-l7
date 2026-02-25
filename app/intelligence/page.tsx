@@ -64,6 +64,9 @@ export default function CarteirasPage() {
   const [asaasCustomers, setAsaasCustomers] = useState<AsaasCustomer[]>([])
   const [loadingCustomers, setLoadingCustomers] = useState(false)
   const [selectedCustomer, setSelectedCustomer] = useState<AsaasCustomer | null>(null)
+  const [selectedTag, setSelectedTag] = useState<string>("alunoprofessor")
+  const [newCustomTag, setNewCustomTag] = useState<string>("")
+  const [showNewTagInput, setShowNewTagInput] = useState(false)
 
   // Commissions state
   const [sommaFixedFee, setSommaFixedFee] = useState(50.00)
@@ -269,6 +272,11 @@ export default function CarteirasPage() {
   const handleLinkClient = async () => {
     if (!selectedProfessor || !selectedCustomer) return
 
+    // Determinar a tag final
+    const finalTag = showNewTagInput && newCustomTag.trim() 
+      ? newCustomTag.trim() 
+      : selectedTag
+
     const { data, error } = await supabase
       .from("professor_clients")
       .insert([{
@@ -277,6 +285,7 @@ export default function CarteirasPage() {
         customer_name: selectedCustomer.name,
         customer_email: selectedCustomer.email,
         status: "active",
+        tag: finalTag,
       }])
       .select()
 
@@ -287,6 +296,9 @@ export default function CarteirasPage() {
       alert("Cliente vinculado com sucesso!")
       setShowLinkClientModal(false)
       setSelectedCustomer(null)
+      setSelectedTag("alunoprofessor")
+      setNewCustomTag("")
+      setShowNewTagInput(false)
       fetchProfessorClients()
     }
   }
@@ -1059,6 +1071,61 @@ export default function CarteirasPage() {
                       </div>
                     )
                   })}
+                </div>
+              )}
+
+              {/* Tag Selection */}
+              {selectedCustomer && (
+                <div className="bg-blue-900/20 border border-blue-700/30 rounded-lg p-4 mb-6">
+                  <label className="text-sm font-medium text-white mb-3 block">Selecione uma tag para este cliente:</label>
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          setSelectedTag("alunoprofessor")
+                          setShowNewTagInput(false)
+                        }}
+                        className={`flex-1 py-2 px-3 rounded-lg border transition-all text-sm ${
+                          selectedTag === "alunoprofessor" && !showNewTagInput
+                            ? "bg-blue-500 border-blue-500 text-white"
+                            : "bg-neutral-800 border-neutral-700 text-neutral-400 hover:border-neutral-600"
+                        }`}
+                      >
+                        #alunoprofessor
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSelectedTag("alunosomma")
+                          setShowNewTagInput(false)
+                        }}
+                        className={`flex-1 py-2 px-3 rounded-lg border transition-all text-sm ${
+                          selectedTag === "alunosomma" && !showNewTagInput
+                            ? "bg-blue-500 border-blue-500 text-white"
+                            : "bg-neutral-800 border-neutral-700 text-neutral-400 hover:border-neutral-600"
+                        }`}
+                      >
+                        #alunosomma
+                      </button>
+                      <button
+                        onClick={() => setShowNewTagInput(!showNewTagInput)}
+                        className={`flex-1 py-2 px-3 rounded-lg border transition-all text-sm ${
+                          showNewTagInput
+                            ? "bg-green-500 border-green-500 text-white"
+                            : "bg-neutral-800 border-neutral-700 text-neutral-400 hover:border-neutral-600"
+                        }`}
+                      >
+                        + Nova Tag
+                      </button>
+                    </div>
+                    {showNewTagInput && (
+                      <Input
+                        placeholder="Digite a nova tag (ex: #premium)"
+                        value={newCustomTag}
+                        onChange={(e) => setNewCustomTag(e.target.value)}
+                        className="bg-neutral-700 border-neutral-600 text-white placeholder:text-neutral-500"
+                      />
+                    )}
+                  </div>
                 </div>
               )}
 

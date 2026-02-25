@@ -99,6 +99,7 @@ export type ProfessorClient = {
   status: "active" | "inactive";
   linked_at: string;
   unlinked_at: string | null;
+  tag?: string;
 };
 
 export type CommissionConfig = {
