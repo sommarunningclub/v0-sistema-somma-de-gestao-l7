@@ -408,7 +408,11 @@ export default function InsidersPage() {
                   </thead>
                   <tbody>
                     {filteredInsiders.map((insider) => (
-                      <tr key={insider.id} className="border-b border-neutral-700 hover:bg-neutral-700/50 transition-colors">
+                      <tr 
+                        key={insider.id} 
+                        onClick={() => openViewModal(insider)}
+                        className="border-b border-neutral-700 hover:bg-neutral-700/50 transition-colors cursor-pointer"
+                      >
                         <td className="px-4 py-3 text-white font-medium">{insider.nome}</td>
                         <td className="px-4 py-3 text-neutral-400">{insider.cpf}</td>
                         <td className="px-4 py-3 text-center">
@@ -444,21 +448,30 @@ export default function InsidersPage() {
                         <td className="px-4 py-3 text-center">
                           <div className="flex gap-2 justify-center">
                             <button
-                              onClick={() => openViewModal(insider)}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                openViewModal(insider)
+                              }}
                               className="p-1.5 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400"
                               title="Visualizar"
                             >
                               <Eye className="w-4 h-4" />
                             </button>
                             <button
-                              onClick={() => openEditModal(insider)}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                openEditModal(insider)
+                              }}
                               className="p-1.5 rounded-lg bg-orange-500/10 hover:bg-orange-500/20 text-orange-400"
                               title="Editar"
                             >
                               <Edit className="w-4 h-4" />
                             </button>
                             <button
-                              onClick={() => handleDelete(insider.id)}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleDelete(insider.id)
+                              }}
                               className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400"
                               title="Deletar"
                             >
