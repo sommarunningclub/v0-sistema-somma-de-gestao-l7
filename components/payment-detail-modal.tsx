@@ -28,6 +28,7 @@ import {
   AlertTriangle,
 } from "lucide-react"
 import type { AsaasPayment } from "@/lib/types/asaas"
+import { TagManager } from "@/components/tag-manager"
 
 interface PaymentDetailModalProps {
   payment: AsaasPayment | null
@@ -535,6 +536,13 @@ export function PaymentDetailModal({ payment, customer, onClose, onPaymentUpdate
                           <p className="text-sm text-white mt-1.5">{customer.company}</p>
                         </div>
                       )}
+                      {/* Tags da cobrança */}
+                      <div className="pt-4 border-t border-neutral-700">
+                        <TagManager
+                          entityType="cobranca"
+                          entityId={String(payment.asaas_id || payment.id)}
+                        />
+                      </div>
                     </div>
                   ) : (
                     <p className="text-sm text-neutral-400">Carregando informações...</p>
