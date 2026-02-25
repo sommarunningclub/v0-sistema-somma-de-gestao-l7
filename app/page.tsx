@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { ChevronRight, ChevronDown, Monitor, Settings, Shield, Target, Users, Bell, RefreshCw, CreditCard, LogOut, CheckSquare, Briefcase, LayoutDashboard, Receipt, Ticket, Zap, ChevronLeft, FileSignature } from "lucide-react"
+import { ChevronRight, ChevronDown, Monitor, Settings, Shield, Target, Users, Bell, RefreshCw, CreditCard, LogOut, CheckSquare, Briefcase, LayoutDashboard, Receipt, Ticket, Zap, ChevronLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { UserProfile } from "@/components/user-profile"
 import ProtectedRouteComponent from "@/components/protected-route"
@@ -55,7 +55,6 @@ export default function TacticalDashboard() {
     { id: "listaespera", icon: Users, label: "Lista de Espera" },
     { id: "cobrancas", icon: Receipt, label: "Cobrancas" },
     { id: "assinaturas", icon: CreditCard, label: "Assinaturas" },
-    { id: "contratos", icon: FileSignature, label: "Contratos" },
     { id: "cupons", icon: Ticket, label: "Cupons" },
     { id: "sincronizacao", icon: RefreshCw, label: "Sincronizacao" },
   ]
