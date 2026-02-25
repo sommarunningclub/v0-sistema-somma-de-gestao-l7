@@ -51,6 +51,7 @@ export default function TacticalDashboard() {
 
   const pagamentosSubItems = [
     { id: "dashboard", icon: LayoutDashboard, label: "Dashboard" },
+    { id: "gestorclientes", icon: Users, label: "Gestor de Clientes" },
     { id: "clientes", icon: Users, label: "Clientes Asaas" },
     { id: "listaespera", icon: Users, label: "Lista de Espera" },
     { id: "cobrancas", icon: Receipt, label: "Cobrancas" },
