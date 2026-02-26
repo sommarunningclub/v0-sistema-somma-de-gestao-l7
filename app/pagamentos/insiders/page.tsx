@@ -212,207 +212,239 @@ export default function InsidersPage() {
   }
 
   return (
-    <div className="flex-1 p-6 overflow-auto bg-neutral-900">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="w-full min-w-0 max-w-full overflow-x-hidden">
+      <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+
         {/* Header */}
         <div>
-          <h1 className="text-3xl font-bold text-white mb-1">Insiders</h1>
-          <p className="text-neutral-400">Gerenciamento de dados dos Insiders Somma</p>
+          <h1 className="text-lg sm:text-3xl font-bold text-white tracking-wider mb-1">INSIDERS</h1>
+          <p className="text-xs sm:text-sm text-neutral-400">Gerenciamento de dados dos Insiders Somma</p>
         </div>
 
-        {/* Controls */}
-        <Card className="bg-neutral-800 border-neutral-700">
-          <CardContent className="pt-6 flex gap-3">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
-              <Input
-                placeholder="Buscar por nome ou CPF..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 bg-neutral-700 border-neutral-600 text-white"
-              />
-            </div>
+        {/* Controls — Stack on mobile, row on tablet+ */}
+        <div className="space-y-2 sm:space-y-0 sm:flex sm:gap-2 sm:items-center">
+          <div className="flex-1 min-w-0 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-500 pointer-events-none shrink-0" />
+            <Input
+              placeholder="Nome ou CPF..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9 bg-neutral-800 border-neutral-700 text-white placeholder-neutral-500 text-xs sm:text-sm py-2 h-10"
+            />
+          </div>
+          <div className="flex gap-2 min-w-0 overflow-x-auto scrollbar-hide sm:overflow-visible">
             <Button
               onClick={() => setShowFilters(!showFilters)}
-              className={`gap-2 ${hasActiveFilters ? "bg-blue-600 hover:bg-blue-700" : "bg-neutral-700 hover:bg-neutral-600"} text-white`}
+              size="sm"
+              className={`text-xs px-3 h-10 shrink-0 gap-1.5 ${
+                hasActiveFilters 
+                  ? "bg-blue-600 hover:bg-blue-700" 
+                  : "bg-neutral-700 hover:bg-neutral-600"
+              } text-white`}
             >
-              <Filter className="w-4 h-4" />
-              Filtros {hasActiveFilters && `(${Object.values(filters).filter(f => f !== "").length})`}
+              <Filter className="w-3.5 h-3.5" />
+              Filtros
             </Button>
             <Button
               onClick={openCreateModal}
-              className="bg-green-600 hover:bg-green-700 text-white gap-2"
+              size="sm"
+              className="text-xs px-3 h-10 shrink-0 gap-1 bg-green-600 hover:bg-green-700 text-white"
             >
-              <Plus className="w-4 h-4" />
-              Novo Insider
+              <Plus className="w-3.5 h-3.5" />
+              Novo
             </Button>
             <Button
               onClick={exportToCSV}
               disabled={filteredInsiders.length === 0}
-              className="bg-orange-500 hover:bg-orange-600 text-white gap-2"
+              size="sm"
+              className="text-xs px-3 h-10 shrink-0 gap-1 bg-orange-500 hover:bg-orange-600 text-white"
             >
-              <Download className="w-4 h-4" />
-              Exportar CSV
+              <Download className="w-3.5 h-3.5" />
+              CSV
             </Button>
             <Button
               onClick={fetchInsiders}
               variant="outline"
-              className="border-neutral-600 text-neutral-400 hover:text-white"
+              size="sm"
+              className="text-xs px-3 h-10 shrink-0 border-neutral-700 text-neutral-400 hover:text-white hover:border-neutral-600"
             >
               Atualizar
             </Button>
-          </CardContent>
-        </Card>
-
-        {/* Advanced Filters */}
-        {showFilters && (
-          <Card className="bg-neutral-800 border-neutral-700">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-white">Filtros Avançados</CardTitle>
-                <Button
-                  onClick={resetFilters}
-                  variant="outline"
-                  size="sm"
-                  className="border-neutral-600 text-neutral-400 text-xs"
-                  disabled={!hasActiveFilters}
-                >
-                  Limpar Filtros
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                <div>
-                  <label className="text-neutral-400 text-xs block mb-2">Evolve</label>
-                  <select
-                    value={filters.evolve}
-                    onChange={(e) => setFilters({ ...filters, evolve: e.target.value })}
-                    className="w-full bg-neutral-700 border border-neutral-600 text-white px-3 py-2 rounded-md text-sm"
-                  >
-                    <option value="">Todos</option>
-                    <option value="Sim">Sim</option>
-                    <option value="Não">Não</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-neutral-400 text-xs block mb-2">Dopamina</label>
-                  <select
-                    value={filters.dopahmina}
-                    onChange={(e) => setFilters({ ...filters, dopahmina: e.target.value })}
-                    className="w-full bg-neutral-700 border border-neutral-600 text-white px-3 py-2 rounded-md text-sm"
-                  >
-                    <option value="">Todos</option>
-                    <option value="Sim">Sim</option>
-                    <option value="Não">Não</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-neutral-400 text-xs block mb-2">Tex Barbearia</label>
-                  <select
-                    value={filters.tex_barbearia}
-                    onChange={(e) => setFilters({ ...filters, tex_barbearia: e.target.value })}
-                    className="w-full bg-neutral-700 border border-neutral-600 text-white px-3 py-2 rounded-md text-sm"
-                  >
-                    <option value="">Todos</option>
-                    <option value="Sim">Sim</option>
-                    <option value="Não">Não</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-neutral-400 text-xs block mb-2">Big Box</label>
-                  <select
-                    value={filters.big_box}
-                    onChange={(e) => setFilters({ ...filters, big_box: e.target.value })}
-                    className="w-full bg-neutral-700 border border-neutral-600 text-white px-3 py-2 rounded-md text-sm"
-                  >
-                    <option value="">Todos</option>
-                    <option value="Sim">Sim</option>
-                    <option value="Não">Não</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-neutral-400 text-xs block mb-2">Cupom Loja Somma</label>
-                  <Input
-                    value={filters.cupom_loja_somma}
-                    onChange={(e) => setFilters({ ...filters, cupom_loja_somma: e.target.value })}
-                    placeholder="Buscar..."
-                    className="bg-neutral-700 border-neutral-600 text-white text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="text-neutral-400 text-xs block mb-2">Assessoria Somma</label>
-                  <Input
-                    value={filters.assessoria_somma}
-                    onChange={(e) => setFilters({ ...filters, assessoria_somma: e.target.value })}
-                    placeholder="Buscar..."
-                    className="bg-neutral-700 border-neutral-600 text-white text-sm"
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Status */}
-        <div className="flex gap-4">
-          <Card className="bg-neutral-800 border-neutral-700 flex-1">
-            <CardContent className="pt-6">
-              <div className="text-center">
-                <div className="text-3xl font-bold text-orange-500">{filteredInsiders.length}</div>
-                <div className="text-sm text-neutral-400">Insiders {searchTerm ? "encontrados" : "totais"}</div>
-              </div>
-            </CardContent>
-          </Card>
+          </div>
         </div>
 
-        {/* Error Message */}
+        {/* Advanced Filters — Collapsible, full-width on mobile */}
+        {showFilters && (
+          <div className="bg-neutral-900 border border-neutral-700 rounded-lg p-3 sm:p-4 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-sm font-semibold text-white">Filtros Avançados</h3>
+              <Button
+                onClick={resetFilters}
+                variant="outline"
+                size="sm"
+                className="text-xs px-2 h-8 border-neutral-700 text-neutral-400 shrink-0"
+                disabled={!hasActiveFilters}
+              >
+                Limpar
+              </Button>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+              {[
+                { key: "evolve", label: "Evolve" },
+                { key: "dopahmina", label: "Dopamina" },
+                { key: "tex_barbearia", label: "Tex Barb." },
+                { key: "big_box", label: "Big Box" },
+                { key: "cupom_loja_somma", label: "Cupom" },
+                { key: "assessoria_somma", label: "Assessoria" },
+              ].map(({ key, label }) => (
+                <div key={key}>
+                  <label className="text-[10px] text-neutral-400 block mb-1">{label}</label>
+                  {key.includes("cupom") || key.includes("assessoria") ? (
+                    <Input
+                      value={filters[key as keyof typeof filters]}
+                      onChange={(e) => setFilters({ ...filters, [key]: e.target.value })}
+                      placeholder="..."
+                      className="bg-neutral-800 border-neutral-700 text-white text-xs h-8 px-2"
+                    />
+                  ) : (
+                    <select
+                      value={filters[key as keyof typeof filters]}
+                      onChange={(e) => setFilters({ ...filters, [key]: e.target.value })}
+                      className="w-full bg-neutral-800 border border-neutral-700 text-white text-xs px-2 py-1.5 rounded h-8"
+                    >
+                      <option value="">Todos</option>
+                      <option value="Sim">Sim</option>
+                      <option value="Não">Não</option>
+                    </select>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Stats */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="bg-neutral-900 border border-neutral-700 rounded-lg p-3 text-center">
+            <div className="text-2xl font-bold text-orange-500">{filteredInsiders.length}</div>
+            <div className="text-[10px] text-neutral-400 mt-1">Insiders</div>
+          </div>
+          <div className="bg-neutral-900 border border-neutral-700 rounded-lg p-3 text-center">
+            <div className="text-2xl font-bold text-green-500">{filteredInsiders.filter(i => i.evolve === "Sim").length}</div>
+            <div className="text-[10px] text-neutral-400 mt-1">Evolve</div>
+          </div>
+          <div className="bg-neutral-900 border border-neutral-700 rounded-lg p-3 text-center">
+            <div className="text-2xl font-bold text-blue-500">{filteredInsiders.filter(i => i.dopahmina === "Sim").length}</div>
+            <div className="text-[10px] text-neutral-400 mt-1">Dopamina</div>
+          </div>
+          <div className="bg-neutral-900 border border-neutral-700 rounded-lg p-3 text-center">
+            <div className="text-2xl font-bold text-purple-500">{filteredInsiders.filter(i => i.big_box === "Sim").length}</div>
+            <div className="text-[10px] text-neutral-400 mt-1">Big Box</div>
+          </div>
+        </div>
+
+        {/* Error */}
         {error && (
-          <Card className="bg-red-900/20 border-red-500/50">
-            <CardContent className="pt-6 text-red-400 text-sm">
-              {error}
-            </CardContent>
-          </Card>
+          <div className="bg-red-900/20 border border-red-500/50 rounded-lg p-3 text-red-400 text-sm">
+            {error}
+          </div>
         )}
 
-        {/* Loading State */}
+        {/* Loading */}
         {loading && (
-          <Card className="bg-neutral-800 border-neutral-700">
-            <CardContent className="pt-6 text-center py-12">
-              <div className="animate-pulse text-neutral-400">Carregando dados...</div>
-            </CardContent>
-          </Card>
+          <div className="text-center py-12 text-neutral-400 text-sm">Carregando dados...</div>
         )}
 
-        {/* Table */}
+        {/* Empty State */}
+        {!loading && filteredInsiders.length === 0 && (
+          <div className="text-center py-12 text-neutral-400 text-sm">Nenhum insider encontrado</div>
+        )}
+
+        {/* List — Cards on mobile, table on desktop */}
         {!loading && filteredInsiders.length > 0 && (
-          <Card className="bg-neutral-800 border-neutral-700">
-            <CardHeader>
-              <CardTitle className="text-white">Lista de Insiders</CardTitle>
-            </CardHeader>
-            <CardContent>
+          <>
+            {/* Mobile: Cards */}
+            <div className="space-y-3 lg:hidden">
+              {filteredInsiders.map((insider) => (
+                <div
+                  key={insider.id}
+                  className="bg-neutral-900 border border-neutral-700 rounded-lg p-4 hover:border-orange-500/50 transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-semibold text-white text-sm truncate">{insider.nome}</h4>
+                      <p className="text-xs text-neutral-400 truncate">{insider.cpf}</p>
+                    </div>
+                    <div className="flex gap-1 shrink-0">
+                      <button
+                        onClick={() => openViewModal(insider)}
+                        className="p-1.5 text-neutral-400 hover:text-white active:scale-90 transition"
+                        title="Visualizar"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => openEditModal(insider)}
+                        className="p-1.5 text-neutral-400 hover:text-white active:scale-90 transition"
+                        title="Editar"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(insider.id)}
+                        className="p-1.5 text-neutral-400 hover:text-red-500 active:scale-90 transition"
+                        title="Deletar"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 gap-1 text-center">
+                    <div className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold mx-auto ${
+                      insider.evolve === "Sim" ? "bg-green-500/20 text-green-400" : "bg-neutral-800 text-neutral-500"
+                    }`}>
+                      {insider.evolve === "Sim" ? "✓" : "—"}
+                    </div>
+                    <div className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold mx-auto ${
+                      insider.dopahmina === "Sim" ? "bg-blue-500/20 text-blue-400" : "bg-neutral-800 text-neutral-500"
+                    }`}>
+                      {insider.dopahmina === "Sim" ? "✓" : "—"}
+                    </div>
+                    <div className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold mx-auto ${
+                      insider.tex_barbearia === "Sim" ? "bg-purple-500/20 text-purple-400" : "bg-neutral-800 text-neutral-500"
+                    }`}>
+                      {insider.tex_barbearia === "Sim" ? "✓" : "—"}
+                    </div>
+                    <div className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold mx-auto ${
+                      insider.big_box === "Sim" ? "bg-yellow-500/20 text-yellow-400" : "bg-neutral-800 text-neutral-500"
+                    }`}>
+                      {insider.big_box === "Sim" ? "✓" : "—"}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop: Table */}
+            <div className="hidden lg:block bg-neutral-900 border border-neutral-700 rounded-lg overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-neutral-700">
+                  <thead className="border-b border-neutral-700 bg-neutral-800/50">
+                    <tr>
                       <th className="px-4 py-3 text-left text-neutral-400 font-medium">Nome</th>
                       <th className="px-4 py-3 text-left text-neutral-400 font-medium">CPF</th>
                       <th className="px-4 py-3 text-center text-neutral-400 font-medium">Evolve</th>
                       <th className="px-4 py-3 text-center text-neutral-400 font-medium">Dopamina</th>
-                      <th className="px-4 py-3 text-center text-neutral-400 font-medium">Tex Barbearia</th>
+                      <th className="px-4 py-3 text-center text-neutral-400 font-medium">Tex Barb.</th>
                       <th className="px-4 py-3 text-center text-neutral-400 font-medium">Big Box</th>
-                      <th className="px-4 py-3 text-center text-neutral-400 font-medium">Cupom Loja Somma</th>
-                      <th className="px-4 py-3 text-center text-neutral-400 font-medium">Assessoria Somma</th>
+                      <th className="px-4 py-3 text-center text-neutral-400 font-medium">Cupom</th>
+                      <th className="px-4 py-3 text-center text-neutral-400 font-medium">Assessoria</th>
                       <th className="px-4 py-3 text-center text-neutral-400 font-medium">Ações</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredInsiders.map((insider) => (
-                      <tr 
-                        key={insider.id} 
-                        onClick={() => openViewModal(insider)}
-                        className="border-b border-neutral-700 hover:bg-neutral-700/50 transition-colors cursor-pointer"
-                      >
+                      <tr key={insider.id} className="border-b border-neutral-700 hover:bg-neutral-800/50 transition-colors">
                         <td className="px-4 py-3 text-white font-medium">{insider.nome}</td>
                         <td className="px-4 py-3 text-neutral-400">{insider.cpf}</td>
                         <td className="px-4 py-3 text-center">
@@ -424,25 +456,49 @@ export default function InsidersPage() {
                         </td>
                         <td className="px-4 py-3 text-center">
                           <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
-                            insider.dopahmina === "Sim" ? "bg-green-500/20 text-green-400" : "bg-neutral-700 text-neutral-400"
+                            insider.dopahmina === "Sim" ? "bg-blue-500/20 text-blue-400" : "bg-neutral-700 text-neutral-400"
                           }`}>
                             {insider.dopahmina === "Sim" ? "✓" : "—"}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-center">
                           <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
-                            insider.tex_barbearia === "Sim" ? "bg-green-500/20 text-green-400" : "bg-neutral-700 text-neutral-400"
+                            insider.tex_barbearia === "Sim" ? "bg-purple-500/20 text-purple-400" : "bg-neutral-700 text-neutral-400"
                           }`}>
                             {insider.tex_barbearia === "Sim" ? "✓" : "—"}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-center">
                           <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
-                            insider.big_box === "Sim" ? "bg-green-500/20 text-green-400" : "bg-neutral-700 text-neutral-400"
+                            insider.big_box === "Sim" ? "bg-yellow-500/20 text-yellow-400" : "bg-neutral-700 text-neutral-400"
                           }`}>
                             {insider.big_box === "Sim" ? "✓" : "—"}
                           </span>
                         </td>
+                        <td className="px-4 py-3 text-center text-neutral-400 text-xs truncate">{insider.cupom_loja_somma || "—"}</td>
+                        <td className="px-4 py-3 text-center text-neutral-400 text-xs truncate">{insider.assessoria_somma || "—"}</td>
+                        <td className="px-4 py-3 text-center flex items-center justify-center gap-1">
+                          <button onClick={() => openViewModal(insider)} className="p-1 hover:text-white text-neutral-400 transition">
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => openEditModal(insider)} className="p-1 hover:text-white text-neutral-400 transition">
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => handleDelete(insider.id)} className="p-1 hover:text-red-500 text-neutral-400 transition">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
                         <td className="px-4 py-3 text-center text-neutral-400">{insider.cupom_loja_somma || "—"}</td>
                         <td className="px-4 py-3 text-center text-neutral-400">{insider.assessoria_somma || "—"}</td>
                         <td className="px-4 py-3 text-center">
