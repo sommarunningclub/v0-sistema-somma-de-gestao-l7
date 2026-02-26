@@ -181,7 +181,7 @@ export default function PixAutomaticoPage() {
     return () => clearTimeout(t)
   }, [customerSearch, searchCustomers])
 
-  // ─── Criar autorização ────────────────────────────────────────────────────
+  // ─── Criar autorização ────────────��───────────────────────────────────────
 
   const handleCreate = async () => {
     if (!form.customerId || !form.contractId || !form.value || !form.startDate) {
@@ -277,40 +277,41 @@ export default function PixAutomaticoPage() {
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 md:p-6 space-y-4 md:space-y-6">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Pix Automático</h1>
-          <p className="text-neutral-400 text-sm mt-1">Autorizações de débito recorrente via Pix</p>
+          <h1 className="text-xl md:text-2xl font-bold text-white tracking-tight">Pix Automático</h1>
+          <p className="text-neutral-400 text-xs md:text-sm mt-0.5">Autorizações de débito recorrente via Pix</p>
         </div>
-        <div className="flex gap-2">
-          <Button onClick={fetchAuthorizations} variant="outline" size="sm" className="border-neutral-600 text-neutral-400 hover:text-white gap-2">
+        <div className="flex gap-2 flex-shrink-0">
+          <Button onClick={fetchAuthorizations} variant="outline" size="sm" className="border-neutral-600 text-neutral-400 hover:text-white p-2 md:px-3">
             <RefreshCw className="w-4 h-4" />
-            Atualizar
+            <span className="hidden md:inline ml-2">Atualizar</span>
           </Button>
-          <Button onClick={() => { resetForm(); setShowCreate(true) }} className="bg-green-600 hover:bg-green-700 text-white gap-2" size="sm">
+          <Button onClick={() => { resetForm(); setShowCreate(true) }} className="bg-green-600 hover:bg-green-700 text-white gap-1 md:gap-2" size="sm">
             <Plus className="w-4 h-4" />
-            Nova Autorização
+            <span className="hidden sm:inline">Nova</span>
+            <span className="hidden md:inline">Autorização</span>
           </Button>
         </div>
       </div>
 
       {/* Métricas */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { label: "Total",    value: metrics.total,     icon: Zap,          cls: "text-blue-400" },
-          { label: "Ativos",   value: metrics.active,    icon: CheckCircle,  cls: "text-green-400" },
-          { label: "Pendentes",value: metrics.pending,   icon: Clock,        cls: "text-yellow-400" },
-          { label: "MRR (PIX)",value: fmtCurrency(metrics.mrr), icon: DollarSign, cls: "text-orange-400", isText: true },
+          { label: "Total",     value: metrics.total,            icon: Zap,         cls: "text-blue-400" },
+          { label: "Ativos",    value: metrics.active,           icon: CheckCircle, cls: "text-green-400" },
+          { label: "Pendentes", value: metrics.pending,          icon: Clock,       cls: "text-yellow-400" },
+          { label: "MRR (PIX)", value: fmtCurrency(metrics.mrr), icon: DollarSign,  cls: "text-orange-400" },
         ].map(m => (
           <Card key={m.label} className="bg-neutral-800 border-neutral-700">
-            <CardContent className="p-4 flex items-center gap-3">
-              <m.icon className={`w-8 h-8 ${m.cls}`} />
-              <div>
-                <p className="text-neutral-400 text-xs">{m.label}</p>
-                <p className={`text-xl font-bold ${m.cls}`}>{m.value}</p>
+            <CardContent className="p-3 md:p-4 flex items-center gap-2 md:gap-3">
+              <m.icon className={`w-6 h-6 md:w-8 md:h-8 flex-shrink-0 ${m.cls}`} />
+              <div className="min-w-0">
+                <p className="text-neutral-400 text-xs truncate">{m.label}</p>
+                <p className={`text-base md:text-xl font-bold truncate ${m.cls}`}>{m.value}</p>
               </div>
             </CardContent>
           </Card>
@@ -318,111 +319,102 @@ export default function PixAutomaticoPage() {
       </div>
 
       {/* Controles */}
-      <Card className="bg-neutral-800 border-neutral-700">
-        <CardContent className="pt-4 flex flex-wrap gap-3">
-          <div className="flex-1 min-w-52 relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
-            <Input
-              placeholder="Buscar por contrato, cliente..."
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="pl-10 bg-neutral-700 border-neutral-600 text-white"
-            />
-          </div>
-          <select
-            value={filterStatus}
-            onChange={e => setFilterStatus(e.target.value)}
-            className="bg-neutral-700 border border-neutral-600 text-white px-3 py-2 rounded-md text-sm"
-          >
-            <option value="">Todos os status</option>
-            <option value="CREATED">Aguardando</option>
-            <option value="ACTIVE">Ativo</option>
-            <option value="EXPIRED">Expirado</option>
-            <option value="REFUSED">Recusado</option>
-            <option value="CANCELLED">Cancelado</option>
-          </select>
-        </CardContent>
-      </Card>
+      <div className="flex flex-col sm:flex-row gap-2">
+        <div className="flex-1 relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
+          <Input
+            placeholder="Buscar por contrato, cliente..."
+            value={searchTerm}
+            onChange={e => setSearchTerm(e.target.value)}
+            className="pl-10 bg-neutral-800 border-neutral-700 text-white"
+          />
+        </div>
+        <select
+          value={filterStatus}
+          onChange={e => setFilterStatus(e.target.value)}
+          className="bg-neutral-800 border border-neutral-700 text-white px-3 py-2 rounded-md text-sm"
+        >
+          <option value="">Todos os status</option>
+          <option value="CREATED">Aguardando</option>
+          <option value="ACTIVE">Ativo</option>
+          <option value="EXPIRED">Expirado</option>
+          <option value="REFUSED">Recusado</option>
+          <option value="CANCELLED">Cancelado</option>
+        </select>
+      </div>
 
-      {/* Tabela */}
-      <Card className="bg-neutral-800 border-neutral-700">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-white text-base">
-            Autorizações <span className="text-neutral-500 font-normal text-sm">({filtered.length})</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {loading ? (
-            <div className="flex items-center justify-center py-16 gap-3 text-neutral-400">
-              <Loader2 className="w-6 h-6 animate-spin" /> Carregando autorizações...
-            </div>
-          ) : error ? (
-            <div className="flex items-center justify-center py-16 gap-3 text-red-400">
-              <AlertTriangle className="w-5 h-5" /> {error}
-            </div>
-          ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 gap-3 text-neutral-500">
-              <QrCode className="w-12 h-12" />
-              <p>Nenhuma autorização encontrada</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-neutral-700">
-                    {["Status", "Contrato", "Valor", "Frequência", "Início", "Fim", "Ações"].map(h => (
-                      <th key={h} className="px-4 py-3 text-left text-neutral-400 font-medium text-xs uppercase tracking-wider whitespace-nowrap">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {filtered.map(auth => (
-                    <tr
-                      key={auth.id}
-                      onClick={() => setShowDetail(auth)}
-                      className="border-b border-neutral-700/50 hover:bg-neutral-700/40 cursor-pointer transition-colors"
-                    >
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <StatusIcon status={auth.status} />
-                          {statusBadge(auth.status)}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-white font-medium">{auth.contractId}</td>
-                      <td className="px-4 py-3 text-green-400 font-semibold">{fmtCurrency(auth.value)}</td>
-                      <td className="px-4 py-3 text-neutral-300">{FREQUENCY_LABELS[auth.frequency] || auth.frequency}</td>
-                      <td className="px-4 py-3 text-neutral-300">{fmt(auth.startDate)}</td>
-                      <td className="px-4 py-3 text-neutral-400">{fmt(auth.finishDate)}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex gap-1" onClick={e => e.stopPropagation()}>
-                          {auth.status === "CREATED" && auth.encodedImage && (
-                            <button onClick={() => setShowQrModal(auth)} className="p-1.5 rounded bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-400" title="Ver QR Code">
-                              <QrCode className="w-4 h-4" />
-                            </button>
-                          )}
-                          <button onClick={() => fetchInstructions(auth)} className="p-1.5 rounded bg-blue-500/10 hover:bg-blue-500/20 text-blue-400" title="Instruções de pagamento">
-                            <ReceiptText className="w-4 h-4" />
-                          </button>
-                          {(auth.status === "CREATED" || auth.status === "ACTIVE") && (
-                            <button onClick={() => handleCancel(auth.id)} className="p-1.5 rounded bg-red-500/10 hover:bg-red-500/20 text-red-400" title="Cancelar">
-                              <Ban className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Lista de autorizações */}
+      <div>
+        <p className="text-neutral-400 text-xs mb-3 uppercase tracking-wider">
+          Autorizações <span className="text-neutral-500">({filtered.length})</span>
+        </p>
+        {loading ? (
+          <div className="flex items-center justify-center py-16 gap-3 text-neutral-400">
+            <Loader2 className="w-6 h-6 animate-spin" /> Carregando...
+          </div>
+        ) : error ? (
+          <div className="flex items-center justify-center py-12 gap-3 text-red-400">
+            <AlertTriangle className="w-5 h-5" /> {error}
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 gap-3 text-neutral-500">
+            <QrCode className="w-12 h-12" />
+            <p className="text-sm">Nenhuma autorização encontrada</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {filtered.map(auth => (
+              <div
+                key={auth.id}
+                onClick={() => setShowDetail(auth)}
+                className="bg-neutral-800 border border-neutral-700 rounded-xl p-4 cursor-pointer hover:border-neutral-600 hover:bg-neutral-750 transition-all active:scale-[0.99]"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <StatusIcon status={auth.status} />
+                    <div className="min-w-0">
+                      <p className="text-white font-semibold text-sm truncate">{auth.contractId}</p>
+                      <div className="mt-0.5">{statusBadge(auth.status)}</div>
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-green-400 font-bold text-base">{fmtCurrency(auth.value)}</p>
+                    <p className="text-neutral-500 text-xs">{FREQUENCY_LABELS[auth.frequency] || auth.frequency}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between mt-3 pt-3 border-t border-neutral-700">
+                  <div className="flex items-center gap-3 text-xs text-neutral-400">
+                    <span>Início: {fmt(auth.startDate)}</span>
+                    {auth.finishDate && <span>Fim: {fmt(auth.finishDate)}</span>}
+                  </div>
+                  <div className="flex gap-1.5" onClick={e => e.stopPropagation()}>
+                    {auth.status === "CREATED" && auth.encodedImage && (
+                      <button onClick={() => setShowQrModal(auth)} className="p-2 rounded-lg bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-400 active:scale-95" title="QR Code">
+                        <QrCode className="w-4 h-4" />
+                      </button>
+                    )}
+                    <button onClick={() => fetchInstructions(auth)} className="p-2 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 active:scale-95" title="Instruções">
+                      <ReceiptText className="w-4 h-4" />
+                    </button>
+                    {(auth.status === "CREATED" || auth.status === "ACTIVE") && (
+                      <button onClick={() => handleCancel(auth.id)} className="p-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 active:scale-95" title="Cancelar">
+                        <Ban className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* ─── Modal Detalhe ─────────────────────────────────────────────── */}
       {showDetail && (
-        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={() => setShowDetail(null)}>
-          <div className="bg-neutral-900 border border-neutral-700 rounded-xl w-full max-w-lg p-6 space-y-4" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setShowDetail(null)}>
+          <div className="bg-neutral-900 border border-neutral-700 rounded-t-2xl sm:rounded-xl w-full sm:max-w-lg p-5 space-y-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="w-10 h-1 bg-neutral-600 rounded-full mx-auto sm:hidden mb-1" />
             <div className="flex items-center justify-between">
               <h2 className="text-white font-bold text-lg">Detalhes da Autorização</h2>
               <button onClick={() => setShowDetail(null)} className="text-neutral-400 hover:text-white"><X className="w-5 h-5" /></button>
@@ -491,8 +483,9 @@ export default function PixAutomaticoPage() {
           (showQrModal.payload ? `Ou use a chave Pix copia e cola:\n${showQrModal.payload}` : "")
         )
         return (
-          <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setShowQrModal(null)}>
-            <div className="bg-neutral-900 border border-neutral-700 rounded-xl w-full max-w-md p-6 space-y-5" onClick={e => e.stopPropagation()}>
+          <div className="fixed inset-0 bg-black/80 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setShowQrModal(null)}>
+            <div className="bg-neutral-900 border border-neutral-700 rounded-t-2xl sm:rounded-xl w-full sm:max-w-md p-5 space-y-4 max-h-[95vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+              <div className="w-10 h-1 bg-neutral-600 rounded-full mx-auto sm:hidden mb-1" />
               {/* Header */}
               <div className="flex items-center justify-between">
                 <div>
@@ -601,42 +594,38 @@ export default function PixAutomaticoPage() {
       })()}
 
       {/* ─── Modal Instruções de Pagamento ─────────────────────────────── */}
+      {/* ─── Modal Instruções ─────────────────────────────────────────── */}
       {showInstructions && (
-        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={() => setShowInstructions(null)}>
-          <div className="bg-neutral-900 border border-neutral-700 rounded-xl w-full max-w-2xl p-6 space-y-4 max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setShowInstructions(null)}>
+          <div className="bg-neutral-900 border border-neutral-700 rounded-t-2xl sm:rounded-xl w-full sm:max-w-xl p-5 space-y-4 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <h2 className="text-white font-bold">Instruções de Pagamento</h2>
-              <button onClick={() => setShowInstructions(null)} className="text-neutral-400 hover:text-white"><X className="w-5 h-5" /></button>
+              <div>
+                <h2 className="text-white font-bold">Instruções de Pagamento</h2>
+                <p className="text-neutral-400 text-xs mt-0.5">Contrato: {showInstructions.contractId}</p>
+              </div>
+              <button onClick={() => setShowInstructions(null)} className="text-neutral-400 hover:text-white p-1"><X className="w-5 h-5" /></button>
             </div>
-            <p className="text-neutral-400 text-sm">Contrato: <span className="text-white">{showInstructions.contractId}</span></p>
             {loadingInstr ? (
-              <div className="flex items-center justify-center py-8 gap-2 text-neutral-400">
+              <div className="flex items-center justify-center py-10 gap-2 text-neutral-400">
                 <Loader2 className="w-5 h-5 animate-spin" /> Buscando instruções...
               </div>
             ) : instructions.length === 0 ? (
-              <p className="text-neutral-500 text-sm text-center py-8">Nenhuma instrução encontrada</p>
+              <p className="text-neutral-500 text-sm text-center py-10">Nenhuma instrução encontrada</p>
             ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-neutral-700">
-                    {["Status", "Valor", "Vencimento", "Pagamento"].map(h => (
-                      <th key={h} className="px-3 py-2 text-left text-neutral-400 text-xs font-medium uppercase">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {instructions.map(instr => (
-                    <tr key={instr.id} className="border-b border-neutral-800 hover:bg-neutral-800/50">
-                      <td className="px-3 py-2">
-                        <Badge className="text-xs bg-neutral-700/60 text-neutral-300 border-neutral-600">{instr.status}</Badge>
-                      </td>
-                      <td className="px-3 py-2 text-green-400 font-medium">{fmtCurrency(instr.value)}</td>
-                      <td className="px-3 py-2 text-neutral-300">{fmt(instr.dueDate)}</td>
-                      <td className="px-3 py-2 text-neutral-300">{fmt(instr.paymentDate)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="space-y-2">
+                {instructions.map(instr => (
+                  <div key={instr.id} className="bg-neutral-800 rounded-lg p-3 flex items-center justify-between gap-3">
+                    <div>
+                      <Badge className="text-xs bg-neutral-700/60 text-neutral-300 border-neutral-600 mb-1">{instr.status}</Badge>
+                      <div className="flex gap-3 text-xs text-neutral-400 mt-1">
+                        {instr.dueDate && <span>Vence: {fmt(instr.dueDate)}</span>}
+                        {instr.paymentDate && <span>Pago: {fmt(instr.paymentDate)}</span>}
+                      </div>
+                    </div>
+                    <p className="text-green-400 font-semibold text-sm flex-shrink-0">{fmtCurrency(instr.value)}</p>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </div>
@@ -644,23 +633,25 @@ export default function PixAutomaticoPage() {
 
       {/* ─── Modal Criar Autorização ───────────────────────────────────── */}
       {showCreate && (
-        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={() => setShowCreate(false)}>
-          <div className="bg-neutral-900 border border-neutral-700 rounded-xl w-full max-w-lg p-6 space-y-5" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setShowCreate(false)}>
+          <div className="bg-neutral-900 border border-neutral-700 rounded-t-2xl sm:rounded-xl w-full sm:max-w-lg p-5 space-y-4 max-h-[95vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            {/* Drag handle mobile */}
+            <div className="w-10 h-1 bg-neutral-600 rounded-full mx-auto sm:hidden mb-1" />
             <div className="flex items-center justify-between">
-              <h2 className="text-white font-bold text-lg">Nova Autorização Pix</h2>
-              <button onClick={() => setShowCreate(false)} className="text-neutral-400 hover:text-white"><X className="w-5 h-5" /></button>
+              <h2 className="text-white font-bold text-base">Nova Autorização Pix</h2>
+              <button onClick={() => setShowCreate(false)} className="text-neutral-400 hover:text-white p-1"><X className="w-5 h-5" /></button>
             </div>
 
             {/* Busca de cliente */}
             <div>
               <label className="text-neutral-400 text-xs block mb-1.5">Cliente Asaas <span className="text-red-400">*</span></label>
               {selectedCustomer ? (
-                <div className="flex items-center justify-between bg-neutral-800 rounded-lg px-3 py-2 border border-neutral-600">
+                <div className="flex items-center justify-between bg-neutral-800 rounded-lg px-3 py-2.5 border border-neutral-600">
                   <div>
                     <p className="text-white text-sm font-medium">{selectedCustomer.name}</p>
                     <p className="text-neutral-500 text-xs">{selectedCustomer.email}</p>
                   </div>
-                  <button onClick={() => { setSelectedCustomer(null); setForm(f => ({ ...f, customerId: "" })) }} className="text-neutral-400 hover:text-white">
+                  <button onClick={() => { setSelectedCustomer(null); setForm(f => ({ ...f, customerId: "" })) }} className="text-neutral-400 hover:text-white p-1">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
@@ -671,13 +662,13 @@ export default function PixAutomaticoPage() {
                     placeholder="Digite o nome do cliente..."
                     value={customerSearch}
                     onChange={e => setCustomerSearch(e.target.value)}
-                    className="pl-10 bg-neutral-700 border-neutral-600 text-white"
+                    className="pl-10 bg-neutral-800 border-neutral-700 text-white"
                   />
                   {loadingCustomers && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-neutral-400" />}
                   {customers.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 bg-neutral-800 border border-neutral-600 rounded-lg mt-1 z-10 max-h-48 overflow-y-auto">
+                    <div className="absolute top-full left-0 right-0 bg-neutral-800 border border-neutral-600 rounded-lg mt-1 z-10 max-h-48 overflow-y-auto shadow-xl">
                       {customers.map(c => (
-                        <button key={c.id} className="w-full text-left px-3 py-2 hover:bg-neutral-700 transition-colors" onClick={() => { setSelectedCustomer(c); setForm(f => ({ ...f, customerId: c.id })); setCustomers([]); setCustomerSearch("") }}>
+                        <button key={c.id} className="w-full text-left px-3 py-2.5 hover:bg-neutral-700 transition-colors border-b border-neutral-700 last:border-0" onClick={() => { setSelectedCustomer(c); setForm(f => ({ ...f, customerId: c.id })); setCustomers([]); setCustomerSearch("") }}>
                           <p className="text-white text-sm">{c.name}</p>
                           <p className="text-neutral-500 text-xs">{c.cpfCnpj}</p>
                         </button>
@@ -688,43 +679,37 @@ export default function PixAutomaticoPage() {
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              {/* Contrato */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="text-neutral-400 text-xs block mb-1.5">ID do Contrato <span className="text-red-400">*</span></label>
-                <Input value={form.contractId} onChange={e => setForm(f => ({ ...f, contractId: e.target.value.slice(0, 35) }))} placeholder="CONTRATO-2026-001" className="bg-neutral-700 border-neutral-600 text-white" />
+                <label className="text-neutral-400 text-xs block mb-1.5">Referência do Contrato <span className="text-red-400">*</span></label>
+                <Input value={form.contractId} onChange={e => setForm(f => ({ ...f, contractId: e.target.value.slice(0, 35) }))} placeholder="Ex: SOMMA-ALEX-001" className="bg-neutral-800 border-neutral-700 text-white" />
               </div>
-              {/* Valor */}
               <div>
                 <label className="text-neutral-400 text-xs block mb-1.5">Valor (R$) <span className="text-red-400">*</span></label>
-                <Input type="number" min="0.01" step="0.01" value={form.value} onChange={e => setForm(f => ({ ...f, value: e.target.value }))} placeholder="299.90" className="bg-neutral-700 border-neutral-600 text-white" />
+                <Input type="number" min="0.01" step="0.01" value={form.value} onChange={e => setForm(f => ({ ...f, value: e.target.value }))} placeholder="299.90" className="bg-neutral-800 border-neutral-700 text-white" />
               </div>
-              {/* Frequência */}
               <div>
                 <label className="text-neutral-400 text-xs block mb-1.5">Frequência <span className="text-red-400">*</span></label>
-                <select value={form.frequency} onChange={e => setForm(f => ({ ...f, frequency: e.target.value as PixFrequency }))} className="w-full bg-neutral-700 border border-neutral-600 text-white px-3 py-2 rounded-md text-sm">
+                <select value={form.frequency} onChange={e => setForm(f => ({ ...f, frequency: e.target.value as PixFrequency }))} className="w-full bg-neutral-800 border border-neutral-700 text-white px-3 py-2 rounded-md text-sm">
                   {Object.entries(FREQUENCY_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                 </select>
               </div>
-              {/* Data início */}
               <div>
                 <label className="text-neutral-400 text-xs block mb-1.5">Data de Início <span className="text-red-400">*</span></label>
-                <Input type="date" value={form.startDate} onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))} className="bg-neutral-700 border-neutral-600 text-white" />
+                <Input type="date" value={form.startDate} onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))} className="bg-neutral-800 border-neutral-700 text-white" />
               </div>
-              {/* Data fim */}
               <div>
                 <label className="text-neutral-400 text-xs block mb-1.5">Data de Fim <span className="text-neutral-500">(opcional)</span></label>
-                <Input type="date" value={form.finishDate} onChange={e => setForm(f => ({ ...f, finishDate: e.target.value }))} className="bg-neutral-700 border-neutral-600 text-white" />
+                <Input type="date" value={form.finishDate} onChange={e => setForm(f => ({ ...f, finishDate: e.target.value }))} className="bg-neutral-800 border-neutral-700 text-white" />
               </div>
-              {/* Descrição */}
               <div>
                 <label className="text-neutral-400 text-xs block mb-1.5">Descrição <span className="text-neutral-500">(máx. 35 chars)</span></label>
-                <Input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value.slice(0, 35) }))} placeholder="Plano Mensal..." className="bg-neutral-700 border-neutral-600 text-white" />
+                <Input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value.slice(0, 35) }))} placeholder="Plano Mensal..." className="bg-neutral-800 border-neutral-700 text-white" />
               </div>
             </div>
 
-            <div className="flex gap-3 pt-1">
-              <Button onClick={() => setShowCreate(false)} variant="outline" className="flex-1 border-neutral-600 text-neutral-400">Cancelar</Button>
+            <div className="flex gap-2 pt-1">
+              <Button onClick={() => setShowCreate(false)} variant="outline" className="flex-1 border-neutral-700 text-neutral-400">Cancelar</Button>
               <Button onClick={handleCreate} disabled={saving} className="flex-1 bg-green-600 hover:bg-green-700 text-white gap-2">
                 {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Criando...</> : <><QrCode className="w-4 h-4" /> Criar e Gerar QR</>}
               </Button>

@@ -68,6 +68,13 @@ export default function CarteirasPage() {
   const [newCustomTag, setNewCustomTag] = useState<string>("")
   const [showNewTagInput, setShowNewTagInput] = useState(false)
 
+  // Insiders state (para vincular na carteira)
+  const [linkModalTab, setLinkModalTab] = useState<"asaas" | "insiders">("asaas")
+  const [insiders, setInsiders] = useState<{ id: string; nome: string; cpf: string }[]>([])
+  const [loadingInsiders, setLoadingInsiders] = useState(false)
+  const [selectedInsider, setSelectedInsider] = useState<{ id: string; nome: string; cpf: string } | null>(null)
+  const [insiderSearch, setInsiderSearch] = useState("")
+
   // Commissions state
   const [sommaFixedFee, setSommaFixedFee] = useState(50.00)
   const [editingFee, setEditingFee] = useState(false)
@@ -203,13 +210,26 @@ export default function CarteirasPage() {
       const response = await fetch("/api/asaas?endpoint=/customers&limit=100")
       if (response.ok) {
         const data = await response.json()
-        console.log("[v0] Fetched Asaas customers:", data.data?.length || 0)
         setAsaasCustomers(data.data || [])
       }
     } catch (err) {
       console.error("[v0] Error fetching Asaas customers:", err)
     }
     setLoadingCustomers(false)
+  }
+
+  const fetchInsiders = async () => {
+    setLoadingInsiders(true)
+    try {
+      const { data, error } = await supabase
+        .from("dados_insiders")
+        .select("id, nome, cpf")
+        .order("nome", { ascending: true })
+      if (!error) setInsiders(data || [])
+    } catch (err) {
+      console.error("[v0] Error fetching insiders:", err)
+    }
+    setLoadingInsiders(false)
   }
 
   const handleCreateProfessor = async () => {
@@ -270,14 +290,38 @@ export default function CarteirasPage() {
   }
 
   const handleLinkClient = async () => {
-    if (!selectedProfessor || !selectedCustomer) return
+    if (!selectedProfessor) return
 
-    // Determinar a tag final
-    const finalTag = showNewTagInput && newCustomTag.trim() 
-      ? newCustomTag.trim() 
+    const finalTag = showNewTagInput && newCustomTag.trim()
+      ? newCustomTag.trim()
       : selectedTag
 
-    const { data, error } = await supabase
+    if (linkModalTab === "insiders" && selectedInsider) {
+      const { error } = await supabase
+        .from("professor_clients")
+        .insert([{
+          professor_id: selectedProfessor.id,
+          asaas_customer_id: `insider_${selectedInsider.id}`,
+          customer_name: selectedInsider.nome,
+          customer_email: "",
+          status: "active",
+          tag: finalTag,
+        }])
+      if (error) { console.error("[v0] Error linking insider:", error); alert("Erro ao vincular insider"); return }
+      alert("Insider vinculado com sucesso!")
+      setShowLinkClientModal(false)
+      setSelectedInsider(null)
+      setInsiderSearch("")
+      setSelectedTag("alunoprofessor")
+      setNewCustomTag("")
+      setShowNewTagInput(false)
+      fetchProfessorClients()
+      return
+    }
+
+    if (!selectedCustomer) return
+
+    const { error } = await supabase
       .from("professor_clients")
       .insert([{
         professor_id: selectedProfessor.id,
@@ -553,7 +597,9 @@ export default function CarteirasPage() {
                             className="text-neutral-400 hover:text-white bg-transparent"
                             onClick={() => {
                               setSelectedProfessor(professor)
+                              setLinkModalTab("asaas")
                               fetchAsaasCustomers()
+                              fetchInsiders()
                               setShowLinkClientModal(true)
                             }}
                           >
@@ -622,7 +668,9 @@ export default function CarteirasPage() {
                           className="border-neutral-700 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-300 bg-transparent"
                           onClick={() => {
                             setSelectedProfessor(professor)
+                            setLinkModalTab("asaas")
                             fetchAsaasCustomers()
+                            fetchInsiders()
                             setShowLinkClientModal(true)
                           }}
                         >
@@ -1001,24 +1049,32 @@ export default function CarteirasPage() {
                 Selecione um cliente do plano Assessoria para vincular a {selectedProfessor.name}.
               </p>
 
-              {/* Asaas Info Box */}
-              <div className="bg-orange-900/20 border border-orange-700/30 rounded-lg p-4 mb-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-orange-500/20 rounded-lg">
-                    <Users className="w-5 h-5 text-orange-500" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-white">Clientes do Asaas</p>
-                    <p className="text-xs text-neutral-400">
-                      {asaasCustomers.length} clientes importados, {asaasCustomers.length - professorClients.length} disponíveis
-                    </p>
-                  </div>
-                </div>
-                <Badge className="bg-orange-500/20 text-orange-400 border-orange-700">Asaas API</Badge>
+              {/* Tabs */}
+              <div className="flex gap-1 bg-neutral-800 p-1 rounded-lg mb-4">
+                <button
+                  onClick={() => setLinkModalTab("asaas")}
+                  className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-all ${
+                    linkModalTab === "asaas"
+                      ? "bg-orange-500 text-white"
+                      : "text-neutral-400 hover:text-white"
+                  }`}
+                >
+                  Clientes Asaas
+                </button>
+                <button
+                  onClick={() => setLinkModalTab("insiders")}
+                  className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-all ${
+                    linkModalTab === "insiders"
+                      ? "bg-orange-500 text-white"
+                      : "text-neutral-400 hover:text-white"
+                  }`}
+                >
+                  Insiders
+                </button>
               </div>
 
-              {/* Customer List */}
-              {loadingCustomers ? (
+              {/* Asaas Customer List */}
+              {linkModalTab === "asaas" && (loadingCustomers ? (
                 <div className="text-center py-8 text-neutral-400">Carregando clientes...</div>
               ) : asaasCustomers.length === 0 ? (
                 <div className="text-center py-8 text-neutral-400">Nenhum cliente encontrado</div>
@@ -1072,10 +1128,58 @@ export default function CarteirasPage() {
                     )
                   })}
                 </div>
+              ))}
+
+              {/* Insiders List */}
+              {linkModalTab === "insiders" && (
+                <div className="space-y-2">
+                  <Input
+                    placeholder="Buscar insider por nome ou CPF..."
+                    value={insiderSearch}
+                    onChange={e => setInsiderSearch(e.target.value)}
+                    className="bg-neutral-700 border-neutral-600 text-white mb-3"
+                  />
+                  {loadingInsiders ? (
+                    <div className="text-center py-8 text-neutral-400">Carregando insiders...</div>
+                  ) : (
+                    <div className="space-y-2 max-h-72 overflow-y-auto">
+                      {insiders
+                        .filter(i =>
+                          !insiderSearch ||
+                          i.nome.toLowerCase().includes(insiderSearch.toLowerCase()) ||
+                          i.cpf.includes(insiderSearch)
+                        )
+                        .map(insider => {
+                          const isSelected = selectedInsider?.id === insider.id
+                          return (
+                            <div
+                              key={insider.id}
+                              onClick={() => setSelectedInsider(isSelected ? null : insider)}
+                              className={`p-3 rounded-lg border cursor-pointer transition-all flex items-center justify-between ${
+                                isSelected
+                                  ? "bg-orange-500/20 border-orange-500"
+                                  : "bg-neutral-800 border-neutral-700 hover:bg-neutral-700/60"
+                              }`}
+                            >
+                              <div>
+                                <p className="font-medium text-white text-sm">{insider.nome}</p>
+                                <p className="text-xs text-neutral-400">CPF: {insider.cpf}</p>
+                              </div>
+                              {isSelected && (
+                                <div className="p-1.5 bg-orange-500 rounded-full">
+                                  <Check className="w-3.5 h-3.5 text-white" />
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                    </div>
+                  )}
+                </div>
               )}
 
               {/* Tag Selection */}
-              {selectedCustomer && (
+              {(selectedCustomer || selectedInsider) && (
                 <div className="bg-blue-900/20 border border-blue-700/30 rounded-lg p-4 mb-6">
                   <label className="text-sm font-medium text-white mb-3 block">Selecione uma tag para este cliente:</label>
                   <div className="space-y-2">
@@ -1142,7 +1246,7 @@ export default function CarteirasPage() {
                 </Button>
                 <Button
                   onClick={handleLinkClient}
-                  disabled={!selectedCustomer}
+                  disabled={linkModalTab === "insiders" ? !selectedInsider : !selectedCustomer}
                   className="flex-1 bg-orange-500 hover:bg-orange-600 text-white disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <UserPlus className="w-4 h-4 mr-2" />

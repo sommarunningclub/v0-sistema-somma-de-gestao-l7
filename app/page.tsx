@@ -24,6 +24,7 @@ export default function TacticalDashboard() {
   const [pagamentosOpen, setPagamentosOpen] = useState(false)
   const [pagamentosTab, setPagamentosTab] = useState("dashboard")
   const [permissions, setPermissions] = useState<Record<string, boolean>>({})
+  const [showAppsModal, setShowAppsModal] = useState(false)
 
   // Carrega permissoes quando o componente monta
   useEffect(() => {
@@ -263,6 +264,52 @@ export default function TacticalDashboard() {
           />
         )}
 
+        {/* APPs Modal - mobile */}
+        {showAppsModal && (
+          <div className="fixed inset-0 bg-black/80 z-50 flex items-end md:hidden" onClick={() => setShowAppsModal(false)}>
+            <div className="w-full bg-neutral-900 border-t border-neutral-700 rounded-t-2xl p-5 space-y-4" onClick={e => e.stopPropagation()}>
+              {/* Drag handle */}
+              <div className="w-10 h-1 bg-neutral-600 rounded-full mx-auto" />
+              <div className="flex items-center justify-between">
+                <h2 className="text-white font-bold text-base">Módulos do Sistema</h2>
+                <button onClick={() => setShowAppsModal(false)} className="text-neutral-400 hover:text-white p-1">
+                  <ChevronRight className="w-5 h-5 rotate-180" />
+                </button>
+              </div>
+              <div className="grid grid-cols-3 gap-3 pb-2">
+                {[
+                  { id: "overview",      icon: Monitor,      label: "Dashboard",    permissionKey: "dashboard" },
+                  { id: "checkin",       icon: CheckSquare,  label: "Check-in",     permissionKey: "checkin" },
+                  { id: "agents",        icon: Users,        label: "Membros",       permissionKey: "membros" },
+                  { id: "parceiro",      icon: Briefcase,    label: "Parceiro",     permissionKey: "parceiro" },
+                  { id: "insiders",      icon: Star,         label: "Insiders",     permissionKey: "pagamentos" },
+                  { id: "intelligence",  icon: Target,       label: "Carteiras",    permissionKey: "carteiras" },
+                  { id: "pagamentos",    icon: CreditCard,   label: "Assessoria",   permissionKey: "pagamentos" },
+                  { id: "systems",       icon: Settings,     label: "Admin",        permissionKey: "admin" },
+                ].filter(m => permissions[m.permissionKey] !== false).map(m => (
+                  <button
+                    key={m.id}
+                    onClick={() => {
+                      setActiveSection(m.id)
+                      setPagamentosOpen(false)
+                      setShowAppsModal(false)
+                      setSidebarOpen(false)
+                    }}
+                    className={`flex flex-col items-center gap-2 p-3 rounded-xl border transition-all active:scale-95 ${
+                      activeSection === m.id
+                        ? "bg-orange-500/20 border-orange-500/50 text-orange-400"
+                        : "bg-neutral-800 border-neutral-700 text-neutral-300 hover:border-neutral-500"
+                    }`}
+                  >
+                    <m.icon className="w-6 h-6" />
+                    <span className="text-xs font-medium text-center leading-tight">{m.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Main Content */}
         <main className="flex-1 flex flex-col overflow-hidden w-full">
           {/* Top Toolbar */}
@@ -274,6 +321,16 @@ export default function TacticalDashboard() {
               aria-label="Toggle menu"
             >
               <Monitor className="w-5 h-5" />
+            </button>
+
+            {/* APPs Button - mobile only */}
+            <button
+              onClick={() => setShowAppsModal(true)}
+              className="md:hidden p-2 text-neutral-400 hover:text-orange-500 hover:bg-neutral-700 rounded-lg transition-colors active:scale-95 flex-shrink-0 flex items-center gap-1.5 text-xs font-semibold tracking-wider"
+              aria-label="Apps"
+            >
+              <Shield className="w-4 h-4" />
+              APPs
             </button>
 
             <div className="flex items-center gap-2 min-w-0 flex-1">
