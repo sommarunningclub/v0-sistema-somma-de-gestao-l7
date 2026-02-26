@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { ChevronRight, ChevronDown, Monitor, Settings, Shield, Target, Users, Bell, RefreshCw, CreditCard, LogOut, CheckSquare, Briefcase, LayoutDashboard, Receipt, Ticket, Zap, ChevronLeft, Star, QrCode } from "lucide-react"
+import { ChevronRight, ChevronDown, Monitor, Settings, Shield, Target, Users, Bell, RefreshCw, CreditCard, LogOut, CheckSquare, Briefcase, LayoutDashboard, Receipt, Ticket, Zap, ChevronLeft, Star, QrCode, X as CloseIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { UserProfile } from "@/components/user-profile"
 import ProtectedRouteComponent from "@/components/protected-route"
@@ -24,6 +24,7 @@ export default function TacticalDashboard() {
   const [pagamentosOpen, setPagamentosOpen] = useState(false)
   const [pagamentosTab, setPagamentosTab] = useState("dashboard")
   const [permissions, setPermissions] = useState<Record<string, boolean>>({})
+  const [showAppsModal, setShowAppsModal] = useState(false)
 
   // Carrega permissoes quando o componente monta
   useEffect(() => {
@@ -95,11 +96,11 @@ export default function TacticalDashboard() {
         <aside
           className={`${
             sidebarOpen ? "translate-x-0" : "-translate-x-full"
-          } md:translate-x-0 ${
-            sidebarCollapsed ? "md:w-20" : "md:w-64"
-          } w-64 bg-neutral-900 border-r border-neutral-700 transition-all duration-300 fixed md:relative z-40 h-screen overflow-y-auto flex flex-col`}
+          } lg:translate-x-0 ${
+            sidebarCollapsed ? "lg:w-20" : "lg:w-64"
+          } w-64 bg-neutral-900 border-r border-neutral-700 transition-all duration-300 fixed lg:relative z-40 h-screen overflow-y-auto flex flex-col`}
         >
-          <div className="p-4 flex-1 flex flex-col min-h-screen md:min-h-auto">
+          <div className="p-4 flex-1 flex flex-col min-h-screen lg:min-h-auto">
             {/* Header */}
             <div className="flex items-center justify-between mb-8">
               <div className={sidebarCollapsed ? "hidden" : ""}>
@@ -113,7 +114,7 @@ export default function TacticalDashboard() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={toggleSidebarCollapse}
-                  className="hidden md:flex p-1 text-neutral-400 hover:text-orange-500 transition-colors active:scale-95"
+                  className="hidden lg:flex p-1 text-neutral-400 hover:text-orange-500 transition-colors active:scale-95"
                   aria-label="Toggle sidebar"
                   title={sidebarCollapsed ? "Expandir menu" : "Recolher menu"}
                 >
@@ -121,7 +122,7 @@ export default function TacticalDashboard() {
                 </button>
                 <button
                   onClick={() => setSidebarOpen(false)}
-                  className="md:hidden p-1 text-neutral-400 hover:text-orange-500 transition-colors active:scale-95"
+                  className="lg:hidden p-1 text-neutral-400 hover:text-orange-500 transition-colors active:scale-95"
                   aria-label="Close menu"
                 >
                   <ChevronRight className="w-5 h-5" />
@@ -254,26 +255,88 @@ export default function TacticalDashboard() {
           </div>
         </aside>
 
-        {/* Mobile Overlay */}
+        {/* Mobile/Tablet Overlay */}
         {sidebarOpen && (
           <div 
-            className="fixed inset-0 bg-black/70 z-30 md:hidden" 
+            className="fixed inset-0 bg-black/70 z-30 lg:hidden" 
             onClick={() => setSidebarOpen(false)}
             role="presentation"
           />
         )}
 
+        {/* APPs Modal - mobile + tablet */}
+        {showAppsModal && (
+          <div className="fixed inset-0 bg-black/80 z-50 flex items-end lg:hidden" onClick={() => setShowAppsModal(false)}>
+            <div className="w-full bg-neutral-900 border-t border-neutral-700 rounded-t-2xl p-5 space-y-4" onClick={e => e.stopPropagation()}>
+              {/* Drag handle */}
+              <div className="w-10 h-1 bg-neutral-600 rounded-full mx-auto" />
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-white font-bold text-base">Módulos do Sistema</h2>
+                  <span className="bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none tracking-wide">NOVO</span>
+                </div>
+                <button onClick={() => setShowAppsModal(false)} className="text-neutral-400 hover:text-white p-1">
+                  <CloseIcon className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 pb-2">
+                {[
+                  { id: "overview",      icon: Monitor,      label: "Dashboard",   permissionKey: "dashboard" },
+                  { id: "checkin",       icon: CheckSquare,  label: "Check-in",    permissionKey: "checkin" },
+                  { id: "agents",        icon: Users,        label: "Membros",     permissionKey: "membros" },
+                  { id: "parceiro",      icon: Briefcase,    label: "Parceiro",    permissionKey: "parceiro" },
+                  { id: "insiders",      icon: Star,         label: "Insiders",    permissionKey: "pagamentos" },
+                  { id: "intelligence",  icon: Target,       label: "Carteiras",   permissionKey: "carteiras" },
+                  { id: "pagamentos",    icon: CreditCard,   label: "Assessoria",  permissionKey: "pagamentos" },
+                  { id: "systems",       icon: Settings,     label: "Admin",       permissionKey: "admin" },
+                ].filter(m => permissions[m.permissionKey] !== false).map(m => (
+                  <button
+                    key={m.id}
+                    onClick={() => {
+                      setActiveSection(m.id)
+                      setPagamentosOpen(false)
+                      setShowAppsModal(false)
+                      setSidebarOpen(false)
+                    }}
+                    className={`flex flex-col items-center gap-2.5 p-3 sm:p-4 rounded-xl border transition-all active:scale-95 ${
+                      activeSection === m.id
+                        ? "bg-orange-500/20 border-orange-500/60 text-orange-400"
+                        : "bg-neutral-800 border-neutral-700 text-neutral-300 hover:border-neutral-500 hover:bg-neutral-750"
+                    }`}
+                  >
+                    <m.icon className="w-6 h-6 sm:w-7 sm:h-7" />
+                    <span className="text-xs font-medium text-center leading-tight">{m.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Main Content */}
         <main className="flex-1 flex flex-col overflow-hidden w-full">
           {/* Top Toolbar */}
-          <header className="h-14 md:h-16 bg-neutral-800 border-b border-neutral-700 flex items-center justify-between px-3 md:px-6 gap-3">
-            {/* Mobile Menu Button */}
+          <header className="h-14 lg:h-16 bg-neutral-800 border-b border-neutral-700 flex items-center justify-between px-3 lg:px-6 gap-3">
+            {/* Mobile/Tablet Menu Button */}
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="md:hidden p-2 text-orange-500 hover:bg-neutral-700 rounded-lg transition-colors active:scale-95 flex-shrink-0"
+              className="lg:hidden p-2 text-orange-500 hover:bg-neutral-700 rounded-lg transition-colors active:scale-95 flex-shrink-0"
               aria-label="Toggle menu"
             >
               <Monitor className="w-5 h-5" />
+            </button>
+
+            {/* APPs Button - mobile + tablet */}
+            <button
+              onClick={() => setShowAppsModal(true)}
+              className="lg:hidden relative flex items-center gap-2 bg-orange-500 hover:bg-orange-600 active:scale-95 transition-all text-white font-bold text-xs tracking-widest px-3 py-2 rounded-lg shadow-lg shadow-orange-500/30 flex-shrink-0"
+              aria-label="Abrir módulos"
+            >
+              <Shield className="w-4 h-4" />
+              APPs
+              <span className="absolute -top-1.5 -right-1.5 bg-white text-orange-600 text-[9px] font-black px-1 py-0 rounded-full leading-4 tracking-tight shadow">
+                NOVO
+              </span>
             </button>
 
             <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -291,7 +354,7 @@ export default function TacticalDashboard() {
               <button 
                 onClick={handleRefresh}
                 disabled={isRefreshing}
-                className="p-2 text-neutral-400 hover:text-orange-500 bg-transparent disabled:opacity-50 transition-colors rounded active:scale-95 md:active:scale-100"
+                className="p-2 text-neutral-400 hover:text-orange-500 bg-transparent disabled:opacity-50 transition-colors rounded active:scale-95 lg:active:scale-100"
                 aria-label="Refresh"
                 title={isRefreshing ? "Atualizando..." : "Atualizar sistema"}
               >
@@ -308,7 +371,7 @@ export default function TacticalDashboard() {
           </header>
 
           {/* Content Area - Safe area for notch */}
-          <div className="flex-1 overflow-auto bg-black pb-20 md:pb-0">
+          <div className="flex-1 overflow-auto bg-black pb-20 lg:pb-0">
             {activeSection === "overview" && <CommandCenterPage />}
             {activeSection === "checkin" && permissions.checkin && <CheckInPage />}
             {activeSection === "agents" && permissions.membros && <AgentNetworkPage />}

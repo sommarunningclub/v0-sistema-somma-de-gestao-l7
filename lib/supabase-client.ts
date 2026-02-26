@@ -108,3 +108,12 @@ export type CommissionConfig = {
   updated_at: string;
   updated_by: string | null;
 };
+
+export type ProfessorRepasseSetting = {
+  id: string;
+  professor_id: string;
+  enable_repasse: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
