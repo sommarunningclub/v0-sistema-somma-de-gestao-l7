@@ -11,7 +11,6 @@ export const metadata: Metadata = {
   title: "Somma Dashboard",
   description: "Sistema de gestão Somma Assessoria",
   manifest: "/manifest.json",
-  themeColor: "#f97316",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -25,7 +24,8 @@ export const viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  viewportFit: 'cover'
+  viewportFit: 'cover',
+  themeColor: '#f97316'
 }
 
 export default function RootLayout({

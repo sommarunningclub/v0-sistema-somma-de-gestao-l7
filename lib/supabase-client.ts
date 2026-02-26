@@ -1,7 +1,7 @@
 import { createClient as createSupabaseClient, SupabaseClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 // Singleton instance
 let supabaseInstance: SupabaseClient | null = null;
@@ -12,24 +12,36 @@ function initSupabase() {
     return supabaseInstance;
   }
 
-  console.log('[v0] Supabase initialization check:', {
-    hasUrl: !!supabaseUrl,
-    hasKey: !!supabaseKey,
-    urlPrefix: supabaseUrl?.substring(0, 30) || 'MISSING',
-    keyPrefix: supabaseKey?.substring(0, 20) || 'MISSING'
-  });
+  // Log initialization status (non-blocking)
+  if (typeof window !== 'undefined') {
+    console.log('[v0] Supabase initialization check:', {
+      hasUrl: !!supabaseUrl,
+      hasKey: !!supabaseKey,
+      urlPrefix: supabaseUrl?.substring(0, 30) || 'MISSING',
+      keyPrefix: supabaseKey?.substring(0, 20) || 'MISSING'
+    });
+  }
+
+  // Create Supabase client with fallback placeholder values
+  // This prevents crashes when env vars are missing during dev
+  const url = supabaseUrl || 'https://placeholder.supabase.co';
+  const key = supabaseKey || 'placeholder-key-do-not-use-in-production';
 
   if (!supabaseUrl || !supabaseKey) {
-    console.error('[v0] ERROR: Supabase credentials are missing!');
-    console.error('[v0] NEXT_PUBLIC_SUPABASE_URL:', process.env.NEXT_PUBLIC_SUPABASE_URL ? 'SET' : 'NOT SET');
-    console.error('[v0] NEXT_PUBLIC_SUPABASE_ANON_KEY:', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'SET' : 'NOT SET');
+    if (typeof window === 'undefined') {
+      // Server-side
+      console.warn('[v0] WARNING: Supabase credentials are missing on server!');
+      console.warn('[v0] NEXT_PUBLIC_SUPABASE_URL:', supabaseUrl ? 'SET' : 'NOT SET');
+      console.warn('[v0] NEXT_PUBLIC_SUPABASE_ANON_KEY:', supabaseKey ? 'SET' : 'NOT SET');
+      console.warn('[v0] Set environment variables in your project settings.');
+    } else {
+      // Client-side - only log warning, don't block
+      console.warn('[v0] Supabase not configured - some features will be unavailable');
+    }
   }
 
   // Create Supabase client singleton
-  supabaseInstance = createSupabaseClient(
-    supabaseUrl || 'https://placeholder.supabase.co',
-    supabaseKey || 'placeholder-key'
-  );
+  supabaseInstance = createSupabaseClient(url, key);
 
   return supabaseInstance;
 }
@@ -41,6 +53,27 @@ export const supabase = initSupabase();
 export function createClient() {
   return supabase;
 }
+
+// Helper function to check if Supabase is properly configured
+export function isSupabaseConfigured(): boolean {
+  return !!supabaseUrl && !!supabaseKey;
+}
+
+export type CommissionConfig = {
+  id: string;
+  somma_fixed_fee: number;
+  updated_at: string;
+  updated_by: string | null;
+};
+
+export type ProfessorRepasseSetting = {
+  id: string;
+  professor_id: string;
+  enable_repasse: boolean;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
 
 export type CadastroSite = {
   id: number;
@@ -100,20 +133,4 @@ export type ProfessorClient = {
   linked_at: string;
   unlinked_at: string | null;
   tag?: string;
-};
-
-export type CommissionConfig = {
-  id: string;
-  somma_fixed_fee: number;
-  updated_at: string;
-  updated_by: string | null;
-};
-
-export type ProfessorRepasseSetting = {
-  id: string;
-  professor_id: string;
-  enable_repasse: boolean;
-  notes: string | null;
-  created_at: string;
-  updated_at: string;
 };
