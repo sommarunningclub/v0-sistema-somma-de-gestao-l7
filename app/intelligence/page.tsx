@@ -108,6 +108,9 @@ export default function CarteirasPage() {
     const breakdowns: CommissionBreakdown[] = []
 
     for (const professor of professors) {
+      // Filtrar apenas professores que PAGAM TAXA para Somma (enable_repasse = true)
+      if (repasseSettings[professor.id] !== true) continue
+
       const clients = professorClients.filter(pc => pc.professor_id === professor.id)
       
       // Para cada cliente, buscar assinatura ativa do Asaas
@@ -153,11 +156,13 @@ export default function CarteirasPage() {
           settingsMap[s.professor_id] = s.enable_repasse
         })
         setRepasseSettings(settingsMap)
+        return settingsMap
       }
     } catch (err) {
       console.error("[v0] Error fetching repasse settings:", err)
     }
     setLoadingRepasse(false)
+    return {}
   }
 
   const handleToggleRepasse = async (professorId: string) => {
@@ -230,11 +235,14 @@ export default function CarteirasPage() {
     fetchProfessors(session)
     fetchProfessorClients(session)
     fetchCommissionConfig()
+    if (isAdmin) {
+      fetchRepasseSettings()
+    }
   }, [])
 
   useEffect(() => {
-    if (activeTab === "commissions") {
-      fetchCommissionData()
+    if (activeTab === "commissions" && isAdmin) {
+      fetchRepasseSettings().then(() => fetchCommissionData())
     } else if (activeTab === "repasse" && isAdmin) {
       fetchRepasseSettings()
     }
