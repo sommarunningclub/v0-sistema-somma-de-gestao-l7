@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 import { Geist_Mono as GeistMono } from "next/font/google"
 import "./globals.css"
 import { Toaster } from "@/components/ui/toaster"
+import { PWAUpdateNotifier } from "@/components/pwa-update-notifier"
 
 const geistMono = GeistMono({ subsets: ["latin"] })
 
@@ -41,17 +42,25 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="Somma" />
         <meta name="theme-color" content="#f97316" />
+        <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body className={`${geistMono.className} bg-black text-white antialiased`}>
         {children}
         <Toaster />
+        <PWAUpdateNotifier />
         <script dangerouslySetInnerHTML={{
           __html: `
             if ('serviceWorker' in navigator) {
               window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/sw.js')
-                  .then((reg) => console.log('[v0] Service Worker registered:', reg))
-                  .catch((err) => console.log('[v0] Service Worker registration failed:', err))
+                  .then((reg) => {
+                    console.log('[PWA] Service Worker registered:', reg.scope)
+                    // Check for updates every 60 seconds
+                    setInterval(() => {
+                      reg.update()
+                    }, 60000)
+                  })
+                  .catch((err) => console.log('[PWA] SW registration failed:', err))
               })
             }
           `
@@ -60,3 +69,4 @@ export default function RootLayout({
     </html>
   )
 }
+

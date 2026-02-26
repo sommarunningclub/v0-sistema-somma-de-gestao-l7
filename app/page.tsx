@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { UserProfile } from "@/components/user-profile"
 import ProtectedRouteComponent from "@/components/protected-route"
 import { logout, hasPermission } from "@/components/protected-route"
+import { OfflineBanner } from "@/hooks/use-online-status"
 import CommandCenterPage from "./command-center/page"
 import AgentNetworkPage from "./agent-network/page"
 import IntelligencePage from "./intelligence/page"
@@ -92,6 +93,7 @@ export default function TacticalDashboard() {
 
   return (
     <ProtectedRouteComponent>
+      <OfflineBanner />
       <div className="flex h-screen w-screen bg-black">
         {/* Desktop/Mobile Sidebar */}
         <aside
