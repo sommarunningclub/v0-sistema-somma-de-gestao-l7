@@ -92,7 +92,7 @@ export default function TacticalDashboard() {
 
   return (
     <ProtectedRouteComponent>
-      <div className="flex h-screen w-screen overflow-hidden bg-black">
+      <div className="flex h-screen w-screen bg-black">
         {/* Desktop/Mobile Sidebar */}
         <aside
           className={`${
@@ -372,7 +372,7 @@ export default function TacticalDashboard() {
           </header>
 
           {/* Content Area - Safe area for notch */}
-          <div className="flex-1 overflow-auto bg-black pb-20 lg:pb-0">
+          <div className="flex-1 overflow-auto bg-black">
             {activeSection === "overview" && <CommandCenterPage />}
             {activeSection === "checkin" && permissions.checkin && <CheckInPage />}
             {activeSection === "agents" && permissions.membros && <AgentNetworkPage />}
