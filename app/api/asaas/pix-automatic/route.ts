@@ -69,6 +69,13 @@ export async function GET(request: NextRequest) {
     const result = await asaasRequest("GET", `/pix/automatic/authorizations/${id}`)
     if (!result.ok) return NextResponse.json(result.data, { status: result.status })
     const data = result.data?.data ?? result.data
+    
+    // Remove payload and encodedImage fields to reduce response size
+    if (data && typeof data === 'object') {
+      data.payload = null
+      data.encodedImage = null
+    }
+    
     return NextResponse.json(data)
   }
 
@@ -91,7 +98,18 @@ export async function GET(request: NextRequest) {
   })
   const result = await asaasRequest("GET", "/pix/automatic/authorizations", undefined, params)
   if (!result.ok) return NextResponse.json(result.data, { status: result.status })
-  return NextResponse.json(result.data)
+  
+  // Clean up response: set payload and encodedImage to null for all items
+  const response = result.data
+  if (response && Array.isArray(response.data)) {
+    response.data = response.data.map((item: any) => ({
+      ...item,
+      payload: null,
+      encodedImage: null
+    }))
+  }
+  
+  return NextResponse.json(response)
 }
 
 export async function POST(request: NextRequest) {
