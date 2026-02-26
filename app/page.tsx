@@ -1,14 +1,12 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect } from "react"
 import { ChevronRight, ChevronDown, Monitor, Settings, Shield, Target, Users, Bell, RefreshCw, CreditCard, LogOut, CheckSquare, Briefcase, LayoutDashboard, Receipt, Ticket, Zap, ChevronLeft, Star, QrCode, X as CloseIcon, Link2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { UserProfile } from "@/components/user-profile"
 import ProtectedRouteComponent from "@/components/protected-route"
 import { logout, hasPermission } from "@/components/protected-route"
 import { OfflineBanner } from "@/hooks/use-online-status"
-import { usePullToRefresh } from "@/hooks/use-pull-to-refresh"
-import { PullToRefreshIndicator } from "@/components/pull-to-refresh-indicator"
 import CommandCenterPage from "./command-center/page"
 import AgentNetworkPage from "./agent-network/page"
 import IntelligencePage from "./intelligence/page"
@@ -28,7 +26,6 @@ export default function TacticalDashboard() {
   const [pagamentosTab, setPagamentosTab] = useState("dashboard")
   const [permissions, setPermissions] = useState<Record<string, boolean>>({})
   const [showAppsModal, setShowAppsModal] = useState(false)
-  const [pullDistance, setPullDistance] = useState(0)
 
   // Carrega permissoes quando o componente monta
   useEffect(() => {
@@ -67,37 +64,12 @@ export default function TacticalDashboard() {
     { id: "sincronizacao", icon: RefreshCw, label: "Sincronizacao" },
   ]
 
-  // Smart global refresh - dispensa reload completo, apenas atualiza dados
-  const handleRefresh = useCallback(async () => {
-    console.log('[v0] Global refresh triggered via pull-to-refresh')
+  const handleRefresh = async () => {
     setIsRefreshing(true)
-    
-    try {
-      // Dispatch refresh event para módulos escutarem
-      const refreshEvent = new CustomEvent('app:refresh', { detail: { activeSection } })
-      window.dispatchEvent(refreshEvent)
-      
-      // Aguardar um pouco para os módulos processarem
-      await new Promise(resolve => setTimeout(resolve, 800))
-      
-      // Recarregar apenas se necessário (fallback)
-      // Em produção, os módulos devem se auto-atualizar via CustomEvent
-      if (window.location.pathname === '/' || window.location.pathname === '') {
-        window.location.reload()
-      }
-    } catch (error) {
-      console.error('[v0] Refresh error:', error)
-    } finally {
-      setIsRefreshing(false)
-    }
-  }, [activeSection])
-
-  // Configurar pull-to-refresh
-  const { containerRef, isRefreshing: pullRefreshing, pullDistance: pullDist } = usePullToRefresh({
-    onRefresh: handleRefresh,
-    threshold: 80,
-    onPullChange: setPullDistance
-  })
+    // Pequeno delay para mostrar o feedback visual
+    await new Promise(resolve => setTimeout(resolve, 500))
+    window.location.reload()
+  }
 
   const handleLogout = () => {
     logout()
@@ -122,11 +94,6 @@ export default function TacticalDashboard() {
   return (
     <ProtectedRouteComponent>
       <OfflineBanner />
-      <PullToRefreshIndicator 
-        pullDistance={pullDistance} 
-        isRefreshing={isRefreshing || pullRefreshing} 
-        threshold={80} 
-      />
       <div className="flex h-screen w-screen bg-black">
         {/* Desktop/Mobile Sidebar */}
         <aside
@@ -408,7 +375,7 @@ export default function TacticalDashboard() {
           </header>
 
           {/* Content Area - Safe area for notch */}
-          <div ref={containerRef} className="flex-1 overflow-auto bg-black">
+          <div className="flex-1 overflow-auto bg-black">
             {activeSection === "overview" && <CommandCenterPage />}
             {activeSection === "checkin" && permissions.checkin && <CheckInPage />}
             {activeSection === "agents" && permissions.membros && <AgentNetworkPage />}

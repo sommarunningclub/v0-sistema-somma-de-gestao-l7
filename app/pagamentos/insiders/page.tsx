@@ -499,8 +499,99 @@ export default function InsidersPage() {
       </div>
     </div>
   )
-}
+                        <td className="px-4 py-3 text-center text-neutral-400">{insider.cupom_loja_somma || "—"}</td>
+                        <td className="px-4 py-3 text-center text-neutral-400">{insider.assessoria_somma || "—"}</td>
+                        <td className="px-4 py-3 text-center">
+                          <div className="flex gap-2 justify-center">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                openViewModal(insider)
+                              }}
+                              className="p-1.5 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400"
+                              title="Visualizar"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                openEditModal(insider)
+                              }}
+                              className="p-1.5 rounded-lg bg-orange-500/10 hover:bg-orange-500/20 text-orange-400"
+                              title="Editar"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleDelete(insider.id)
+                              }}
+                              className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400"
+                              title="Deletar"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
+        {/* Empty State */}
+        {!loading && filteredInsiders.length === 0 && !error && (
+          <Card className="bg-neutral-800 border-neutral-700">
+            <CardContent className="pt-6 text-center py-12">
+              <div className="text-neutral-400">
+                {searchTerm ? "Nenhum insider encontrado com essa busca" : "Nenhum insider cadastrado"}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      {/* View Modal */}
+      {showViewModal && selectedInsider && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <Card className="bg-neutral-800 border-neutral-700 w-full max-w-2xl my-4">
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <CardTitle className="text-white">Detalhes do Insider</CardTitle>
+              <button onClick={() => setShowViewModal(false)} className="text-neutral-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-neutral-400 text-xs block mb-1">Nome</label>
+                  <div className="text-white font-medium">{selectedInsider.nome}</div>
+                </div>
+                <div>
+                  <label className="text-neutral-400 text-xs block mb-1">CPF</label>
+                  <div className="text-white font-medium">{selectedInsider.cpf}</div>
+                </div>
+                <div>
+                  <label className="text-neutral-400 text-xs block mb-1">Evolve</label>
+                  <div className="text-white">{selectedInsider.evolve || "—"}</div>
+                </div>
+                <div>
+                  <label className="text-neutral-400 text-xs block mb-1">Dopamina</label>
+                  <div className="text-white">{selectedInsider.dopahmina || "—"}</div>
+                </div>
+                <div>
+                  <label className="text-neutral-400 text-xs block mb-1">Tex Barbearia</label>
+                  <div className="text-white">{selectedInsider.tex_barbearia || "—"}</div>
+                </div>
+                <div>
+                  <label className="text-neutral-400 text-xs block mb-1">Big Box</label>
+                  <div className="text-white">{selectedInsider.big_box || "—"}</div>
+                </div>
                 <div>
                   <label className="text-neutral-400 text-xs block mb-1">Cupom Loja Somma</label>
                   <div className="text-white">{selectedInsider.cupom_loja_somma || "—"}</div>
