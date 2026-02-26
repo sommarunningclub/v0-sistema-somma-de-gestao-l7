@@ -8,6 +8,7 @@ import Assinaturas from "./assinaturas/page"
 import PixAutomatico from "./pix-automatico/page"
 import Sincronizacao from "./sincronizacao/page"
 import InsidersPage from "./insiders/page"
+import LinkPagamento from "./link-pagamento/page"
 
 interface PagamentosPageProps {
   activeTab?: string
@@ -22,6 +23,7 @@ export default function PagamentosPage({ activeTab = "dashboard" }: PagamentosPa
       {activeTab === "cobrancas" && <Cobrancas />}
       {activeTab === "assinaturas" && <Assinaturas />}
       {activeTab === "pix-automatico" && <PixAutomatico />}
+      {activeTab === "link-pagamento" && <LinkPagamento />}
       {activeTab === "sincronizacao" && <Sincronizacao />}
       {activeTab === "insiders" && <InsidersPage />}
     </div>

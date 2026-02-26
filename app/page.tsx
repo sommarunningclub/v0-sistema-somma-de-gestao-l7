@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { ChevronRight, ChevronDown, Monitor, Settings, Shield, Target, Users, Bell, RefreshCw, CreditCard, LogOut, CheckSquare, Briefcase, LayoutDashboard, Receipt, Ticket, Zap, ChevronLeft, Star, QrCode, X as CloseIcon } from "lucide-react"
+import { ChevronRight, ChevronDown, Monitor, Settings, Shield, Target, Users, Bell, RefreshCw, CreditCard, LogOut, CheckSquare, Briefcase, LayoutDashboard, Receipt, Ticket, Zap, ChevronLeft, Star, QrCode, X as CloseIcon, Link2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { UserProfile } from "@/components/user-profile"
 import ProtectedRouteComponent from "@/components/protected-route"
@@ -58,6 +58,7 @@ export default function TacticalDashboard() {
     { id: "cobrancas", icon: Receipt, label: "Cobrancas" },
     { id: "assinaturas", icon: CreditCard, label: "Assinaturas" },
     { id: "pix-automatico", icon: QrCode, label: "Pix Automático" },
+    { id: "link-pagamento", icon: Link2, label: "Link de Pagamento" },
     { id: "insiders", icon: Star, label: "Insiders" },
     { id: "sincronizacao", icon: RefreshCw, label: "Sincronizacao" },
   ]
