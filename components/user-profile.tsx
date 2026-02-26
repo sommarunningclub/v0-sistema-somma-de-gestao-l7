@@ -1,10 +1,10 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
 import { LogOut, User, Mail, Calendar, Edit2, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { ProfileModal } from "@/components/profile-modal"
 import { getSession, logout } from "@/components/protected-route"
 import { supabase } from "@/lib/supabase-client"
 
@@ -17,10 +17,10 @@ interface UserData {
 }
 
 export function UserProfile() {
-  const router = useRouter()
   const [user, setUser] = useState<UserData | null>(null)
   const [loading, setLoading] = useState(true)
   const [showMenu, setShowMenu] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
 
   useEffect(() => {
     fetchUserData()
@@ -64,6 +64,11 @@ export function UserProfile() {
     logout()
   }
 
+  const handleRefreshProfile = async () => {
+    setShowEditModal(false)
+    await fetchUserData()
+  }
+
   if (loading) {
     return (
       <div className="p-3 bg-neutral-800 rounded-lg animate-pulse">
@@ -102,7 +107,7 @@ export function UserProfile() {
       </button>
 
       {/* Profile Dropdown Menu */}
-      {showMenu && (
+      {showMenu && !showEditModal && (
         <div className="absolute bottom-full left-0 right-0 mb-2 bg-neutral-800 border border-neutral-700 rounded-lg shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200">
           {/* Header Section */}
           <div className="p-4 bg-gradient-to-r from-neutral-800 to-neutral-900 border-b border-neutral-700">
@@ -151,7 +156,9 @@ export function UserProfile() {
           {/* Actions Section */}
           <div className="p-3 space-y-2">
             <Button
-              onClick={() => router.push('/profile')}
+              onClick={() => {
+                setShowEditModal(true)
+              }}
               className="w-full bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
             >
               <Edit2 className="w-4 h-4" />
