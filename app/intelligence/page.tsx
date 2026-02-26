@@ -538,33 +538,35 @@ export default function CarteirasPage() {
   const topProfessor = professors.length > 0 ? professors[0] : null
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="w-full min-w-0 max-w-full overflow-x-hidden">
+      <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-white tracking-wider">CARTEIRAS</h1>
-          <p className="text-sm text-neutral-400">Gerencie professores, suas carteiras de clientes e comissões do plano Somma Assessoria</p>
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-lg sm:text-2xl font-bold text-white tracking-wider truncate">CARTEIRAS</h1>
+          <p className="text-xs text-neutral-400 mt-0.5 hidden sm:block">Professores, carteiras de clientes e comissões</p>
         </div>
         <Button
           onClick={() => setShowNewProfessorModal(true)}
-          className="bg-orange-500 hover:bg-orange-600 text-white"
+          size="sm"
+          className="bg-orange-500 hover:bg-orange-600 text-white shrink-0 text-xs px-3"
         >
-          Novo Professor
+          <Plus className="w-3.5 h-3.5 mr-1" />
+          Novo
         </Button>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-4 border-b border-neutral-800">
+      {/* Tabs — scroll horizontal em mobile */}
+      <div className="flex gap-1 border-b border-neutral-800 overflow-x-auto scrollbar-hide -mx-4 sm:mx-0 px-4 sm:px-0">
         <button
           onClick={() => setActiveTab("professors")}
-          className={`flex items-center gap-2 px-4 py-3 font-medium transition-colors relative ${
-            activeTab === "professors"
-              ? "text-white"
-              : "text-neutral-400 hover:text-neutral-300"
+          className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold whitespace-nowrap transition-colors relative shrink-0 ${
+            activeTab === "professors" ? "text-white" : "text-neutral-500 hover:text-neutral-300"
           }`}
         >
-          <Users className="w-4 h-4" />
-          Gestão de Professores
+          <Users className="w-3.5 h-3.5" />
+          Professores
           {activeTab === "professors" && (
             <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-orange-500" />
           )}
@@ -573,28 +575,24 @@ export default function CarteirasPage() {
           <>
             <button
               onClick={() => setActiveTab("commissions")}
-              className={`flex items-center gap-2 px-4 py-3 font-medium transition-colors relative ${
-                activeTab === "commissions"
-                  ? "text-white"
-                  : "text-neutral-400 hover:text-neutral-300"
+              className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold whitespace-nowrap transition-colors relative shrink-0 ${
+                activeTab === "commissions" ? "text-white" : "text-neutral-500 hover:text-neutral-300"
               }`}
             >
-              <DollarSign className="w-4 h-4" />
-              Repasse de Comissões
+              <DollarSign className="w-3.5 h-3.5" />
+              Comissões
               {activeTab === "commissions" && (
                 <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-orange-500" />
               )}
             </button>
             <button
               onClick={() => setActiveTab("repasse")}
-              className={`flex items-center gap-2 px-4 py-3 font-medium transition-colors relative ${
-                activeTab === "repasse"
-                  ? "text-white"
-                  : "text-neutral-400 hover:text-neutral-300"
+              className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold whitespace-nowrap transition-colors relative shrink-0 ${
+                activeTab === "repasse" ? "text-white" : "text-neutral-500 hover:text-neutral-300"
               }`}
             >
-              <Award className="w-4 h-4" />
-              Relatório de Repasse
+              <Award className="w-3.5 h-3.5" />
+              Repasse
               {activeTab === "repasse" && (
                 <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-orange-500" />
               )}
@@ -606,106 +604,102 @@ export default function CarteirasPage() {
       {/* Tab: Gestão de Professores */}
       {activeTab === "professors" && (
         <>
-          {/* Stats Overview */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Stats Overview — 2 cols em mobile, 4 em desktop */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <Card className="bg-neutral-900 border-neutral-700">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-neutral-400 tracking-wider">PROFESSORES</p>
-                    <p className="text-2xl font-bold text-white font-mono">{totalProfessors}</p>
-                  </div>
-                  <Users className="w-8 h-8 text-white" />
-                </div>
+              <CardContent className="p-3 sm:p-4">
+                <p className="text-[10px] text-neutral-400 tracking-wider mb-1">PROFESSORES</p>
+                <p className="text-2xl font-bold text-white font-mono">{totalProfessors}</p>
               </CardContent>
             </Card>
-
             <Card className="bg-neutral-900 border-neutral-700">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-neutral-400 tracking-wider">CLIENTES</p>
-                    <p className="text-2xl font-bold text-white font-mono">{totalLinkedClients}</p>
-                  </div>
-                  <UserPlus className="w-8 h-8 text-white" />
-                </div>
+              <CardContent className="p-3 sm:p-4">
+                <p className="text-[10px] text-neutral-400 tracking-wider mb-1">CLIENTES</p>
+                <p className="text-2xl font-bold text-white font-mono">{totalLinkedClients}</p>
               </CardContent>
             </Card>
-
             <Card className="bg-neutral-900 border-neutral-700">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-neutral-400 tracking-wider">RECEITA</p>
-                    <p className="text-2xl font-bold text-white font-mono">R$ 0</p>
-                  </div>
-                  <DollarSign className="w-8 h-8 text-white" />
-                </div>
+              <CardContent className="p-3 sm:p-4">
+                <p className="text-[10px] text-neutral-400 tracking-wider mb-1">RECEITA</p>
+                <p className="text-2xl font-bold text-white font-mono">R$ 0</p>
               </CardContent>
             </Card>
-
             <Card className="bg-neutral-900 border-neutral-700">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-neutral-400 tracking-wider">ATIVOS</p>
-                    <p className="text-2xl font-bold text-white font-mono">{activeProfessors}</p>
-                  </div>
-                  <Award className="w-8 h-8 text-white" />
-                </div>
+              <CardContent className="p-3 sm:p-4">
+                <p className="text-[10px] text-neutral-400 tracking-wider mb-1">ATIVOS</p>
+                <p className="text-2xl font-bold text-white font-mono">{activeProfessors}</p>
               </CardContent>
             </Card>
           </div>
 
           {/* Search */}
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-neutral-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400 pointer-events-none" />
             <Input
-              placeholder="Buscar por nome, email ou especialidade..."
+              placeholder="Buscar professor..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 bg-neutral-900 border-neutral-700 text-white placeholder-neutral-400"
+              className="pl-9 bg-neutral-900 border-neutral-700 text-white placeholder-neutral-500 text-sm h-10"
             />
           </div>
 
           {/* Professors List */}
-          <div className="space-y-4">
+          <div className="space-y-3">
             {loading ? (
-              <div className="text-center py-8 text-neutral-400">Carregando professores...</div>
+              <div className="text-center py-12 text-neutral-400 text-sm">Carregando...</div>
             ) : filteredProfessors.length === 0 ? (
-              <div className="text-center py-8 text-neutral-400">Nenhum professor encontrado</div>
+              <div className="text-center py-12 text-neutral-400 text-sm">Nenhum professor encontrado</div>
             ) : (
               filteredProfessors.map((professor) => {
                 const clients = getProfessorClients(professor.id)
                 const isExpanded = expandedProfessorId === professor.id
 
                 return (
-                  <Card key={professor.id} className="bg-neutral-900 border-neutral-700 hover:border-orange-500/50 transition-colors">
-                    <CardContent className="p-6">
-                      <div className="flex items-start justify-between mb-4">
-                        <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-full bg-neutral-800 flex items-center justify-center">
-                            <span className="text-xl font-bold text-white">
-                              {professor.name.charAt(0).toUpperCase()}
-                            </span>
+                  <div
+                    key={professor.id}
+                    className={`bg-neutral-900 rounded-xl border transition-colors ${
+                      professor.status === "active" ? "border-orange-500/40" : "border-neutral-700"
+                    }`}
+                  >
+                    {/* Card Top — Avatar + Info + Actions */}
+                    <div className="p-4">
+                      <div className="flex items-start gap-3">
+                        {/* Avatar */}
+                        <div className="w-11 h-11 rounded-full bg-neutral-800 flex items-center justify-center shrink-0 border border-neutral-700">
+                          <span className="text-base font-bold text-white">
+                            {professor.name.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="text-sm font-bold text-white tracking-wide leading-tight">
+                              {professor.name.toUpperCase()}
+                            </h3>
+                            <Badge className={`text-[10px] px-1.5 py-0.5 shrink-0 ${
+                              professor.status === "active"
+                                ? "bg-white/10 text-white border-white/20"
+                                : "bg-red-500/20 text-red-400 border-red-500/30"
+                            }`}>
+                              {professor.status === "active" ? "ATIVO" : "INATIVO"}
+                            </Badge>
                           </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <h3 className="text-sm font-bold text-white tracking-wider">{professor.name.toUpperCase()}</h3>
-                              <Badge className={professor.status === "active" ? "bg-white/20 text-white" : "bg-red-500/20 text-red-500"}>
-                                {professor.status === "active" ? "ATIVO" : "INATIVO"}
-                              </Badge>
-                            </div>
-                            {professor.specialty && (
-                              <p className="text-xs text-neutral-400 mt-1">{professor.specialty}</p>
+                          {professor.specialty && (
+                            <p className="text-xs text-neutral-400 mt-0.5">{professor.specialty}</p>
+                          )}
+                          <div className="mt-1.5 space-y-0.5">
+                            <p className="text-xs text-neutral-500 truncate">{professor.email}</p>
+                            {professor.phone && (
+                              <p className="text-xs text-neutral-500">{professor.phone}</p>
                             )}
                           </div>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-neutral-400 hover:text-white bg-transparent"
+
+                        {/* Action icons */}
+                        <div className="flex items-center gap-0 shrink-0">
+                          <button
+                            className="p-2 text-neutral-400 hover:text-white active:scale-90 transition-all"
                             onClick={() => {
                               setSelectedProfessor(professor)
                               setLinkModalTab("asaas")
@@ -713,70 +707,54 @@ export default function CarteirasPage() {
                               fetchInsiders()
                               setShowLinkClientModal(true)
                             }}
+                            aria-label="Vincular cliente"
                           >
                             <UserPlus className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-neutral-400 hover:text-white bg-transparent"
+                          </button>
+                          <button
+                            className="p-2 text-neutral-400 hover:text-white active:scale-90 transition-all"
                             onClick={() => {
                               setEditingProfessor(professor)
                               setShowEditProfessorModal(true)
                             }}
+                            aria-label="Editar professor"
                           >
                             <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-neutral-400 hover:text-white bg-transparent"
+                          </button>
+                          <button
+                            className="p-2 text-neutral-400 hover:text-red-500 active:scale-90 transition-all"
                             onClick={() => handleDeleteProfessor(professor.id)}
+                            aria-label="Excluir professor"
                           >
                             <Trash2 className="w-4 h-4" />
-                          </Button>
+                          </button>
                         </div>
                       </div>
+                    </div>
 
-                      <div className="space-y-2 mb-4">
-                        <div className="flex items-center gap-2 text-xs text-neutral-400">
-                          <Mail className="w-3 h-3" />
-                          <span>{professor.email}</span>
-                        </div>
-                        {professor.phone && (
-                          <div className="flex items-center gap-2 text-xs text-neutral-400">
-                            <Phone className="w-3 h-3" />
-                            <span>{professor.phone}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Professor Stats */}
-                      <div className="flex items-center gap-6 mt-4 pt-4 border-t border-neutral-800">
+                    {/* Card Bottom — Stats + Buttons */}
+                    <div className="flex items-center justify-between px-4 pb-4 pt-0 border-t border-neutral-800/80 mt-0 pt-3">
+                      {/* Stats */}
+                      <div className="flex items-center gap-5">
                         <div>
-                          <span className="text-2xl font-bold text-white">{clients.length}</span>
-                          <p className="text-xs text-neutral-400">Clientes</p>
+                          <span className="text-xl font-bold text-white font-mono">{clients.length}</span>
+                          <p className="text-[10px] text-neutral-400">Clientes</p>
                         </div>
                         <div>
-                          <span className="text-2xl font-bold text-green-500">R$ 0</span>
-                          <p className="text-xs text-neutral-400">Receita</p>
+                          <span className="text-xl font-bold text-green-500 font-mono">R$ 0</span>
+                          <p className="text-[10px] text-neutral-400">Receita</p>
                         </div>
                       </div>
 
-                      {/* Action Buttons */}
-                      <div className="flex items-center gap-2 mt-4">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="border-neutral-700 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-300 bg-transparent"
+                      {/* Buttons */}
+                      <div className="flex items-center gap-2">
+                        <button
                           onClick={() => setExpandedProfessorId(isExpanded ? null : professor.id)}
+                          className="text-xs px-3 py-1.5 rounded-lg border border-neutral-700 text-neutral-400 hover:text-white hover:border-neutral-600 active:scale-95 transition-all"
                         >
                           {isExpanded ? "Ocultar" : "Ver Clientes"}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="border-neutral-700 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-300 bg-transparent"
+                        </button>
+                        <button
                           onClick={() => {
                             setSelectedProfessor(professor)
                             setLinkModalTab("asaas")
@@ -784,57 +762,54 @@ export default function CarteirasPage() {
                             fetchInsiders()
                             setShowLinkClientModal(true)
                           }}
+                          className="text-xs px-3 py-1.5 rounded-lg border border-neutral-700 text-neutral-400 hover:text-white hover:border-neutral-600 active:scale-95 transition-all"
                         >
                           Vincular
-                        </Button>
+                        </button>
                       </div>
+                    </div>
 
-                      {/* Expanded Clients List */}
-                      {isExpanded && (
-                        <div className="mt-4 pt-4 border-t border-neutral-800">
-                          <h4 className="text-sm font-medium text-neutral-300 mb-3 flex items-center gap-2">
-                            <Users className="w-4 h-4" />
-                            Clientes Vinculados ({clients.length})
-                          </h4>
-                          {clients.length === 0 ? (
-                            <p className="text-sm text-neutral-500">Nenhum cliente vinculado</p>
-                          ) : (
-                            <div className="space-y-2">
-                              {clients.map((client) => (
-                                <div
-                                  key={client.id}
-                                  className="flex items-center justify-between p-3 bg-neutral-800 rounded-lg"
-                                >
-                                  <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
-                                      <span className="text-sm font-bold text-green-500">
-                                        {client.customer_name.charAt(0).toUpperCase()}
-                                      </span>
-                                    </div>
-                                    <div>
-                                      <p className="text-sm font-medium text-white">{client.customer_name}</p>
-                                      <p className="text-xs text-neutral-400">{client.customer_email}</p>
-                                    </div>
+                    {/* Expanded Clients */}
+                    {isExpanded && (
+                      <div className="px-4 pb-4 border-t border-neutral-800">
+                        <h4 className="text-xs font-semibold text-neutral-300 mt-3 mb-2 flex items-center gap-1.5">
+                          <Users className="w-3.5 h-3.5" />
+                          Clientes ({clients.length})
+                        </h4>
+                        {clients.length === 0 ? (
+                          <p className="text-xs text-neutral-500 py-2">Nenhum cliente vinculado</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {clients.map((client) => (
+                              <div
+                                key={client.id}
+                                className="flex items-center justify-between p-2.5 bg-neutral-800 rounded-lg"
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <div className="w-7 h-7 rounded-full bg-green-500/20 flex items-center justify-center shrink-0">
+                                    <span className="text-xs font-bold text-green-500">
+                                      {client.customer_name.charAt(0).toUpperCase()}
+                                    </span>
                                   </div>
-                                  <div className="flex items-center gap-2">
-                                    <Badge className="bg-green-500/20 text-green-400">Ativo</Badge>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="text-neutral-400 hover:text-red-500 h-8 w-8 bg-transparent"
-                                      onClick={() => handleUnlinkClient(client.id)}
-                                    >
-                                      <X className="w-3 h-3" />
-                                    </Button>
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-medium text-white truncate">{client.customer_name}</p>
+                                    <p className="text-[10px] text-neutral-400 truncate">{client.customer_email}</p>
                                   </div>
                                 </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
+                                <button
+                                  className="p-1.5 text-neutral-500 hover:text-red-500 active:scale-90 transition-all shrink-0"
+                                  onClick={() => handleUnlinkClient(client.id)}
+                                  aria-label="Desvincular cliente"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )
               })
             )}
@@ -843,6 +818,7 @@ export default function CarteirasPage() {
       )}
 
       {/* Tab: Repasse de Comissões */}
+
       {activeTab === "commissions" && (
         <>
           {/* Config Card */}
@@ -1568,6 +1544,8 @@ export default function CarteirasPage() {
           </Card>
         </div>
       )}
+
+      </div>{/* end p-4 sm:p-6 */}
     </div>
   )
 }

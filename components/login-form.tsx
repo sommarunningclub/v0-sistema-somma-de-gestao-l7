@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase-client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Eye, EyeOff } from 'lucide-react'
 import { 
   Field,
   FieldDescription,
@@ -21,6 +22,7 @@ export function LoginForm({
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -129,16 +131,27 @@ export function LoginForm({
 
           <Field>
             <FieldLabel htmlFor="password" className="text-white text-xs sm:text-sm">Senha</FieldLabel>
-            <Input 
-              id="password" 
-              type="password"
-              placeholder="Sua senha"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              disabled={loading}
-              className="bg-neutral-800 border-neutral-700 text-white placeholder-neutral-500 text-xs sm:text-sm py-2"
-            />
+            <div className="relative">
+              <Input 
+                id="password" 
+                type={showPassword ? "text" : "password"}
+                placeholder="Sua senha"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                disabled={loading}
+                className="bg-neutral-800 border-neutral-700 text-white placeholder-neutral-500 text-xs sm:text-sm py-2 pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-white transition-colors"
+                aria-label={showPassword ? "Ocultar senha" : "Ver senha"}
+                tabIndex={-1}
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
           </Field>
 
           <Button 
