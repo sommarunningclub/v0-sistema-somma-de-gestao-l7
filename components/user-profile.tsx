@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { LogOut, User, Mail, Calendar, Edit2, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { UserProfileEdit } from "@/components/user-profile-edit"
+import { ProfileModal } from "@/components/profile-modal"
 import { getSession, logout } from "@/components/protected-route"
 import { supabase } from "@/lib/supabase-client"
 
@@ -179,15 +179,13 @@ export function UserProfile() {
         </div>
       )}
 
-      {/* Edit Profile Modal */}
+      {/* Profile Modal - Full Screen */}
       {showEditModal && (
-        <div className="absolute bottom-full left-0 right-0 mb-2 bg-neutral-800 border border-neutral-700 rounded-lg shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200">
-          <UserProfileEdit
-            user={user}
-            onClose={() => setShowEditModal(false)}
-            onSave={handleRefreshProfile}
-          />
-        </div>
+        <ProfileModal
+          user={user}
+          onClose={() => setShowEditModal(false)}
+          onSave={handleRefreshProfile}
+        />
       )}
 
       {/* Close menu when clicking outside */}
