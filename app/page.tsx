@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { UserProfile } from "@/components/user-profile"
 import ProtectedRouteComponent from "@/components/protected-route"
 import { logout, hasPermission } from "@/components/protected-route"
+import { OfflineBanner } from "@/hooks/use-online-status"
 import CommandCenterPage from "./command-center/page"
 import AgentNetworkPage from "./agent-network/page"
 import IntelligencePage from "./intelligence/page"
@@ -92,6 +93,7 @@ export default function TacticalDashboard() {
 
   return (
     <ProtectedRouteComponent>
+      <OfflineBanner />
       <div className="flex h-screen w-screen bg-black">
         {/* Desktop/Mobile Sidebar */}
         <aside
@@ -110,7 +112,7 @@ export default function TacticalDashboard() {
                   alt="SOMMA Logo" 
                   className="h-10 w-auto mb-2"
                 />
-                <p className="text-neutral-500 text-xs">v2.1.18</p>
+                <p className="text-neutral-500 text-xs">v2.1.19</p>
               </div>
               <div className="flex items-center gap-2">
                 <button
