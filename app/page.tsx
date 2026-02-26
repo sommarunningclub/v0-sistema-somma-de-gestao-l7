@@ -99,9 +99,9 @@ export default function TacticalDashboard() {
             sidebarOpen ? "translate-x-0" : "-translate-x-full"
           } lg:translate-x-0 ${
             sidebarCollapsed ? "lg:w-20" : "lg:w-64"
-          } w-64 bg-neutral-900 border-r border-neutral-700 transition-all duration-300 fixed lg:relative z-40 h-screen overflow-y-auto flex flex-col`}
+          } w-64 bg-neutral-900 border-r border-neutral-700 transition-all duration-300 fixed lg:relative z-40 h-screen max-h-screen flex flex-col`}
         >
-          <div className="p-4 flex-1 flex flex-col">
+          <div className="p-4 flex-1 flex flex-col overflow-y-auto overscroll-contain">
             {/* Header */}
             <div className="flex items-center justify-between mb-8">
               <div className={sidebarCollapsed ? "hidden" : ""}>
