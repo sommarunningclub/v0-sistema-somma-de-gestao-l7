@@ -5,7 +5,6 @@ import ClientesAsaas from "./clientes/page"
 import ListaEspera from "./listaespera/page"
 import Cobrancas from "./cobrancas/page"
 import Assinaturas from "./assinaturas/page"
-import PixAutomatico from "./pix-automatico/page"
 import Sincronizacao from "./sincronizacao/page"
 import InsidersPage from "./insiders/page"
 import LinkPagamento from "./link-pagamento/page"
@@ -22,7 +21,6 @@ export default function PagamentosPage({ activeTab = "dashboard" }: PagamentosPa
       {activeTab === "listaespera" && <ListaEspera />}
       {activeTab === "cobrancas" && <Cobrancas />}
       {activeTab === "assinaturas" && <Assinaturas />}
-      {activeTab === "pix-automatico" && <PixAutomatico />}
       {activeTab === "link-pagamento" && <LinkPagamento />}
       {activeTab === "sincronizacao" && <Sincronizacao />}
       {activeTab === "insiders" && <InsidersPage />}
