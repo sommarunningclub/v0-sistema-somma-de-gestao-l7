@@ -1,4 +1,4 @@
-# PWA Configuration - Somma Dashboard v2.1.18
+# PWA Configuration - Somma Dashboard v2.1.19
 
 > Progressive Web App (PWA) completo para o Sistema Somma de Gestão
 
@@ -219,7 +219,7 @@ Grados em `/public/`:
 
 **DevTools:**
 - Chrome: F12 → Application → Service Workers
-- Chrome: F12 → Application → Cache Storage (somma-v2.1.18)
+- Chrome: F12 → Application → Cache Storage (somma-v2.1.19)
 - Chrome: F12 → Application → Manifest
 
 ---
@@ -254,14 +254,14 @@ NEXT_PUBLIC_VAPID_PUBLIC_KEY=...
 
 ### Cache muito grande
 - ✅ Usar DevTools → Application → Cache Storage
-- ✅ Right-click → Delete cache `somma-v2.1.18`
+- ✅ Right-click → Delete cache `somma-v2.1.19`
 - ✅ Recarregar (vai baixar tudo de novo)
 
 ---
 
 ## 📝 Changelog PWA
 
-### v2.1.18
+### v2.1.19
 - ✅ Manifest.json completo com screenshots
 - ✅ Service Worker com Network First strategy
 - ✅ PWAUpdateNotifier com UI orange

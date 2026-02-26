@@ -1,4 +1,4 @@
-const CACHE_NAME = 'somma-v2.1.18'
+const CACHE_NAME = 'somma-v2.1.19'
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
