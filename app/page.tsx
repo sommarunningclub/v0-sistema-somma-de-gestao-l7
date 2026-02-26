@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { ChevronRight, ChevronDown, Monitor, Settings, Shield, Target, Users, Bell, RefreshCw, CreditCard, LogOut, CheckSquare, Briefcase, LayoutDashboard, Receipt, Ticket, Zap, ChevronLeft, Star, QrCode, X } from "lucide-react"
+import { ChevronRight, ChevronDown, Monitor, Settings, Shield, Target, Users, Bell, RefreshCw, CreditCard, LogOut, CheckSquare, Briefcase, LayoutDashboard, Receipt, Ticket, Zap, ChevronLeft, Star, QrCode, X as CloseIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { UserProfile } from "@/components/user-profile"
 import ProtectedRouteComponent from "@/components/protected-route"
@@ -276,7 +276,7 @@ export default function TacticalDashboard() {
                   <span className="bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none tracking-wide">NOVO</span>
                 </div>
                 <button onClick={() => setShowAppsModal(false)} className="text-neutral-400 hover:text-white p-1">
-                  <X className="w-5 h-5" />
+                  <CloseIcon className="w-5 h-5" />
                 </button>
               </div>
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 pb-2">
