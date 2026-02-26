@@ -4,8 +4,12 @@ import { Geist_Mono as GeistMono } from "next/font/google"
 import "./globals.css"
 import { Toaster } from "@/components/ui/toaster"
 import { PWAUpdateNotifier } from "@/components/pwa-update-notifier"
+import { dynamicCacheInvalidation } from "@/lib/cache-invalidation"
 
 const geistMono = GeistMono({ subsets: ["latin"] })
+
+// Force cache invalidation timestamp
+const _cacheKey = dynamicCacheInvalidation
 
 export const metadata: Metadata = {
   title: "Somma Dashboard",
