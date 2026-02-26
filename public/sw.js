@@ -1,4 +1,4 @@
-const CACHE_NAME = 'somma-v2.1.19'
+const CACHE_NAME = 'somma-v2.1.19-b'
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
@@ -46,22 +46,15 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // Skip API requests - always fetch fresh
-  if (url.pathname.includes('/api/')) {
-    event.respondWith(
-      fetch(request)
-        .then((response) => {
-          if (!response || response.status !== 200 || response.type === 'error') {
-            return response
-          }
-          return response
-        })
-        .catch(() => {
-          // Return offline page or cached response if available
-          return caches.match('/').then((cached) => cached || new Response('Offline', { status: 503 }))
-        })
-    )
-    return
+  // Skip ALL API requests - always bypass SW and go straight to network
+  // Never cache API responses, never serve from cache for API routes
+  if (
+    url.pathname.startsWith('/api/') ||
+    url.pathname.includes('asaas') ||
+    url.pathname.includes('supabase') ||
+    url.searchParams.has('action')
+  ) {
+    return // Let the browser handle it natively, no SW involvement
   }
 
   // Network First for everything else
