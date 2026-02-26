@@ -92,16 +92,16 @@ export default function TacticalDashboard() {
 
   return (
     <ProtectedRouteComponent>
-      <div className="flex h-screen w-screen overflow-hidden bg-black">
+      <div className="flex h-screen w-screen bg-black">
         {/* Desktop/Mobile Sidebar */}
         <aside
           className={`${
             sidebarOpen ? "translate-x-0" : "-translate-x-full"
           } lg:translate-x-0 ${
             sidebarCollapsed ? "lg:w-20" : "lg:w-64"
-          } w-64 bg-neutral-900 border-r border-neutral-700 transition-all duration-300 fixed lg:relative z-40 h-screen overflow-y-auto flex flex-col`}
+          } w-64 bg-neutral-900 border-r border-neutral-700 transition-all duration-300 fixed lg:relative z-40 h-screen max-h-screen flex flex-col`}
         >
-          <div className="p-4 flex-1 flex flex-col min-h-screen lg:min-h-auto">
+          <div className="p-4 flex-1 flex flex-col overflow-y-auto overscroll-contain">
             {/* Header */}
             <div className="flex items-center justify-between mb-8">
               <div className={sidebarCollapsed ? "hidden" : ""}>
@@ -315,7 +315,8 @@ export default function TacticalDashboard() {
         )}
 
         {/* Main Content */}
-        <main className="flex-1 flex flex-col overflow-hidden w-full">
+        <main className="flex-1 flex flex-col min-w-0 w-full" style={{ minHeight: 0 }}>
+
           {/* Top Toolbar */}
           <header className="h-14 lg:h-16 bg-neutral-800 border-b border-neutral-700 flex items-center justify-between px-3 lg:px-6 gap-3">
             {/* Mobile/Tablet Menu Button */}
@@ -372,7 +373,7 @@ export default function TacticalDashboard() {
           </header>
 
           {/* Content Area - Safe area for notch */}
-          <div className="flex-1 overflow-auto bg-black pb-20 lg:pb-0">
+          <div className="flex-1 overflow-auto bg-black">
             {activeSection === "overview" && <CommandCenterPage />}
             {activeSection === "checkin" && permissions.checkin && <CheckInPage />}
             {activeSection === "agents" && permissions.membros && <AgentNetworkPage />}
