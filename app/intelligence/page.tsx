@@ -5,11 +5,11 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Search, Plus, Users, DollarSign, Award, Mail, Phone, Briefcase, Edit, Trash2, UserPlus, X, Check } from "lucide-react"
+import { Search, Plus, Users, DollarSign, Award, Mail, Phone, Briefcase, Edit, Trash2, UserPlus, X, Check, Loader2, Download, ReceiptText } from "lucide-react"
 import { supabase, type Professor, type ProfessorClient, type CommissionConfig } from "@/lib/supabase-client"
 import { getSession } from "@/components/protected-route"
 
-type TabType = "professors" | "commissions"
+type TabType = "professors" | "commissions" | "repasse"
 
 interface AsaasCustomer {
   id: string
@@ -82,6 +82,13 @@ export default function CarteirasPage() {
   const [commissionBreakdowns, setCommissionBreakdowns] = useState<CommissionBreakdown[]>([])
   const [loadingCommissions, setLoadingCommissions] = useState(false)
 
+  // Repasse state
+  const [repasseSettings, setRepasseSettings] = useState<Record<string, boolean>>({})
+  const [loadingRepasse, setLoadingRepasse] = useState(false)
+  const [showRepasseReport, setShowRepasseReport] = useState(false)
+  const [repasseReport, setRepasseReport] = useState<any>(null)
+  const [loadingRepasseReport, setLoadingRepasseReport] = useState(false)
+
   const fetchCommissionConfig = async () => {
     const { data, error } = await supabase
       .from("commission_config")
@@ -135,6 +142,84 @@ export default function CarteirasPage() {
     setLoadingCommissions(false)
   }
 
+  const fetchRepasseSettings = async () => {
+    setLoadingRepasse(true)
+    try {
+      const response = await fetch("/api/professores/repasse?action=list")
+      if (response.ok) {
+        const data = await response.json()
+        const settingsMap: Record<string, boolean> = {}
+        data.data?.forEach((s: any) => {
+          settingsMap[s.professor_id] = s.enable_repasse
+        })
+        setRepasseSettings(settingsMap)
+      }
+    } catch (err) {
+      console.error("[v0] Error fetching repasse settings:", err)
+    }
+    setLoadingRepasse(false)
+  }
+
+  const handleToggleRepasse = async (professorId: string) => {
+    try {
+      const newValue = !repasseSettings[professorId]
+      const response = await fetch("/api/professores/repasse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "toggle",
+          professor_id: professorId,
+          enable_repasse: newValue,
+          notes: newValue ? "Somma cobra taxa de comissão" : "Professor recebe repasse",
+        }),
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setRepasseSettings(prev => ({ ...prev, [professorId]: newValue }))
+      }
+    } catch (err) {
+      console.error("[v0] Error toggling repasse:", err)
+    }
+  }
+
+  const handleGenerateReport = async () => {
+    setLoadingRepasseReport(true)
+    try {
+      const response = await fetch("/api/professores/repasse/report?action=generate")
+      if (response.ok) {
+        const data = await response.json()
+        setRepasseReport(data)
+      }
+    } catch (err) {
+      console.error("[v0] Error generating report:", err)
+    }
+    setLoadingRepasseReport(false)
+  }
+
+  const handleDownloadCSV = () => {
+    if (!repasseReport) return
+
+    const lines = repasseReport.reportLines || []
+    const headers = ["Aluno (ID Asaas)", "Aluno (Nome)", "Professor (ID)", "Professor (Nome)", "Total Pago", "Somma Taxa", "Repasse Professor"]
+    const rows = lines.map((line: any) => [
+      line.aluno_asaas_id,
+      line.aluno_nome,
+      line.professor_id,
+      line.professor_nome,
+      line.total_pago.toFixed(2),
+      line.somma_taxa_cobrada.toFixed(2),
+      line.professor_repasse.toFixed(2),
+    ])
+
+    const csv = [headers, ...rows].map(r => r.join(",")).join("\n")
+    const blob = new Blob([csv], { type: "text/csv" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `repasse_${new Date().toISOString().split("T")[0]}.csv`
+    a.click()
+  }
+
   useEffect(() => {
     // Check if user is admin
     const session = getSession()
@@ -150,6 +235,8 @@ export default function CarteirasPage() {
   useEffect(() => {
     if (activeTab === "commissions") {
       fetchCommissionData()
+    } else if (activeTab === "repasse" && isAdmin) {
+      fetchRepasseSettings()
     }
   }, [activeTab, professors, professorClients, sommaFixedFee])
 
@@ -475,20 +562,36 @@ export default function CarteirasPage() {
           )}
         </button>
         {isAdmin && (
-          <button
-            onClick={() => setActiveTab("commissions")}
-            className={`flex items-center gap-2 px-4 py-3 font-medium transition-colors relative ${
-              activeTab === "commissions"
-                ? "text-white"
-                : "text-neutral-400 hover:text-neutral-300"
-            }`}
-          >
-            <DollarSign className="w-4 h-4" />
-            Repasse de Comissões
-            {activeTab === "commissions" && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-orange-500" />
-            )}
-          </button>
+          <>
+            <button
+              onClick={() => setActiveTab("commissions")}
+              className={`flex items-center gap-2 px-4 py-3 font-medium transition-colors relative ${
+                activeTab === "commissions"
+                  ? "text-white"
+                  : "text-neutral-400 hover:text-neutral-300"
+              }`}
+            >
+              <DollarSign className="w-4 h-4" />
+              Repasse de Comissões
+              {activeTab === "commissions" && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-orange-500" />
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab("repasse")}
+              className={`flex items-center gap-2 px-4 py-3 font-medium transition-colors relative ${
+                activeTab === "repasse"
+                  ? "text-white"
+                  : "text-neutral-400 hover:text-neutral-300"
+              }`}
+            >
+              <Award className="w-4 h-4" />
+              Relatório de Repasse
+              {activeTab === "repasse" && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-orange-500" />
+              )}
+            </button>
+          </>
         )}
       </div>
 
@@ -918,6 +1021,112 @@ export default function CarteirasPage() {
               </div>
             </CardContent>
           </Card>
+        </>
+      )}
+
+      {/* Tab: Relatório de Repasse - Admin Only */}
+      {activeTab === "repasse" && isAdmin && (
+        <>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+            <Card className="bg-neutral-900 border-neutral-700">
+              <CardContent className="p-4">
+                <p className="text-xs text-neutral-400 tracking-wider mb-1">CONTROLE DE REPASSE</p>
+                <p className="text-sm text-neutral-300">Ative ou desative o repasse para cada professor</p>
+              </CardContent>
+            </Card>
+            <Card className="bg-neutral-900 border-neutral-700">
+              <CardContent className="p-4">
+                <p className="text-xs text-neutral-400 tracking-wider mb-1">AÇÕES</p>
+                <div className="flex gap-2">
+                  <Button onClick={handleGenerateReport} disabled={loadingRepasseReport} size="sm" className="bg-orange-500 hover:bg-orange-600 text-white gap-1">
+                    {loadingRepasseReport ? <Loader2 className="w-3 h-3 animate-spin" /> : <ReceiptText className="w-3 h-3" />}
+                    Gerar
+                  </Button>
+                  <Button onClick={handleDownloadCSV} disabled={!repasseReport} size="sm" className="bg-green-600 hover:bg-green-700 text-white gap-1">
+                    <Download className="w-3 h-3" />
+                    CSV
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="bg-neutral-900 border-neutral-700">
+              <CardContent className="p-4">
+                <p className="text-xs text-neutral-400 tracking-wider mb-1">STATUS</p>
+                <p className="text-sm text-neutral-300">{repasseReport ? `${repasseReport.summary?.length || 0} professores mapeados` : "Gere um relatório"}</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Repasse Settings - Toggle by Professor */}
+          <Card className="bg-neutral-900 border-neutral-700 mb-6">
+            <CardContent className="p-6">
+              <h3 className="text-lg font-bold text-white mb-4 tracking-wider">Configuração de Repasse por Professor</h3>
+              {loadingRepasse ? (
+                <div className="text-center py-8 text-neutral-400">Carregando configurações...</div>
+              ) : professors.length === 0 ? (
+                <div className="text-center py-8 text-neutral-400">Nenhum professor encontrado</div>
+              ) : (
+                <div className="space-y-3">
+                  {professors.map(prof => (
+                    <div key={prof.id} className="flex items-center justify-between bg-neutral-800 p-4 rounded-lg">
+                      <div className="flex-1">
+                        <p className="text-white font-medium">{prof.name}</p>
+                        <p className="text-xs text-neutral-400">{prof.email}</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {repasseSettings[prof.id] !== false ? (
+                          <span className="text-xs bg-orange-500/20 text-orange-400 px-2 py-1 rounded">Somma cobra taxa</span>
+                        ) : (
+                          <span className="text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded">Professor recebe repasse</span>
+                        )}
+                        <Button
+                          onClick={() => handleToggleRepasse(prof.id)}
+                          size="sm"
+                          className={repasseSettings[prof.id] !== false ? "bg-neutral-700 hover:bg-neutral-600 text-white" : "bg-green-600 hover:bg-green-700 text-white"}
+                        >
+                          {repasseSettings[prof.id] !== false ? "Desabilitar" : "Habilitar"}
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Relatório Detalhado */}
+          {repasseReport && (
+            <Card className="bg-neutral-900 border-neutral-700">
+              <CardContent className="p-6">
+                <h3 className="text-lg font-bold text-white mb-4 tracking-wider">Relatório Detalhado por Professor</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-neutral-700">
+                        <th className="px-4 py-2 text-left text-neutral-400">Professor</th>
+                        <th className="px-4 py-2 text-center text-neutral-400">Alunos</th>
+                        <th className="px-4 py-2 text-right text-neutral-400">Total Pago</th>
+                        <th className="px-4 py-2 text-right text-neutral-400">Taxa Somma</th>
+                        <th className="px-4 py-2 text-right text-neutral-400">Repasse Prof</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {repasseReport.summary?.map((prof: any) => (
+                        <tr key={prof.professor_id} className="border-b border-neutral-800 hover:bg-neutral-800/50">
+                          <td className="px-4 py-3 text-white">{prof.professor_nome}</td>
+                          <td className="px-4 py-3 text-center text-neutral-300">{prof.total_alunos}</td>
+                          <td className="px-4 py-3 text-right text-neutral-300">R$ {prof.total_pago.toFixed(2)}</td>
+                          <td className="px-4 py-3 text-right text-orange-400">-R$ {prof.total_taxa_somma.toFixed(2)}</td>
+                          <td className="px-4 py-3 text-right text-green-400 font-semibold">R$ {prof.total_repasse.toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-xs text-neutral-400 mt-4">Gerado em: {new Date(repasseReport.generatedAt).toLocaleString("pt-BR")}</p>
+              </CardContent>
+            </Card>
+          )}
         </>
       )}
 
