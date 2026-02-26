@@ -1,11 +1,20 @@
 import { NextRequest, NextResponse } from "next/server"
 
+// Force dynamic rendering so env vars are always read fresh on each request
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+
 const ASAAS_BASE = "https://api.asaas.com/v3"
 
-function getHeaders() {
-  const apiKey = (process.env.ASAAS_API_KEY || "").trim()
+// Read API key fresh on every call — same pattern as /api/asaas/route.ts
+function getApiKey(): string {
+  return (process.env.ASAAS_API_KEY || "").trim()
+}
+
+function buildHeaders(apiKey: string) {
   return {
     "Content-Type": "application/json",
+    "Accept": "application/json",
     "User-Agent": "somma-sistema",
     "access_token": apiKey,
   }
@@ -17,15 +26,16 @@ async function asaasRequest(
   body?: unknown,
   params?: Record<string, string>
 ) {
+  const apiKey = getApiKey()
   const url = new URL(`${ASAAS_BASE}${path}`)
   if (params) {
     Object.entries(params).forEach(([k, v]) => { if (v) url.searchParams.set(k, v) })
   }
 
-  const opts: RequestInit = { method, headers: getHeaders() }
+  const opts: RequestInit = { method, headers: buildHeaders(apiKey) }
   if (body) opts.body = JSON.stringify(body)
 
-  // Retry 2x com backoff exponencial (igual ao client.py do README)
+  // Retry 2x com backoff exponencial
   let lastError: unknown
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
@@ -57,10 +67,10 @@ async function asaasRequest(
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const action = searchParams.get("action") || "list"
-  const apiKey = (process.env.ASAAS_API_KEY || "").trim()
+  const apiKey = getApiKey()
 
   if (!apiKey) {
-    return NextResponse.json({ error: "ASAAS_API_KEY não configurada" }, { status: 500 })
+    return NextResponse.json({ error: "ASAAS_API_KEY não configurada. Verifique as variáveis de ambiente." }, { status: 500 })
   }
 
   if (action === "get") {
@@ -113,9 +123,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const apiKey = (process.env.ASAAS_API_KEY || "").trim()
+  const apiKey = getApiKey()
   if (!apiKey) {
-    return NextResponse.json({ error: "ASAAS_API_KEY não configurada" }, { status: 500 })
+    return NextResponse.json({ error: "ASAAS_API_KEY não configurada. Verifique as variáveis de ambiente." }, { status: 500 })
   }
 
   const body = await request.json().catch(() => ({}))
@@ -137,10 +147,10 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const id = searchParams.get("id")
-  const apiKey = (process.env.ASAAS_API_KEY || "").trim()
+  const apiKey = getApiKey()
 
   if (!apiKey) {
-    return NextResponse.json({ error: "ASAAS_API_KEY não configurada" }, { status: 500 })
+    return NextResponse.json({ error: "ASAAS_API_KEY não configurada. Verifique as variáveis de ambiente." }, { status: 500 })
   }
   if (!id) return NextResponse.json({ error: "id obrigatório" }, { status: 400 })
 
