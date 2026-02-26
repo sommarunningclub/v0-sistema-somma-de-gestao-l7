@@ -101,7 +101,7 @@ export default function TacticalDashboard() {
             sidebarCollapsed ? "lg:w-20" : "lg:w-64"
           } w-64 bg-neutral-900 border-r border-neutral-700 transition-all duration-300 fixed lg:relative z-40 h-screen overflow-y-auto flex flex-col`}
         >
-          <div className="p-4 flex-1 flex flex-col min-h-screen lg:min-h-auto">
+          <div className="p-4 flex-1 flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between mb-8">
               <div className={sidebarCollapsed ? "hidden" : ""}>
@@ -315,7 +315,8 @@ export default function TacticalDashboard() {
         )}
 
         {/* Main Content */}
-        <main className="flex-1 flex flex-col overflow-hidden w-full">
+        <main className="flex-1 flex flex-col min-w-0 w-full" style={{ minHeight: 0 }}>
+
           {/* Top Toolbar */}
           <header className="h-14 lg:h-16 bg-neutral-800 border-b border-neutral-700 flex items-center justify-between px-3 lg:px-6 gap-3">
             {/* Mobile/Tablet Menu Button */}
