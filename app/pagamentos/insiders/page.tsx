@@ -25,7 +25,19 @@ export default function InsidersPage() {
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [showViewModal, setShowViewModal] = useState(false)
+  const [showCreateModal, setShowCreateModal] = useState(false)
   const [selectedInsider, setSelectedInsider] = useState<Insider | null>(null)
+  const [creating, setCreating] = useState(false)
+  const [formData, setFormData] = useState<Partial<Insider>>({
+    nome: "",
+    cpf: "",
+    evolve: "",
+    dopahmina: "",
+    tex_barbearia: "",
+    big_box: "",
+    cupom_loja_somma: "",
+    assessoria_somma: "",
+  })
 
   useEffect(() => {
     fetchInsiders()
@@ -80,6 +92,50 @@ export default function InsidersPage() {
     }
   }
 
+  const handleCreateInsider = async () => {
+    if (!formData.nome || !formData.cpf) {
+      alert("Nome e CPF são obrigatórios")
+      return
+    }
+
+    setCreating(true)
+    try {
+      console.log("[v0] Creating new insider:", formData)
+      const { data, error: err } = await supabase
+        .from("dados_insiders")
+        .insert([formData])
+        .select()
+
+      if (err) {
+        console.error("[v0] Error creating insider:", err)
+        alert("Erro ao criar insider: " + err.message)
+        setCreating(false)
+        return
+      }
+
+      console.log("[v0] Insider created successfully:", data)
+      if (data && data.length > 0) {
+        setInsiders([...insiders, data[0]])
+        setFormData({
+          nome: "",
+          cpf: "",
+          evolve: "",
+          dopahmina: "",
+          tex_barbearia: "",
+          big_box: "",
+          cupom_loja_somma: "",
+          assessoria_somma: "",
+        })
+        setShowCreateModal(false)
+      }
+    } catch (err: any) {
+      console.error("[v0] Error creating insider:", err)
+      alert("Erro ao criar insider")
+    } finally {
+      setCreating(false)
+    }
+  }
+
   const filteredInsiders = insiders.filter((insider) =>
     insider.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
     insider.cpf.includes(searchTerm)
@@ -129,7 +185,7 @@ export default function InsidersPage() {
             Exportar
           </Button>
           <Button
-            onClick={() => setShowViewModal(false)}
+            onClick={() => setShowCreateModal(true)}
             size="sm"
             className="bg-orange-500 hover:bg-orange-600 text-white h-9 px-3 text-xs"
           >
@@ -345,6 +401,141 @@ export default function InsidersPage() {
                   className="flex-1"
                 >
                   Deletar
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Create Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+          <Card className="bg-neutral-800 border-neutral-700 w-full max-w-2xl my-4">
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <CardTitle className="text-white text-lg">NOVO INSIDER</CardTitle>
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="text-neutral-400 hover:text-white active:scale-90 transition-all"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Grid Layout */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Nome */}
+                <div className="sm:col-span-2">
+                  <label className="text-neutral-400 text-xs block mb-2 tracking-wide font-medium">NOME *</label>
+                  <Input
+                    type="text"
+                    placeholder="Nome completo"
+                    value={formData.nome || ""}
+                    onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+                    className="bg-neutral-700 border-neutral-600 text-white placeholder-neutral-500"
+                  />
+                </div>
+
+                {/* CPF */}
+                <div className="sm:col-span-2">
+                  <label className="text-neutral-400 text-xs block mb-2 tracking-wide font-medium">CPF *</label>
+                  <Input
+                    type="text"
+                    placeholder="000.000.000-00"
+                    value={formData.cpf || ""}
+                    onChange={(e) => setFormData({ ...formData, cpf: e.target.value })}
+                    className="bg-neutral-700 border-neutral-600 text-white placeholder-neutral-500"
+                  />
+                </div>
+
+                {/* Evolve */}
+                <div>
+                  <label className="text-neutral-400 text-xs block mb-2 tracking-wide font-medium">EVOLVE</label>
+                  <Input
+                    type="text"
+                    placeholder="ex: VIP, Premium"
+                    value={formData.evolve || ""}
+                    onChange={(e) => setFormData({ ...formData, evolve: e.target.value })}
+                    className="bg-neutral-700 border-neutral-600 text-white placeholder-neutral-500"
+                  />
+                </div>
+
+                {/* Dopamina */}
+                <div>
+                  <label className="text-neutral-400 text-xs block mb-2 tracking-wide font-medium">DOPAMINA</label>
+                  <Input
+                    type="text"
+                    placeholder="Código ou benefício"
+                    value={formData.dopahmina || ""}
+                    onChange={(e) => setFormData({ ...formData, dopahmina: e.target.value })}
+                    className="bg-neutral-700 border-neutral-600 text-white placeholder-neutral-500"
+                  />
+                </div>
+
+                {/* Tex Barbearia */}
+                <div>
+                  <label className="text-neutral-400 text-xs block mb-2 tracking-wide font-medium">TEX BARBEARIA</label>
+                  <Input
+                    type="text"
+                    placeholder="Desconto ou código"
+                    value={formData.tex_barbearia || ""}
+                    onChange={(e) => setFormData({ ...formData, tex_barbearia: e.target.value })}
+                    className="bg-neutral-700 border-neutral-600 text-white placeholder-neutral-500"
+                  />
+                </div>
+
+                {/* Big Box */}
+                <div>
+                  <label className="text-neutral-400 text-xs block mb-2 tracking-wide font-medium">BIG BOX</label>
+                  <Input
+                    type="text"
+                    placeholder="Desconto ou código"
+                    value={formData.big_box || ""}
+                    onChange={(e) => setFormData({ ...formData, big_box: e.target.value })}
+                    className="bg-neutral-700 border-neutral-600 text-white placeholder-neutral-500"
+                  />
+                </div>
+
+                {/* Cupom Somma */}
+                <div>
+                  <label className="text-neutral-400 text-xs block mb-2 tracking-wide font-medium">CUPOM SOMMA</label>
+                  <Input
+                    type="text"
+                    placeholder="Código do cupom"
+                    value={formData.cupom_loja_somma || ""}
+                    onChange={(e) => setFormData({ ...formData, cupom_loja_somma: e.target.value })}
+                    className="bg-neutral-700 border-neutral-600 text-white placeholder-neutral-500"
+                  />
+                </div>
+
+                {/* Assessoria Somma */}
+                <div>
+                  <label className="text-neutral-400 text-xs block mb-2 tracking-wide font-medium">ASSESSORIA SOMMA</label>
+                  <Input
+                    type="text"
+                    placeholder="Descrição do benefício"
+                    value={formData.assessoria_somma || ""}
+                    onChange={(e) => setFormData({ ...formData, assessoria_somma: e.target.value })}
+                    className="bg-neutral-700 border-neutral-600 text-white placeholder-neutral-500"
+                  />
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2 pt-4 border-t border-neutral-700">
+                <Button
+                  onClick={() => setShowCreateModal(false)}
+                  variant="outline"
+                  className="flex-1 border-neutral-700 text-neutral-400 hover:text-white"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleCreateInsider}
+                  disabled={creating}
+                  className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
+                >
+                  {creating ? "Criando..." : "Criar Insider"}
                 </Button>
               </div>
             </CardContent>
