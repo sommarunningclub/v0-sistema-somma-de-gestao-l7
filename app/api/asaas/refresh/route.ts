@@ -49,7 +49,10 @@ export async function GET() {
       },
     })
 
-    const data = await response.json()
+    const data = await response.json().catch((err) => {
+      console.error('[v0] Error parsing JSON response:', err)
+      return null
+    })
 
     if (!response.ok) {
       console.error('[v0] Asaas API test failed:', response.status, data)
@@ -57,7 +60,7 @@ export async function GET() {
         success: false,
         error: 'Asaas API authentication failed',
         status: response.status,
-        details: data,
+        details: data || {},
         debug: {
           apiKeyExists: true,
           apiKeyLength: apiKey.length,
@@ -71,14 +74,14 @@ export async function GET() {
     }
 
     console.log('[v0] Asaas API connection successful!')
-    console.log('[v0] Total customers:', data.totalCount || 0)
+    console.log('[v0] Total customers:', data?.totalCount || 0)
     console.log('='.repeat(80))
 
     return NextResponse.json({
       success: true,
       message: 'Asaas API is properly configured and working!',
       data: {
-        totalCustomers: data.totalCount || 0,
+        totalCustomers: data?.totalCount || 0,
         apiConnected: true,
         timestamp: new Date().toISOString(),
       },
