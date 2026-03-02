@@ -268,34 +268,39 @@ export default function CarteirasPage() {
     setLoading(false)
   }
 
-  const fetchProfessorClients = async (session: any) => {
-    let query = supabase.from("professor_clients").select("*").eq("status", "active")
-    
-    // Se não for admin, filtra apenas os clientes do professor do usuário logado
-    if (session && session.role !== 'admin') {
-      // Primeiro, encontra o professor com o email do usuário
-      const { data: professorData } = await supabase
-        .from("professors")
-        .select("id")
-        .eq("email", session.email)
-        .single()
+  const fetchProfessorClients = async () => {
+    try {
+      const session = await getSession()
+      let query = supabase.from("professor_clients").select("*").eq("status", "active")
       
-      if (professorData) {
-        query = query.eq("professor_id", professorData.id)
-      } else {
-        // Se não encontrar professor, retorna lista vazia
-        setProfessorClients([])
-        return
+      // Se não for admin, filtra apenas os clientes do professor do usuário logado
+      if (session && session.role !== 'admin') {
+        // Primeiro, encontra o professor com o email do usuário
+        const { data: professorData } = await supabase
+          .from("professors")
+          .select("id")
+          .eq("email", session.email)
+          .single()
+        
+        if (professorData) {
+          query = query.eq("professor_id", professorData.id)
+        } else {
+          // Se não encontrar professor, retorna lista vazia
+          setProfessorClients([])
+          return
+        }
       }
-    }
-    
-    const { data, error } = await query
+      
+      const { data, error } = await query
 
-    if (error) {
-      console.error("[v0] Error fetching professor clients:", error)
-    } else {
-      console.log("[v0] Fetched professor clients, count:", data?.length || 0)
-      setProfessorClients(data || [])
+      if (error) {
+        console.error("[v0] Error fetching professor clients:", error)
+      } else {
+        console.log("[v0] Fetched professor clients, count:", data?.length || 0)
+        setProfessorClients(data || [])
+      }
+    } catch (err) {
+      console.error("[v0] Error in fetchProfessorClients:", err)
     }
   }
 
@@ -392,17 +397,51 @@ export default function CarteirasPage() {
       : selectedTag
 
     if (linkModalTab === "insiders" && selectedInsider) {
+      // Buscar dados completos do insider para garantir CPF e validações
+      const { data: insiderData, error: insiderError } = await supabase
+        .from("dados_insiders")
+        .select("id, nome, cpf, evolve")
+        .eq("id", selectedInsider.id)
+        .single()
+
+      if (insiderError || !insiderData) {
+        console.error("[v0] Error fetching insider details:", insiderError)
+        alert("Erro ao buscar dados do insider")
+        return
+      }
+
+      // Validar que CPF existe
+      if (!insiderData.cpf || insiderData.cpf.trim() === "") {
+        alert("Insider não possui CPF registrado. Não é possível vincular.")
+        return
+      }
+
+      // Usar CPF como identificador único (mais seguro que ID autoincrement)
       const { error } = await supabase
         .from("professor_clients")
         .insert([{
           professor_id: selectedProfessor.id,
-          asaas_customer_id: `insider_${selectedInsider.id}`,
-          customer_name: selectedInsider.nome,
-          customer_email: "",
+          asaas_customer_id: `insider_cpf_${insiderData.cpf}`,
+          customer_name: insiderData.nome,
+          customer_cpf_cnpj: insiderData.cpf,
+          customer_email: "", // Insiders podem não ter email registrado
           status: "active",
           tag: finalTag,
+          linked_at: new Date().toISOString(),
         }])
-      if (error) { console.error("[v0] Error linking insider:", error); alert("Erro ao vincular insider"); return }
+
+      if (error) {
+        console.error("[v0] Error linking insider:", error)
+        // Erro de constraint UNIQUE: insider já vinculado
+        if (error.code === "23505") {
+          alert("Este insider já está vinculado a este professor")
+        } else {
+          alert(`Erro ao vincular: ${error.message}`)
+        }
+        return
+      }
+
+      console.log("[v0] Insider linked successfully:", insiderData.cpf)
       alert("Insider vinculado com sucesso!")
       setShowLinkClientModal(false)
       setSelectedInsider(null)
@@ -416,22 +455,38 @@ export default function CarteirasPage() {
 
     if (!selectedCustomer) return
 
+    // Validar que cliente não está já vinculado a este professor
+    const existingLink = professorClients.find(
+      pc => pc.asaas_customer_id === selectedCustomer.id && pc.professor_id === selectedProfessor.id
+    )
+    if (existingLink && existingLink.status === "active") {
+      alert("Este cliente já está vinculado a este professor")
+      return
+    }
+
     const { error } = await supabase
       .from("professor_clients")
       .insert([{
         professor_id: selectedProfessor.id,
         asaas_customer_id: selectedCustomer.id,
         customer_name: selectedCustomer.name,
+        customer_cpf_cnpj: selectedCustomer.cpfCnpj,
         customer_email: selectedCustomer.email,
         status: "active",
         tag: finalTag,
+        linked_at: new Date().toISOString(),
       }])
       .select()
 
     if (error) {
       console.error("[v0] Error linking client:", error)
-      alert("Erro ao vincular cliente")
+      if (error.code === "23505") {
+        alert("Este cliente já está vinculado a este professor")
+      } else {
+        alert(`Erro ao vincular: ${error.message}`)
+      }
     } else {
+      console.log("[v0] Client linked successfully:", selectedCustomer.id)
       alert("Cliente vinculado com sucesso!")
       setShowLinkClientModal(false)
       setSelectedCustomer(null)
