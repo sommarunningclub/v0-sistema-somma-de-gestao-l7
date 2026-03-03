@@ -67,11 +67,6 @@ export default function CheckInPage() {
   const getFilteredData = () => {
     let data = checkInData
 
-    // Aplicar filtro de período (hoje vs todos)
-    if (activeFilter === 'today') {
-      data = todayCheckIns
-    }
-
     // Aplicar filtro de validação
     if (activeFilter === 'validated') {
       data = data.filter(item => item.validated)
