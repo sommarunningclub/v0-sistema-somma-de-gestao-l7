@@ -73,6 +73,7 @@ export async function GET(request: NextRequest) {
 
 /**
  * Parse CSV text into CheckInData array
+ * Filters only data from today onwards
  */
 function parseCSV(csvText: string): CheckInData[] {
   const lines = csvText.trim().split('\n')
@@ -80,6 +81,14 @@ function parseCSV(csvText: string): CheckInData[] {
   if (lines.length < 2) {
     return []
   }
+
+  // Get today's date in DD/MM/YYYY format for comparison
+  const today = new Date()
+  const todayString = today.toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  })
 
   // Parse header row (remove quotes from Google Sheets CSV format)
   const rawHeaders = parseCSVLine(lines[0])
@@ -114,17 +123,39 @@ function parseCSV(csvText: string): CheckInData[] {
     const cpf = cpfIndex !== -1 ? cells[cpfIndex] : cells[2]
     const dateVal = dataIndex !== -1 ? cells[dataIndex] : cells[3]
 
-    if (nome && cpf) {
-      data.push({
-        nome: nome || '',
-        telefone: telefone || '',
-        cpf: cpf || '',
-        data: dateVal || '',
-      })
+    if (nome && cpf && dateVal) {
+      // Extract only the date part (DD/MM/YYYY) from the date value
+      const datePart = dateVal.split(" ")[0].trim()
+      
+      // Filter: only include records from today onwards
+      // Compare dates as strings in DD/MM/YYYY format
+      if (compareDateStrings(datePart, todayString) >= 0) {
+        data.push({
+          nome: nome || '',
+          telefone: telefone || '',
+          cpf: cpf || '',
+          data: dateVal || '',
+        })
+      }
     }
   }
 
+  console.log(`[v0] Check-in data filtered: ${data.length} records from today (${todayString}) onwards`)
   return data
+}
+
+/**
+ * Compare two date strings in DD/MM/YYYY format
+ * Returns: 1 if date1 > date2, -1 if date1 < date2, 0 if equal
+ */
+function compareDateStrings(date1: string, date2: string): number {
+  const [d1, m1, y1] = date1.split('/').map(Number)
+  const [d2, m2, y2] = date2.split('/').map(Number)
+  
+  if (y1 !== y2) return y1 > y2 ? 1 : -1
+  if (m1 !== m2) return m1 > m2 ? 1 : -1
+  if (d1 !== d2) return d1 > d2 ? 1 : -1
+  return 0
 }
 
 /**
