@@ -5,17 +5,16 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 interface CheckInData {
+  id?: string
   nome?: string
   telefone?: string
   cpf: string
   data: string
-  event?: string
-  event_date?: string
-  event_time?: string
+  sexo?: string
+  pelotao?: string
+  nome_do_evento?: string
   validated?: boolean
   validated_at?: string | null
-  id?: string
-  qr_code?: string
 }
 
 /**
@@ -42,16 +41,20 @@ export async function GET(request: NextRequest) {
     console.log('[v0] Fetched all check-in data from Supabase, count:', data?.length || 0)
 
     // Transform Supabase data to CheckInData format
+    // Supabase schema: nome_completo, cpf, telefone, data_hora_checkin, data_do_evento, 
+    // validacao_do_checkin, nome_do_evento, sexo, pelotao, email
     const transformedData: CheckInData[] = (data || []).map(record => ({
       id: record.id,
+      nome: record.nome_completo || '',
       cpf: record.cpf || '',
-      data: record.event_date || new Date(record.created_at).toLocaleDateString('pt-BR'),
-      event: record.event || '',
-      event_date: record.event_date || '',
-      event_time: record.event_time || '',
-      validated: record.validated || false,
-      validated_at: record.validated_at || null,
-      qr_code: record.qr_code || '',
+      telefone: record.telefone || '',
+      data: record.data_hora_checkin 
+        ? new Date(record.data_hora_checkin).toLocaleDateString('pt-BR')
+        : (record.data_do_evento || ''),
+      sexo: record.sexo || '',
+      pelotao: record.pelotao || '',
+      nome_do_evento: record.nome_do_evento || '',
+      validated: record.validacao_do_checkin || false,
     }))
 
     return NextResponse.json({
