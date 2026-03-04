@@ -5,16 +5,18 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 interface CheckInData {
+  id?: string
   nome?: string
   telefone?: string
+  email?: string
   cpf: string
+  pelotao?: string
   data: string
   event?: string
   event_date?: string
   event_time?: string
   validated?: boolean
   validated_at?: string | null
-  id?: string
   qr_code?: string
 }
 
@@ -49,19 +51,20 @@ export async function GET(request: NextRequest) {
     console.log('[v0] Fetched check-in data from Supabase, count:', data?.length || 0)
 
     // Transform Supabase data to CheckInData format
-    // Supabase checkins table columns: nome_completo, telefone, cpf, data_hora_checkin, data_do_evento, nome_do_evento, validacao_do_checkin
     const transformedData: CheckInData[] = (data || []).map(record => ({
       id: record.id,
-      cpf: record.cpf || '',
       nome: record.nome_completo || '',
       telefone: record.telefone || '',
-      data: record.data_hora_checkin ? new Date(record.data_hora_checkin).toLocaleDateString('pt-BR') : '',
+      email: record.email || '',
+      cpf: record.cpf || '',
+      pelotao: record.pelotao || '',
+      data: record.data_hora_checkin ? new Date(record.data_hora_checkin).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '',
       event: record.nome_do_evento || '',
       event_date: record.data_do_evento ? new Date(record.data_do_evento).toLocaleDateString('pt-BR') : '',
       event_time: record.data_hora_checkin ? new Date(record.data_hora_checkin).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '',
       validated: record.validacao_do_checkin || false,
       validated_at: record.validacao_do_checkin ? record.data_hora_checkin : null,
-      qr_code: '',
+      qr_code: record.qr_code || '',
     }))
 
     return NextResponse.json({
