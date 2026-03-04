@@ -38,3 +38,65 @@ export async function DELETE(
     )
   }
 }
+
+/**
+ * PATCH /api/checkin/[id]
+ * Updates validation status of a check-in record
+ */
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+
+    if (!id) {
+      return NextResponse.json({ error: 'ID é obrigatório' }, { status: 400 })
+    }
+
+    const body = await request.json()
+    const { validacao_do_checkin } = body
+
+    if (validacao_do_checkin === undefined) {
+      return NextResponse.json(
+        { error: 'Campo validacao_do_checkin é obrigatório' },
+        { status: 400 }
+      )
+    }
+
+    const supabase = createClient()
+
+    // Update the check-in validation status
+    const { data, error } = await supabase
+      .from('checkins')
+      .update({
+        validacao_do_checkin: validacao_do_checkin,
+        validated_at: validacao_do_checkin ? new Date().toISOString() : null,
+      })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('[v0] Error updating check-in validation:', error)
+      throw new Error(`Supabase error: ${error.message}`)
+    }
+
+    console.log('[v0] Check-in validation updated:', id, 'Status:', validacao_do_checkin)
+
+    return NextResponse.json({
+      success: true,
+      message: 'Validação atualizada com sucesso',
+      data: data,
+      timestamp: new Date().toISOString(),
+    })
+  } catch (error) {
+    console.error('[v0] Error in PATCH /api/checkin/[id]:', error)
+    return NextResponse.json(
+      {
+        error: error instanceof Error ? error.message : 'Erro ao atualizar validação',
+      },
+      { status: 500 }
+    )
+  }
+}

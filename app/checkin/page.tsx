@@ -69,7 +69,8 @@ export default function CheckInPage() {
       setCheckInData(prev =>
         prev.map(c => c.id === item.id ? { ...c, validated: !item.validated } : c)
       )
-    } catch {
+    } catch (err) {
+      console.error('[v0] Error toggling validation:', err)
       alert("Erro ao atualizar validação")
     } finally {
       setUpdatingId(null)
@@ -453,7 +454,7 @@ export default function CheckInPage() {
                 >
                   {item.validated
                     ? <><CheckCircle2 className="w-4 h-4" /> Validado</>
-                    : <><XCircle className="w-4 h-4" /> Marcar como validado</>
+                    : <><XCircle className="w-4 h-4" /> Pendente</>
                   }
                 </button>
               </div>
