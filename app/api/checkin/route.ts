@@ -20,24 +20,18 @@ interface CheckInData {
 
 /**
  * GET /api/checkin
- * Returns check-in records from Supabase table "checkins" for today onwards
+ * Returns all check-in records from Supabase table "checkins"
  */
 export async function GET(request: NextRequest) {
   try {
     const supabase = createClient()
 
-    // Get today's date at 00:00:00
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const todayISO = today.toISOString()
+    console.log('[v0] Fetching all check-in data from Supabase')
 
-    console.log('[v0] Fetching check-in data from Supabase for today onwards:', todayISO)
-
-    // Query Supabase for check-ins from today onwards
+    // Query Supabase for all check-ins
     const { data, error } = await supabase
       .from('checkins')
       .select('*')
-      .gte('created_at', todayISO)
       .order('created_at', { ascending: false })
 
     if (error) {
@@ -45,7 +39,7 @@ export async function GET(request: NextRequest) {
       throw new Error(`Supabase error: ${error.message}`)
     }
 
-    console.log('[v0] Fetched check-in data from Supabase, count:', data?.length || 0)
+    console.log('[v0] Fetched all check-in data from Supabase, count:', data?.length || 0)
 
     // Transform Supabase data to CheckInData format
     const transformedData: CheckInData[] = (data || []).map(record => ({
