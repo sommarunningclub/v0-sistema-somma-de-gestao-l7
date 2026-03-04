@@ -1,10 +1,14 @@
 import { cache } from "react"
 
 export interface CheckInData {
-  nome: string
-  telefone: string
+  id?: string
+  nome?: string
+  telefone?: string
   cpf: string
   data: string
+  sexo?: string
+  pelotao?: string
+  nome_do_evento?: string
   validated?: boolean
   validated_at?: string | null
 }

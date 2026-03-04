@@ -34,11 +34,22 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('[v0] Supabase error fetching checkins:', error)
+      console.error('[v0] Supabase error fetching checkins:', error.code, error.message)
       throw new Error(`Supabase error: ${error.message}`)
     }
 
-    console.log('[v0] Fetched all check-in data from Supabase, count:', data?.length || 0)
+    if (!data) {
+      console.warn('[v0] No data returned from Supabase')
+      return NextResponse.json({
+        data: [],
+        count: 0,
+        timestamp: new Date().toISOString(),
+        source: 'supabase'
+      })
+    }
+
+    console.log('[v0] Raw Supabase response, count:', data.length)
+    console.log('[v0] First record structure:', data.length > 0 ? Object.keys(data[0]) : 'No records')
 
     // Transform Supabase data to CheckInData format
     // Supabase schema: nome_completo, cpf, telefone, data_hora_checkin, data_do_evento, 
@@ -56,6 +67,9 @@ export async function GET(request: NextRequest) {
       nome_do_evento: record.nome_do_evento || '',
       validated: record.validacao_do_checkin || false,
     }))
+
+    console.log('[v0] Transformed data, count:', transformedData.length)
+    console.log('[v0] First transformed record:', transformedData.length > 0 ? transformedData[0] : 'No records')
 
     return NextResponse.json({
       data: transformedData,
