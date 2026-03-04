@@ -15,6 +15,7 @@ interface CheckInData {
   email?: string
   cpf: string
   pelotao?: string
+  sexo?: string
   data: string
   event?: string
   event_date?: string
@@ -29,6 +30,8 @@ export default function CheckInPage() {
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [activeFilter, setActiveFilter] = useState<"all" | "validated" | "not_validated">("all")
+  const [selectedSexo, setSelectedSexo] = useState<string | null>(null)
+  const [selectedPelotao, setSelectedPelotao] = useState<string | null>(null)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<CheckInData | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -129,11 +132,24 @@ export default function CheckInPage() {
       activeFilter === "all" ||
       (activeFilter === "validated" && item.validated) ||
       (activeFilter === "not_validated" && !item.validated)
-    return matchesSearch && matchesFilter
+    const matchesSexo = !selectedSexo || item.sexo === selectedSexo
+    const matchesPelotao = !selectedPelotao || item.pelotao === selectedPelotao
+    return matchesSearch && matchesFilter && matchesSexo && matchesPelotao
   })
 
   const totalValidated = checkInData.filter(c => c.validated).length
   const totalPending = checkInData.filter(c => !c.validated).length
+
+  // Calculate stats by sexo and pelotao
+  const statsBySexo = (sexo: string | undefined) =>
+    checkInData.filter(c => c.sexo === sexo).length
+  const statsByPelotao = (pelotao: string | undefined) =>
+    checkInData.filter(c => c.pelotao === pelotao).length
+
+  const uniqueSexos = Array.from(new Set(checkInData.map(c => c.sexo).filter(Boolean)))
+    .sort() as string[]
+  const uniquePelotoes = Array.from(new Set(checkInData.map(c => c.pelotao).filter(Boolean)))
+    .sort() as string[]
 
   return (
     <div className="min-h-screen bg-neutral-950 text-white">
@@ -215,6 +231,79 @@ export default function CheckInPage() {
             </button>
           )}
         </div>
+
+        {/* Filters: Sexo and Pelotão */}
+        {(uniqueSexos.length > 0 || uniquePelotoes.length > 0) && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {uniqueSexos.length > 0 && (
+              <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
+                <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-3">Por Sexo</h3>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setSelectedSexo(null)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      selectedSexo === null
+                        ? "bg-orange-500 text-white"
+                        : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
+                    }`}
+                  >
+                    Todos ({checkInData.length})
+                  </button>
+                  {uniqueSexos.map(sexo => {
+                    const count = statsBySexo(sexo)
+                    return (
+                      <button
+                        key={sexo}
+                        onClick={() => setSelectedSexo(sexo)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                          selectedSexo === sexo
+                            ? "bg-blue-500 text-white"
+                            : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
+                        }`}
+                      >
+                        {sexo} ({count})
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {uniquePelotoes.length > 0 && (
+              <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
+                <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-3">Por Pelotão</h3>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setSelectedPelotao(null)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                      selectedPelotao === null
+                        ? "bg-orange-500 text-white"
+                        : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
+                    }`}
+                  >
+                    Todos ({checkInData.length})
+                  </button>
+                  {uniquePelotoes.map(pelotao => {
+                    const count = statsByPelotao(pelotao)
+                    return (
+                      <button
+                        key={pelotao}
+                        onClick={() => setSelectedPelotao(pelotao)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                          selectedPelotao === pelotao
+                            ? "bg-purple-500 text-white"
+                            : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
+                        }`}
+                      >
+                        {pelotao} ({count})
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Loading */}
         {loading && (
