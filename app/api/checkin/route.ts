@@ -11,6 +11,7 @@ interface CheckInData {
   email?: string
   cpf: string
   pelotao?: string
+  sexo?: string
   data: string
   event?: string
   event_date?: string
@@ -58,6 +59,7 @@ export async function GET(request: NextRequest) {
       email: record.email || '',
       cpf: record.cpf || '',
       pelotao: record.pelotao || '',
+      sexo: record.sexo || '',
       data: record.data_hora_checkin ? new Date(record.data_hora_checkin).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '',
       event: record.nome_do_evento || '',
       event_date: record.data_do_evento ? new Date(record.data_do_evento).toLocaleDateString('pt-BR') : '',
