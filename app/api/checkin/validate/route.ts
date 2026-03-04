@@ -45,12 +45,13 @@ export async function PATCH(request: NextRequest) {
       )
     }
 
-    // Atualizar o registro encontrado com o campo correto da Supabase
+    // Atualizar o registro encontrado
     const recordToUpdate = existingRecords[0]
     const { data, error } = await supabase
       .from('checkins')
       .update({
-        validacao_do_checkin: validated
+        validated,
+        validated_at: validated ? new Date().toISOString() : null
       })
       .eq('cpf', recordToUpdate.cpf)
       .select()
