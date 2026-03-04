@@ -82,9 +82,9 @@ export default function CheckInPage() {
   // Aplicar busca
   const currentFilteredData = filteredByType.filter(
     (item) =>
-      item.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.telefone.includes(searchTerm) ||
-      item.cpf.includes(searchTerm)
+      (item.nome?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (item.telefone || '').includes(searchTerm) ||
+      (item.cpf || '').includes(searchTerm)
   )
 
   // Calcular estatísticas de validação
@@ -101,10 +101,10 @@ export default function CheckInPage() {
     const csv = [
       ['Nome', 'Telefone', 'CPF', 'Data'],
       ...currentFilteredData.map(item => [
-        item.nome,
-        formatPhone(item.telefone),
-        formatCPF(item.cpf),
-        formatDate(item.data)
+        item.nome || '',
+        formatPhone(item.telefone || ''),
+        formatCPF(item.cpf || ''),
+        formatDate(item.data || '')
       ])
     ].map(row => row.join(',')).join('\n')
 
@@ -353,8 +353,8 @@ export default function CheckInPage() {
               <div className="space-y-2">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-white truncate">{item.nome}</p>
-                    <p className="text-xs text-neutral-400 truncate">{formatPhone(item.telefone)}</p>
+                    <p className="text-sm font-bold text-white truncate">{item.nome || '-'}</p>
+                    <p className="text-xs text-neutral-400 truncate">{formatPhone(item.telefone || '')}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     {item.telefone && (
@@ -381,8 +381,8 @@ export default function CheckInPage() {
                   </div>
                 </div>
                 <div className="flex items-center justify-between text-xs text-neutral-400 pt-2 border-t border-neutral-800">
-                  <span className="font-mono">{formatCPF(item.cpf)}</span>
-                  <span>{formatDate(item.data)}</span>
+                  <span className="font-mono">{formatCPF(item.cpf || '')}</span>
+                  <span>{formatDate(item.data || '')}</span>
                 </div>
               </div>
             </CardContent>
@@ -427,16 +427,16 @@ export default function CheckInPage() {
                         index % 2 === 0 ? 'bg-neutral-900' : 'bg-neutral-850'
                       }`}
                     >
-                      <td className="py-3 px-4 text-white font-medium">{item.nome}</td>
-                      <td className="py-3 px-4 text-neutral-300">{formatPhone(item.telefone)}</td>
-                      <td className="py-3 px-4 text-neutral-300 font-mono">{formatCPF(item.cpf)}</td>
-                      <td className="py-3 px-4 text-neutral-300">{formatDate(item.data)}</td>
+                      <td className="py-3 px-4 text-white font-medium">{item.nome || '-'}</td>
+                      <td className="py-3 px-4 text-neutral-300">{formatPhone(item.telefone || '')}</td>
+                      <td className="py-3 px-4 text-neutral-300 font-mono">{formatCPF(item.cpf || '')}</td>
+                      <td className="py-3 px-4 text-neutral-300">{formatDate(item.data || '')}</td>
                       <td className="py-3 px-4 text-center">
                         <div className="flex flex-col items-center gap-1">
                           <Button
                             size="sm"
-                            onClick={() => handleToggleValidation(item.cpf, item.validated)}
-                            disabled={updatingCpf === item.cpf}
+                            onClick={() => handleToggleValidation(item.cpf || '', item.validated)}
+                            disabled={updatingCpf === (item.cpf || '')}
                             className={`px-3 py-1 text-xs ${
                               item.validated 
                                 ? 'bg-green-500/20 hover:bg-green-500/30 text-green-400' 
@@ -462,7 +462,7 @@ export default function CheckInPage() {
                         {item.telefone && (
                           <Button
                             size="sm"
-                            onClick={() => handleOpenWhatsApp(item.telefone, item.nome)}
+                            onClick={() => handleOpenWhatsApp(item.telefone || '', item.nome || 'Cliente')}
                             className="bg-green-600 hover:bg-green-700 text-white p-1.5 h-auto"
                             title="Enviar mensagem via WhatsApp"
                           >
