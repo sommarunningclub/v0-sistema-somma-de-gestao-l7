@@ -183,6 +183,7 @@ export default function AdminPage() {
 
   const handleUpdatePermissions = async (userId: string, permissions: ModulePermissions) => {
     setSaving(true)
+    console.log("[v0] Updating permissions for user:", userId, "Permissions:", permissions)
     try {
       const { error } = await supabase
         .from("users")
@@ -191,17 +192,18 @@ export default function AdminPage() {
 
       if (error) {
         console.error("[v0] Update permissions error:", error)
-        setSuccessModal({ show: true, title: "Erro", message: "Erro ao atualizar permissoes" })
+        setSuccessModal({ show: true, title: "Erro", message: "Erro ao atualizar permissoes: " + error.message })
         return
       }
 
+      console.log("[v0] Permissions updated successfully")
       setSuccessModal({ show: true, title: "Sucesso!", message: "Permissoes atualizadas com sucesso!" })
       setShowPermissionsModal(false)
       setEditingUser(null)
       fetchUsers()
     } catch (err) {
       console.error("[v0] Update permissions error:", err)
-      setSuccessModal({ show: true, title: "Erro", message: "Erro ao atualizar permissoes" })
+      setSuccessModal({ show: true, title: "Erro", message: "Erro ao atualizar permissoes: " + String(err) })
     } finally {
       setSaving(false)
     }
@@ -210,12 +212,19 @@ export default function AdminPage() {
   const openPermissionsModal = (user: User) => {
     setEditingUser(user)
     // Merge user permissions with defaults to ensure all properties exist
-    const mergedPermissions = {
+    const mergedPermissions: ModulePermissions = {
       ...DEFAULT_PERMISSIONS,
       ...(user.permissions || {})
     }
+    console.log("[v0] Opening permissions modal for user:", user.full_name)
+    console.log("[v0] User permissions from DB:", user.permissions)
+    console.log("[v0] Merged permissions:", mergedPermissions)
+    // Reset formData completely with new permissions
     setFormData({
-      ...formData,
+      email: "",
+      full_name: "",
+      role: "user",
+      password: "",
       permissions: mergedPermissions
     })
     setShowPermissionsModal(true)
