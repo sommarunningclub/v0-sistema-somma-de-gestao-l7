@@ -17,6 +17,7 @@ interface ModulePermissions {
   parceiro: boolean
   carteiras: boolean
   pagamentos: boolean
+  crm: boolean
   admin: boolean
 }
 
@@ -37,6 +38,7 @@ const DEFAULT_PERMISSIONS: ModulePermissions = {
   parceiro: false,
   carteiras: false,
   pagamentos: false,
+  crm: false,
   admin: false,
 }
 
@@ -47,6 +49,7 @@ const MODULE_LABELS: Record<keyof ModulePermissions, string> = {
   parceiro: "Parceiro Somma",
   carteiras: "Carteiras",
   pagamentos: "Pagamentos",
+  crm: "CRM",
   admin: "Administração",
 }
 
@@ -141,6 +144,7 @@ export default function AdminPage() {
           parceiro: true,
           carteiras: true,
           pagamentos: true,
+          crm: true,
           admin: true,
         }
       }
@@ -244,6 +248,7 @@ export default function AdminPage() {
           parceiro: true,
           carteiras: true,
           pagamentos: true,
+          crm: true,
           admin: true,
         }
       }
