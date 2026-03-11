@@ -29,12 +29,18 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = createClient()
 
-    console.log('[v0] Fetching all check-in data from Supabase')
+    // Get today's date at 00:00:00 in UTC
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const todayISO = today.toISOString()
 
-    // Query Supabase for ALL check-ins (no date filter)
+    console.log('[v0] Fetching check-in data from Supabase from today onwards:', todayISO)
+
+    // Query Supabase for check-ins from today onwards
     const { data, error } = await supabase
       .from('checkins')
       .select('*')
+      .gte('data_hora_checkin', todayISO)
       .order('data_hora_checkin', { ascending: false })
 
     if (error) {
