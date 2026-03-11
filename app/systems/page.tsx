@@ -209,9 +209,14 @@ export default function AdminPage() {
 
   const openPermissionsModal = (user: User) => {
     setEditingUser(user)
+    // Merge user permissions with defaults to ensure all properties exist
+    const mergedPermissions = {
+      ...DEFAULT_PERMISSIONS,
+      ...(user.permissions || {})
+    }
     setFormData({
       ...formData,
-      permissions: user.permissions || { ...DEFAULT_PERMISSIONS }
+      permissions: mergedPermissions
     })
     setShowPermissionsModal(true)
   }
