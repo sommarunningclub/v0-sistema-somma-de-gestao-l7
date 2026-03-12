@@ -19,10 +19,9 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
 
   useEffect(() => {
-    const checkAuth = () => {
-      // Verificar sessao no localStorage
+    const checkAuth = async () => {
       const sessionStr = localStorage.getItem('somma_session')
-      
+
       if (!sessionStr) {
         router.push('/login')
         return
@@ -30,18 +29,38 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
       try {
         const session: SessionData = JSON.parse(sessionStr)
-        
-        // Verificar se a sessao tem os dados necessarios
+
         if (!session.id || !session.email) {
           localStorage.removeItem('somma_session')
           router.push('/login')
           return
         }
 
-        // Sessao valida
+        // Sincronizar permissões atualizadas do banco em background
+        try {
+          const res = await fetch(`/api/auth/me?id=${session.id}`)
+          if (res.ok) {
+            const fresh = await res.json()
+            // Atualizar sessão local com dados frescos do banco
+            const updatedSession: SessionData = {
+              ...session,
+              role: fresh.role,
+              permissions: fresh.permissions,
+              full_name: fresh.full_name,
+            }
+            localStorage.setItem('somma_session', JSON.stringify(updatedSession))
+          } else if (res.status === 403 || res.status === 404) {
+            // Usuário inativo ou removido — forçar logout
+            localStorage.removeItem('somma_session')
+            router.push('/login')
+            return
+          }
+        } catch {
+          // Falha de rede: mantém sessão local sem bloquear acesso
+        }
+
         setIsAuthenticated(true)
       } catch {
-        // Sessao invalida
         localStorage.removeItem('somma_session')
         router.push('/login')
       }
@@ -49,7 +68,6 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
     checkAuth()
 
-    // Escutar mudancas no localStorage (logout em outra aba)
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'somma_session' && !e.newValue) {
         router.push('/login')
@@ -96,13 +114,13 @@ export function logout() {
 export function hasPermission(moduleKey: string): boolean {
   const session = getSession()
   if (!session) return false
-  
+
   // Admin tem acesso a tudo
   if (session.role === 'admin') return true
-  
+
   // Verificar permissoes
   if (!session.permissions) return false
-  
+
   return session.permissions[moduleKey] === true
 }
 

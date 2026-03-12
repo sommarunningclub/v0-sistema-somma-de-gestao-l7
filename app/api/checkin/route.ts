@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase-client'
+import { createClient } from '@supabase/supabase-js'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
+
+function getAdminClient() {
+  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !serviceKey) throw new Error('Supabase admin credentials not configured')
+  return createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } })
+}
 
 interface CheckInData {
   id?: string
@@ -27,20 +34,15 @@ interface CheckInData {
  */
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createClient()
+    const supabase = getAdminClient()
 
-    // Get today's date at 00:00:00 in UTC
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const todayISO = today.toISOString()
+    console.log('[v0] Fetching check-ins from 2026-03-11 onwards')
 
-    console.log('[v0] Fetching check-in data from Supabase from today onwards:', todayISO)
-
-    // Query Supabase for check-ins from today onwards
+    // Return all check-ins from 11/03/2026 onwards
     const { data, error } = await supabase
       .from('checkins')
       .select('*')
-      .gte('data_hora_checkin', todayISO)
+      .gte('data_hora_checkin', '2026-03-11T03:00:00.000Z')
       .order('data_hora_checkin', { ascending: false })
 
     if (error) {

@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-)
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+  )
+}
 
 // CORS headers para permitir chamadas do checkout externo
 const corsHeaders = {
@@ -21,6 +23,7 @@ export async function OPTIONS() {
 // GET - Validar cupom (para uso no checkout)
 // Exemplo: /api/checkout/validate-coupon?code=DESCONTO10&value=100
 export async function GET(request: NextRequest) {
+  const supabase = getSupabase()
   const { searchParams } = new URL(request.url)
   const code = searchParams.get('code')
   const originalValue = searchParams.get('value')
@@ -134,6 +137,7 @@ export async function GET(request: NextRequest) {
 // POST - Aplicar cupom e registrar uso (apos pagamento confirmado)
 // Body: { code: string, value: number, customerId?: string, paymentId?: string }
 export async function POST(request: NextRequest) {
+  const supabase = getSupabase()
   try {
     const body = await request.json()
     const { code, value, customerId, paymentId } = body

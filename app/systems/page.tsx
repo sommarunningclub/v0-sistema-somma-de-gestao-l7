@@ -7,8 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { supabase } from "@/lib/supabase-client"
-import { Plus, Trash2, Edit, Search, Check, X, Shield, Eye, Loader2, CheckCircle, AlertCircle, Copy } from "lucide-react"
+import { Plus, Trash2, Edit, Search, Check, X, Shield, Loader2, CheckCircle, AlertCircle } from "lucide-react"
 
 interface ModulePermissions {
   dashboard: boolean
@@ -83,17 +82,14 @@ export default function AdminPage() {
   const fetchUsers = async () => {
     try {
       setLoading(true)
-      const { data, error: dbError } = await supabase
-        .from("users")
-        .select("id, email, full_name, role, is_active, created_at, permissions")
-        .order("created_at", { ascending: false })
-
-      if (dbError) {
-        console.error("[v0] Error fetching users:", dbError)
+      const res = await fetch("/api/admin/users")
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        console.error("[v0] Error fetching users:", body)
         setError("Erro ao carregar usuários")
         return
       }
-
+      const data = await res.json()
       setUsers(data || [])
     } catch (err) {
       console.error("[v0] Fetch users error:", err)
@@ -149,22 +145,23 @@ export default function AdminPage() {
         }
       }
 
-      // Create user record in database with password_hash
-      const { error: dbError } = await supabase.from("users").insert([
-        {
+      // Create user record via API
+      const res = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           email: formData.email,
           full_name: formData.full_name,
           role: formData.role,
-          is_active: true,
-          permissions: permissions,
-          password_hash: password_hash,
-          created_at: new Date().toISOString(),
-        },
-      ])
+          permissions,
+          password_hash,
+        }),
+      })
 
-      if (dbError) {
-        console.error("[v0] Database error:", dbError)
-        setSuccessModal({ show: true, title: "Erro", message: "Erro ao salvar usuario: " + dbError.message })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        console.error("[v0] Create user error:", body)
+        setSuccessModal({ show: true, title: "Erro", message: "Erro ao salvar usuario: " + (body.error || res.statusText) })
         setSaving(false)
         return
       }
@@ -183,20 +180,20 @@ export default function AdminPage() {
 
   const handleUpdatePermissions = async (userId: string, permissions: ModulePermissions) => {
     setSaving(true)
-    console.log("[v0] Updating permissions for user:", userId, "Permissions:", permissions)
     try {
-      const { error } = await supabase
-        .from("users")
-        .update({ permissions })
-        .eq("id", userId)
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ permissions }),
+      })
 
-      if (error) {
-        console.error("[v0] Update permissions error:", error)
-        setSuccessModal({ show: true, title: "Erro", message: "Erro ao atualizar permissoes: " + error.message })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        console.error("[v0] Update permissions error:", body)
+        setSuccessModal({ show: true, title: "Erro", message: "Erro ao atualizar permissoes: " + (body.error || res.statusText) })
         return
       }
 
-      console.log("[v0] Permissions updated successfully")
       setSuccessModal({ show: true, title: "Sucesso!", message: "Permissoes atualizadas com sucesso!" })
       setShowPermissionsModal(false)
       setEditingUser(null)
@@ -234,11 +231,12 @@ export default function AdminPage() {
     if (!confirm("Tem certeza que deseja deletar este usuario?")) return
 
     try {
-      const { error: dbError } = await supabase.from("users").delete().eq("id", userId)
+      const res = await fetch(`/api/admin/users/${userId}`, { method: "DELETE" })
 
-      if (dbError) {
-        console.error("[v0] Delete error:", dbError)
-        setSuccessModal({ show: true, title: "Erro", message: "Erro ao deletar usuario" })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        console.error("[v0] Delete error:", body)
+        setSuccessModal({ show: true, title: "Erro", message: "Erro ao deletar usuario: " + (body.error || res.statusText) })
         return
       }
 
@@ -252,7 +250,6 @@ export default function AdminPage() {
 
   const handleUpdateRole = async (userId: string, newRole: string) => {
     try {
-      // If changing to admin, grant all permissions
       let updateData: { role: string; permissions?: ModulePermissions } = { role: newRole }
       if (newRole === "admin") {
         updateData.permissions = {
@@ -266,12 +263,17 @@ export default function AdminPage() {
           admin: true,
         }
       }
-      
-      const { error } = await supabase.from("users").update(updateData).eq("id", userId)
 
-      if (error) {
-        console.error("[v0] Update role error:", error)
-        setSuccessModal({ show: true, title: "Erro", message: "Erro ao atualizar role" })
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updateData),
+      })
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        console.error("[v0] Update role error:", body)
+        setSuccessModal({ show: true, title: "Erro", message: "Erro ao atualizar role: " + (body.error || res.statusText) })
         return
       }
 
@@ -285,11 +287,16 @@ export default function AdminPage() {
 
   const handleToggleActive = async (userId: string, isActive: boolean) => {
     try {
-      const { error } = await supabase.from("users").update({ is_active: !isActive }).eq("id", userId)
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_active: !isActive }),
+      })
 
-      if (error) {
-        console.error("[v0] Toggle active error:", error)
-        setSuccessModal({ show: true, title: "Erro", message: "Erro ao atualizar status" })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        console.error("[v0] Toggle active error:", body)
+        setSuccessModal({ show: true, title: "Erro", message: "Erro ao atualizar status: " + (body.error || res.statusText) })
         return
       }
 
@@ -414,7 +421,7 @@ export default function AdminPage() {
                           className="text-orange-400 hover:text-orange-300 bg-transparent flex items-center gap-1"
                         >
                           <Shield className="w-3 h-3" />
-                          <span className="text-xs">{countPermissions(user.permissions)}/7</span>
+                          <span className="text-xs">{countPermissions(user.permissions)}/{Object.keys(MODULE_LABELS).length}</span>
                         </Button>
                       </td>
                       <td className="px-6 py-4">

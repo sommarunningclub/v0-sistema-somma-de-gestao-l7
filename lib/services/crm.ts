@@ -2,10 +2,12 @@ import { createClient } from '@supabase/supabase-js'
 import { CRM_STAGES } from '@/lib/crm-constants'
 import type { CRMStage } from '@/lib/crm-constants'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-)
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+  )
+}
 
 export { CRM_STAGES, type CRMStage }
 
@@ -48,7 +50,7 @@ export interface CRMLeadAttachment {
 // ─── Leads CRUD ──────────────────────────────────────────────────────────────
 
 export async function getLeads(): Promise<CRMLead[]> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from('crm_leads')
     .select('*')
     .order('position', { ascending: true })
@@ -61,7 +63,7 @@ export async function getLeads(): Promise<CRMLead[]> {
 }
 
 export async function getLeadById(id: string): Promise<CRMLead | null> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from('crm_leads')
     .select('*')
     .eq('id', id)
@@ -76,7 +78,7 @@ export async function getLeadById(id: string): Promise<CRMLead | null> {
 
 export async function createLead(lead: Omit<CRMLead, 'id' | 'created_at' | 'updated_at' | 'position'>): Promise<CRMLead | null> {
   // Get max position for the stage
-  const { data: existing } = await supabase
+  const { data: existing } = await getSupabase()
     .from('crm_leads')
     .select('position')
     .eq('stage', lead.stage)
@@ -85,7 +87,7 @@ export async function createLead(lead: Omit<CRMLead, 'id' | 'created_at' | 'upda
 
   const nextPosition = existing && existing.length > 0 ? existing[0].position + 1 : 0
 
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from('crm_leads')
     .insert({
       ...lead,
@@ -104,7 +106,7 @@ export async function createLead(lead: Omit<CRMLead, 'id' | 'created_at' | 'upda
 }
 
 export async function updateLead(id: string, updates: Partial<CRMLead>): Promise<CRMLead | null> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from('crm_leads')
     .update({ ...updates, updated_at: new Date().toISOString() })
     .eq('id', id)
@@ -120,10 +122,10 @@ export async function updateLead(id: string, updates: Partial<CRMLead>): Promise
 
 export async function deleteLead(id: string): Promise<boolean> {
   // Delete related notes and attachments first
-  await supabase.from('crm_lead_notes').delete().eq('lead_id', id)
-  await supabase.from('crm_lead_attachments').delete().eq('lead_id', id)
+  await getSupabase().from('crm_lead_notes').delete().eq('lead_id', id)
+  await getSupabase().from('crm_lead_attachments').delete().eq('lead_id', id)
 
-  const { error } = await supabase
+  const { error } = await getSupabase()
     .from('crm_leads')
     .delete()
     .eq('id', id)
@@ -137,7 +139,7 @@ export async function deleteLead(id: string): Promise<boolean> {
 
 export async function moveLeadToStage(id: string, newStage: CRMStage): Promise<boolean> {
   // Get max position in target stage
-  const { data: existing } = await supabase
+  const { data: existing } = await getSupabase()
     .from('crm_leads')
     .select('position')
     .eq('stage', newStage)
@@ -146,7 +148,7 @@ export async function moveLeadToStage(id: string, newStage: CRMStage): Promise<b
 
   const nextPosition = existing && existing.length > 0 ? existing[0].position + 1 : 0
 
-  const { error } = await supabase
+  const { error } = await getSupabase()
     .from('crm_leads')
     .update({ stage: newStage, position: nextPosition, updated_at: new Date().toISOString() })
     .eq('id', id)
@@ -161,7 +163,7 @@ export async function moveLeadToStage(id: string, newStage: CRMStage): Promise<b
 // ─── Notes CRUD ──────────────────────────────────────────────────────────────
 
 export async function getLeadNotes(leadId: string): Promise<CRMLeadNote[]> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from('crm_lead_notes')
     .select('*')
     .eq('lead_id', leadId)
@@ -175,7 +177,7 @@ export async function getLeadNotes(leadId: string): Promise<CRMLeadNote[]> {
 }
 
 export async function createLeadNote(note: Omit<CRMLeadNote, 'id' | 'created_at'>): Promise<CRMLeadNote | null> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from('crm_lead_notes')
     .insert({
       ...note,
@@ -192,7 +194,7 @@ export async function createLeadNote(note: Omit<CRMLeadNote, 'id' | 'created_at'
 }
 
 export async function deleteLeadNote(id: string): Promise<boolean> {
-  const { error } = await supabase
+  const { error } = await getSupabase()
     .from('crm_lead_notes')
     .delete()
     .eq('id', id)
@@ -207,7 +209,7 @@ export async function deleteLeadNote(id: string): Promise<boolean> {
 // ─── Attachments CRUD ────────────────────────────────────────────────────────
 
 export async function getLeadAttachments(leadId: string): Promise<CRMLeadAttachment[]> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from('crm_lead_attachments')
     .select('*')
     .eq('lead_id', leadId)
@@ -221,7 +223,7 @@ export async function getLeadAttachments(leadId: string): Promise<CRMLeadAttachm
 }
 
 export async function createLeadAttachment(attachment: Omit<CRMLeadAttachment, 'id' | 'uploaded_at'>): Promise<CRMLeadAttachment | null> {
-  const { data, error } = await supabase
+  const { data, error } = await getSupabase()
     .from('crm_lead_attachments')
     .insert({
       ...attachment,
@@ -238,7 +240,7 @@ export async function createLeadAttachment(attachment: Omit<CRMLeadAttachment, '
 }
 
 export async function deleteLeadAttachment(id: string): Promise<boolean> {
-  const { error } = await supabase
+  const { error } = await getSupabase()
     .from('crm_lead_attachments')
     .delete()
     .eq('id', id)

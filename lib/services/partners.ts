@@ -1,9 +1,11 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-)
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+  )
+}
 
 export interface Partner {
   id?: string
@@ -144,7 +146,7 @@ export const fetchCNPJData = async (cnpj: string): Promise<CNPJData | null> => {
  */
 export const createPartner = async (partner: Partner): Promise<Partner | null> => {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
       .from('partners')
       .insert([partner])
       .select()
@@ -169,7 +171,7 @@ export const getPartnerByCNPJ = async (cnpj: string): Promise<Partner | null> =>
   try {
     const cleanCNPJ = cnpj.replace(/\D/g, '')
 
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
       .from('partners')
       .select('*')
       .eq('cnpj', cleanCNPJ)
@@ -194,7 +196,7 @@ export const getAllPartners = async (
   status?: 'active' | 'inactive' | 'pending'
 ): Promise<Partner[]> => {
   try {
-    let query = supabase.from('partners').select('*')
+    let query = getSupabase().from('partners').select('*')
 
     if (status) {
       query = query.eq('status', status)
@@ -224,7 +226,7 @@ export const updatePartner = async (
   updates: Partial<Partner>
 ): Promise<Partner | null> => {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
       .from('partners')
       .update(updates)
       .eq('id', id)
@@ -248,7 +250,7 @@ export const updatePartner = async (
  */
 export const deletePartner = async (id: string): Promise<boolean> => {
   try {
-    const { error } = await supabase
+    const { error } = await getSupabase()
       .from('partners')
       .delete()
       .eq('id', id)
