@@ -21,10 +21,20 @@ import {
   Loader2,
   RefreshCw,
   FileText,
+  Eye,
+  MessageSquare,
 } from "lucide-react"
 import { getPaymentsFromDB, savePaymentToDB } from "@/lib/services/payments"
 import type { AsaasPayment, ChargeCreatePayload } from "@/lib/types/asaas"
 import { PaymentDetailModal } from "@/components/payment-detail-modal"
+import { PillTabBar } from "@/components/mobile/pill-tab-bar"
+import { StickySummary } from "@/components/mobile/sticky-summary"
+import { SwipeCard } from "@/components/mobile/swipe-card"
+import type { SwipeAction } from "@/components/mobile/swipe-card"
+import { MobileCard } from "@/components/mobile/mobile-card"
+import { FAB } from "@/components/mobile/fab"
+import { StepForm } from "@/components/mobile/step-form"
+import type { StepFormStep } from "@/components/mobile/step-form"
 
 interface AsaasCustomerAPI {
   id: string
@@ -55,7 +65,7 @@ export default function Cobrancas() {
   })
   const [saving, setSaving] = useState(false)
   const [preSelectedCustomer, setPreSelectedCustomer] = useState(false)
-  
+
   // Success modal state
   const [successModal, setSuccessModal] = useState<{
     show: boolean
@@ -63,7 +73,7 @@ export default function Cobrancas() {
     message: string
     link?: string
   }>({ show: false, title: "", message: "" })
-  
+
   // Coupon state
   const [couponCode, setCouponCode] = useState("")
   const [couponLoading, setCouponLoading] = useState(false)
@@ -76,13 +86,20 @@ export default function Cobrancas() {
     calculated_discount: number
   } | null>(null)
 
-  // Pre-select customer from URL params
+  // Step form state (Task 8)
+  const [stepFormOpen, setStepFormOpen] = useState(false)
+  const [stepFormCustomer, setStepFormCustomer] = useState<AsaasCustomerAPI | null>(null)
+  const [stepFormError, setStepFormError] = useState<string | null>(null)
+  const [stepFormSaving, setStepFormSaving] = useState(false)
+  const [customerSearch, setCustomerSearch] = useState('')
+
+  // Pre-select customer from URL params (desktop modal)
   useEffect(() => {
     if (preSelectedCustomer) return
-    
+
     const clienteId = searchParams.get("cliente")
     const clienteNome = searchParams.get("nome")
-    
+
     if (clienteId) {
       console.log("[v0] Pre-selected customer from URL:", clienteId, clienteNome)
       setFormData((prev) => ({ ...prev, customer: clienteId }))
@@ -90,6 +107,18 @@ export default function Cobrancas() {
       setPreSelectedCustomer(true)
     }
   }, [searchParams, preSelectedCustomer])
+
+  // Pre-select customer for mobile step form
+  useEffect(() => {
+    const clienteId = searchParams.get('cliente')
+    if (!clienteId || preSelectedCustomer) return
+    const found = customers.find(c => c.id === clienteId)
+    if (found) setStepFormCustomer(found)
+    setFormData(prev => ({ ...prev, customer: clienteId }))
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      setStepFormOpen(true)
+    }
+  }, [customers, searchParams, preSelectedCustomer])
 
   const fetchData = async () => {
     setLoading(true)
@@ -105,11 +134,11 @@ export default function Cobrancas() {
 
       // Buscar cobranças diretamente da API Asaas (produção)
       const response = await fetch("/api/asaas?endpoint=/payments&limit=100")
-      
+
       if (response.ok) {
         const asaasData = await response.json()
-        
-        
+
+
         // Mapear dados do Asaas para o formato esperado
         const mappedPayments: AsaasPayment[] = (asaasData.data || []).map((p: Record<string, unknown>) => ({
           id: p.id as string,
@@ -127,7 +156,7 @@ export default function Cobrancas() {
           pix_qr_code: (p.pix as Record<string, unknown>)?.payload as string | null,
           raw_data: p,
         }))
-        
+
         setPayments(mappedPayments)
       } else {
         console.error("[v0] Error fetching from Asaas, falling back to local DB")
@@ -243,12 +272,12 @@ export default function Cobrancas() {
       })
       return
     }
-    
+
     setSaving(true)
     try {
       // Build payload with discount if coupon is applied
       const finalValue = getFinalValue()
-      
+
       const payload: Record<string, unknown> = {
         customer: formData.customer, // ID do cliente no Asaas (ex: cus_xxxxx)
         value: finalValue,
@@ -268,7 +297,7 @@ export default function Cobrancas() {
         }
         // Add coupon info to description
         const couponNote = `[Cupom: ${appliedCoupon.code}]`
-        payload.description = formData.description 
+        payload.description = formData.description
           ? `${formData.description} ${couponNote}`
           : couponNote
       }
@@ -312,7 +341,7 @@ export default function Cobrancas() {
 
         // Mostrar sucesso com link de pagamento
         const invoiceUrl = asaasPayment.invoiceUrl || `https://www.asaas.com/i/${asaasPayment.id}`
-        
+
         setShowModal(false)
         setSuccessModal({
           show: true,
@@ -362,10 +391,10 @@ export default function Cobrancas() {
   // Coupon functions
   const validateCoupon = async () => {
     if (!couponCode.trim()) return
-    
+
     setCouponLoading(true)
     setCouponError(null)
-    
+
     try {
       const response = await fetch("/api/coupons", {
         method: "POST",
@@ -377,15 +406,15 @@ export default function Cobrancas() {
           customer_id: formData.customer || undefined,
         }),
       })
-      
+
       const data = await response.json()
-      
+
       if (!response.ok) {
         setCouponError(data.error || "Cupom invalido")
         setAppliedCoupon(null)
         return
       }
-      
+
       setAppliedCoupon({
         id: data.coupon.id,
         code: data.coupon.code,
@@ -419,10 +448,10 @@ export default function Cobrancas() {
     // Primeiro buscar na lista de clientes carregada da API
     const customer = customers.find((c) => c.id === asaasId)
     if (customer?.name) return customer.name
-    
+
     // Buscar no cache de nomes
     if (customerNames[asaasId]) return customerNames[asaasId]
-    
+
     // Se não encontrou, buscar da API Asaas (async, vai popular o cache)
     if (asaasId && !customerNames[asaasId]) {
       fetch(`/api/asaas?endpoint=/customers/${asaasId}`)
@@ -434,405 +463,711 @@ export default function Cobrancas() {
         })
         .catch(() => {})
     }
-    
+
     return asaasId.slice(-8) // Mostrar últimos 8 chars enquanto carrega
   }
 
+  // Mobile helper functions
+  const statusBorderColor = (status: string): 'green' | 'yellow' | 'red' | 'none' => {
+    if (status === 'RECEIVED') return 'green'
+    if (status === 'PENDING') return 'yellow'
+    return 'red'
+  }
+  const statusLabel = (status: string) => ({ RECEIVED: 'Pago', PENDING: 'Pendente', OVERDUE: 'Vencido', CANCELLED: 'Cancelado' }[status] ?? status)
+  const statusBadgeColor = (status: string): 'success' | 'warning' | 'error' => {
+    if (status === 'RECEIVED') return 'success'
+    if (status === 'PENDING') return 'warning'
+    return 'error'
+  }
+  const getInitials = (name: string) => name.split(' ').slice(0, 2).map((n: string) => n[0]).join('').toUpperCase()
+
+  // Mobile summary values
+  const paidTotal = payments.filter(p => p.status === 'RECEIVED').reduce((s, p) => s + p.value, 0)
+  const pendingTotal = payments.filter(p => p.status === 'PENDING').reduce((s, p) => s + p.value, 0)
+  const overdueTotal = payments.filter(p => p.status === 'OVERDUE').reduce((s, p) => s + p.value, 0)
+
+  const formatKValue = (v: number) => `R$${(v / 1000).toFixed(1)}k`
+
+  // Step form steps
+  const filteredStepCustomers = customers
+    .filter(c =>
+      c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
+      c.cpfCnpj.includes(customerSearch)
+    )
+    .slice(0, 8)
+
+  const stepFormSteps: StepFormStep[] = [
+    {
+      title: 'Selecionar cliente',
+      isValid: () => stepFormCustomer !== null,
+      content: (
+        <div className="space-y-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+            <input
+              type="text"
+              placeholder="Buscar cliente..."
+              value={customerSearch}
+              onChange={e => setCustomerSearch(e.target.value)}
+              className="w-full bg-neutral-800 border border-neutral-700 rounded-lg pl-9 pr-3 py-2.5 text-sm text-white placeholder-neutral-500 outline-none focus:border-orange-500"
+            />
+          </div>
+          <div className="space-y-2">
+            {filteredStepCustomers.map(c => (
+              <button
+                key={c.id}
+                onClick={() => {
+                  setStepFormCustomer(c)
+                  setFormData(prev => ({ ...prev, customer: c.id }))
+                }}
+                className={`w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-colors ${
+                  stepFormCustomer?.id === c.id
+                    ? 'border-orange-500 bg-orange-500/10'
+                    : 'border-neutral-700 bg-neutral-800 active:bg-neutral-700'
+                }`}
+              >
+                <div className="w-9 h-9 rounded-full bg-neutral-700 flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
+                  {getInitials(c.name)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-white text-sm font-medium truncate">{c.name}</p>
+                  <p className="text-neutral-400 text-xs truncate">{c.email ?? c.cpfCnpj}</p>
+                </div>
+                {stepFormCustomer?.id === c.id && (
+                  <CheckCircle className="w-4 h-4 text-orange-400 flex-shrink-0" />
+                )}
+              </button>
+            ))}
+            {filteredStepCustomers.length === 0 && (
+              <p className="text-center text-neutral-500 text-sm py-4">Nenhum cliente encontrado</p>
+            )}
+          </div>
+        </div>
+      ),
+    },
+    {
+      title: 'Valor e vencimento',
+      isValid: () => (formData.value ?? 0) > 0 && !!formData.dueDate,
+      content: (
+        <div className="space-y-4">
+          <div>
+            <label className="text-xs text-neutral-400 tracking-wider mb-2 block">VALOR *</label>
+            <input
+              type="number"
+              step="0.01"
+              placeholder="0,00"
+              value={formData.value || ''}
+              onChange={e => setFormData(prev => ({ ...prev, value: parseFloat(e.target.value) || 0 }))}
+              className="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-4 text-2xl font-bold text-orange-400 text-center outline-none focus:border-orange-500"
+            />
+          </div>
+          <div className="flex gap-2">
+            {(['PIX', 'CREDIT_CARD'] as const).map(type => (
+              <button
+                key={type}
+                onClick={() => setFormData(prev => ({ ...prev, billingType: type }))}
+                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border text-sm font-semibold transition-colors ${
+                  formData.billingType === type
+                    ? 'bg-orange-500 border-orange-500 text-white'
+                    : 'bg-neutral-800 border-neutral-700 text-neutral-400'
+                }`}
+              >
+                {type === 'PIX' ? <QrCode className="w-4 h-4" /> : <CreditCard className="w-4 h-4" />}
+                {type === 'PIX' ? 'Pix' : 'Cartão'}
+              </button>
+            ))}
+          </div>
+          <div>
+            <label className="text-xs text-neutral-400 tracking-wider mb-2 block">VENCIMENTO *</label>
+            <input
+              type="date"
+              value={formData.dueDate}
+              onChange={e => setFormData(prev => ({ ...prev, dueDate: e.target.value }))}
+              className="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-3 text-white outline-none focus:border-orange-500"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-neutral-400 tracking-wider mb-2 block">DESCRIÇÃO</label>
+            <textarea
+              value={formData.description || ''}
+              onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
+              placeholder="Descrição da cobrança (opcional)"
+              rows={3}
+              className="w-full bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-3 text-white text-sm outline-none focus:border-orange-500 resize-none placeholder-neutral-500"
+            />
+          </div>
+        </div>
+      ),
+    },
+    {
+      title: 'Confirmar',
+      content: (
+        <div className="space-y-3">
+          <div className="bg-neutral-800 rounded-xl p-4 space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="text-neutral-400 text-sm">Cliente</span>
+              <span className="text-white text-sm font-medium">{stepFormCustomer?.name ?? '—'}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-neutral-400 text-sm">Valor</span>
+              <span className="text-orange-400 text-lg font-bold">{formatCurrency(formData.value)}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-neutral-400 text-sm">Forma</span>
+              <span className="text-white text-sm">{formData.billingType === 'PIX' ? 'Pix' : 'Cartão'}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-neutral-400 text-sm">Vencimento</span>
+              <span className="text-white text-sm">{formatDate(formData.dueDate)}</span>
+            </div>
+            {formData.description && (
+              <div className="flex justify-between items-start gap-2">
+                <span className="text-neutral-400 text-sm flex-shrink-0">Descrição</span>
+                <span className="text-white text-sm text-right">{formData.description}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      ),
+    },
+  ]
+
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-white tracking-wider">COBRANÇAS</h1>
-          <p className="text-sm text-neutral-400">
-            Gerenciar cobranças e pagamentos 
-            <span className="text-orange-400 ml-2">• API Produção</span>
-          </p>
+    <div>
+      {/* ── Mobile view (< md) ── */}
+      <div className="md:hidden flex flex-col h-full">
+        {/* Sticky header */}
+        <div className="sticky top-14 z-20 bg-neutral-900 border-b border-neutral-800 px-3 pt-3 pb-2 space-y-2">
+          <PillTabBar
+            tabs={[
+              { key: 'all', label: 'Todas' },
+              { key: 'pending', label: 'Pendentes' },
+              { key: 'overdue', label: 'Vencidas' },
+              { key: 'received', label: 'Pagas' },
+            ]}
+            activeTab={activeTab}
+            onChange={(key) => setActiveTab(key as TabType)}
+          />
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+            <input
+              type="text"
+              placeholder="Buscar cobranças..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full bg-neutral-800 border border-neutral-700 rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder-neutral-500 outline-none"
+            />
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Button 
-            onClick={fetchData} 
-            variant="outline"
-            disabled={loading}
-            className="border-neutral-700 text-neutral-400 hover:bg-neutral-800 bg-transparent"
-          >
-            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-            Atualizar
-          </Button>
-          <Button onClick={() => setShowModal(true)} className="bg-orange-500 hover:bg-orange-600 text-white">
-            <Plus className="w-4 h-4 mr-2" />
-            Nova Cobrança
-          </Button>
+
+        {/* Sticky summary */}
+        <StickySummary
+          items={[
+            { label: 'R$ Pago', value: formatKValue(paidTotal), color: 'green' },
+            { label: 'R$ Pendente', value: formatKValue(pendingTotal), color: 'yellow' },
+            { label: 'R$ Vencido', value: formatKValue(overdueTotal), color: 'red' },
+          ]}
+        />
+
+        {/* Scrollable list */}
+        <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2 pb-24">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-3">
+              <Loader2 className="w-8 h-8 text-orange-400 animate-spin" />
+              <p className="text-neutral-400 text-sm">Carregando cobranças...</p>
+            </div>
+          ) : filteredPayments.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-3">
+              <FileText className="w-10 h-10 text-neutral-600" />
+              <p className="text-neutral-400 text-sm">Nenhuma cobrança encontrada</p>
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="text-orange-400 text-sm underline"
+                >
+                  Limpar busca
+                </button>
+              )}
+            </div>
+          ) : (
+            filteredPayments.map(payment => {
+              const customerName = getCustomerName(payment.customer_asaas_id)
+              const dueDateParts = payment.due_date ? payment.due_date.split('-') : []
+              const dueDateFormatted = dueDateParts.length === 3
+                ? `${dueDateParts[2]}/${dueDateParts[1]}`
+                : '-'
+              const billingLabel = payment.billing_type === 'CREDIT_CARD' ? 'Cartão' : 'Pix'
+              const subtitle = `Venc. ${dueDateFormatted} · ${billingLabel}`
+
+              const actions: SwipeAction[] = [
+                {
+                  key: 'view',
+                  label: 'Ver',
+                  icon: <Eye className="w-4 h-4" />,
+                  color: 'blue',
+                  onTrigger: () => setSelectedPayment(payment),
+                },
+              ]
+              if (payment.status === 'PENDING' || payment.status === 'OVERDUE') {
+                actions.push({
+                  key: 'charge',
+                  label: 'Cobrar',
+                  color: 'orange',
+                  icon: <MessageSquare className="w-4 h-4" />,
+                  onTrigger: () => setSelectedPayment(payment),
+                })
+              }
+
+              return (
+                <SwipeCard key={payment.id} actions={actions}>
+                  <MobileCard
+                    title={customerName}
+                    subtitle={subtitle}
+                    avatar={getInitials(customerName)}
+                    borderColor={statusBorderColor(payment.status)}
+                    badge={{ label: statusLabel(payment.status), color: statusBadgeColor(payment.status) }}
+                  />
+                </SwipeCard>
+              )
+            })
+          )}
         </div>
-      </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 sm:gap-2 border-b border-neutral-700 pb-3 sm:pb-4 overflow-x-auto">
-        {(
-          [
-            { id: "all", label: "Tudo" },
-            { id: "pending", label: "A Receber" },
-            { id: "overdue", label: "Vencidos" },
-            { id: "today", label: "Hoje" },
-            { id: "received", label: "Liquidados" },
-          ] as { id: TabType; label: string }[]
-        ).map((tab) => (
-          <Button
-            key={tab.id}
-            variant={activeTab === tab.id ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setActiveTab(tab.id)}
-            className={`text-xs sm:text-sm whitespace-nowrap ${
-              activeTab === tab.id
-                ? "bg-orange-500 hover:bg-orange-600 text-white"
-                : "text-neutral-400 hover:text-white hover:bg-neutral-800"
-            }`}
-          >
-            {tab.label}
-          </Button>
-        ))}
-      </div>
+        {/* FAB */}
+        <FAB
+          label="Nova cobrança"
+          onClick={() => {
+            setStepFormCustomer(null)
+            setCustomerSearch('')
+            setFormData({ customer: '', value: 0, dueDate: new Date().toISOString().split('T')[0], billingType: 'PIX', description: '' })
+            setStepFormOpen(true)
+          }}
+        />
 
-      {/* Busca */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-neutral-400" />
-        <Input
-          placeholder="Buscar..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-10 bg-neutral-800 border-neutral-600 text-white placeholder-neutral-400 text-sm"
+        {/* Step form */}
+        <StepForm
+          title="Nova Cobrança"
+          steps={stepFormSteps}
+          isOpen={stepFormOpen}
+          isSubmitting={stepFormSaving}
+          submitError={stepFormError}
+          onClose={() => {
+            setStepFormOpen(false)
+            setStepFormError(null)
+          }}
+          onComplete={async () => {
+            setStepFormSaving(true)
+            setStepFormError(null)
+            try {
+              await handleCreateCharge()
+              setStepFormOpen(false)
+              setStepFormCustomer(null)
+              setCustomerSearch('')
+            } catch {
+              setStepFormError('Ocorreu um erro ao criar a cobrança.')
+            } finally {
+              setStepFormSaving(false)
+            }
+          }}
         />
       </div>
 
-      {/* Tabela */}
-      <Card className="bg-neutral-900 border-neutral-700">
-        <CardHeader>
-          <CardTitle className="text-sm font-medium text-neutral-300 tracking-wider">
-            LISTA DE COBRANÇAS ({filteredPayments.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="text-center py-8">
-              <p className="text-neutral-400">Carregando cobranças...</p>
-            </div>
-          ) : filteredPayments.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-neutral-400">Nenhuma cobrança encontrada</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto -mx-2 sm:mx-0">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-neutral-700 bg-neutral-800/50">
-                    <th className="text-left py-3 px-2 sm:px-4 text-xs font-medium text-neutral-400 tracking-wider">
-                      CLIENTE
-                    </th>
-                    <th className="hidden sm:table-cell text-left py-3 px-4 text-xs font-medium text-neutral-400 tracking-wider">
-                      REFERÊNCIA
-                    </th>
-                    <th className="text-left py-3 px-2 sm:px-4 text-xs font-medium text-neutral-400 tracking-wider">
-                      VENCIMENTO
-                    </th>
-                    <th className="hidden md:table-cell text-left py-3 px-4 text-xs font-medium text-neutral-400 tracking-wider">
-                      VALOR
-                    </th>
-                    <th className="hidden lg:table-cell text-left py-3 px-4 text-xs font-medium text-neutral-400 tracking-wider">
-                      FORMA
-                    </th>
-                    <th className="text-left py-3 px-2 sm:px-4 text-xs font-medium text-neutral-400 tracking-wider">
-                      STATUS
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredPayments.map((payment, index) => (
-                    <tr
-                      key={payment.id}
-                      className={`border-b border-neutral-800 hover:bg-neutral-800 transition-colors cursor-pointer ${
-                        index % 2 === 0 ? "bg-neutral-900" : "bg-neutral-850"
-                      }`}
-                      onClick={() => setSelectedPayment(payment)}
-                    >
-                      <td className="py-3 px-2 sm:px-4 text-xs sm:text-sm text-white min-w-0">
-                        <div className="truncate">{getCustomerName(payment.customer_asaas_id)}</div>
-                        <div className="text-xs text-neutral-500 truncate">{formatCurrency(payment.value)}</div>
-                      </td>
-                      <td className="hidden sm:table-cell py-3 px-4 text-xs text-neutral-300 font-mono">
-                        {payment.asaas_id?.slice(-8) || "-"}
-                      </td>
-                      <td className="py-3 px-2 sm:px-4 text-xs sm:text-sm text-neutral-300 whitespace-nowrap">
-                        {formatDate(payment.due_date)}
-                      </td>
-                      <td className="hidden md:table-cell py-3 px-4 text-sm text-white font-mono font-bold">
-                        {formatCurrency(payment.value)}
-                      </td>
-                      <td className="hidden lg:table-cell py-3 px-4">
-                        <div className="flex items-center gap-2 text-neutral-300">
-                          {getBillingTypeIcon(payment.billing_type)}
-                          <span className="text-xs">{getBillingTypeLabel(payment.billing_type)}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-2 sm:px-4">
-                        <Badge className={`${getStatusColor(payment.status)} text-xs`}>{getStatusLabel(payment.status)}</Badge>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* ── Desktop view (≥ md) ── */}
+      <div className="hidden md:block p-6 space-y-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-white tracking-wider">COBRANÇAS</h1>
+            <p className="text-sm text-neutral-400">
+              Gerenciar cobranças e pagamentos
+              <span className="text-orange-400 ml-2">• API Produção</span>
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              onClick={fetchData}
+              variant="outline"
+              disabled={loading}
+              className="border-neutral-700 text-neutral-400 hover:bg-neutral-800 bg-transparent"
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+              Atualizar
+            </Button>
+            <Button onClick={() => setShowModal(true)} className="bg-orange-500 hover:bg-orange-600 text-white">
+              <Plus className="w-4 h-4 mr-2" />
+              Nova Cobrança
+            </Button>
+          </div>
+        </div>
 
-      {/* Modal Nova Cobrança */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-2 sm:p-4 z-50 overflow-y-auto">
-          <Card className="bg-neutral-900 border border-neutral-700 w-full max-w-lg my-4 sm:my-8">
-            <CardHeader className="sticky top-0 z-10 bg-neutral-800 border-b border-neutral-700 flex flex-row items-center justify-between px-4 sm:px-6 py-3 sm:py-4 rounded-t-lg">
-              <CardTitle className="text-base sm:text-lg font-bold text-white tracking-wider">NOVA COBRANÇA</CardTitle>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setShowModal(false)}
-                className="text-neutral-400 hover:text-white h-8 w-8 sm:h-10 sm:w-10 shrink-0"
-              >
-                <X className="w-4 h-4 sm:w-5 sm:h-5" />
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-4 p-4 sm:p-6 overflow-y-auto max-h-[calc(100vh-120px)]">
-              {/* Tipo de Cobrança */}
-              <div className="flex gap-2">
-                <Button
-                  variant={chargeMode === "single" ? "default" : "outline"}
-                  onClick={() => setChargeMode("single")}
-                  className={
-                    chargeMode === "single"
-                      ? "bg-orange-500 hover:bg-orange-600 text-white flex-1 text-sm"
-                      : "border-neutral-700 text-neutral-400 flex-1 bg-transparent text-sm"
-                  }
-                >
-                  Venda Única
-                </Button>
-                <Button
-                  variant={chargeMode === "subscription" ? "default" : "outline"}
-                  onClick={() => setChargeMode("subscription")}
-                  className={
-                    chargeMode === "subscription"
-                      ? "bg-orange-500 hover:bg-orange-600 text-white flex-1 text-sm"
-                      : "border-neutral-700 text-neutral-400 flex-1 bg-transparent text-sm"
-                  }
-                >
-                  Assinatura
-                </Button>
+        {/* Tabs */}
+        <div className="flex gap-1 sm:gap-2 border-b border-neutral-700 pb-3 sm:pb-4 overflow-x-auto">
+          {(
+            [
+              { id: "all", label: "Tudo" },
+              { id: "pending", label: "A Receber" },
+              { id: "overdue", label: "Vencidos" },
+              { id: "today", label: "Hoje" },
+              { id: "received", label: "Liquidados" },
+            ] as { id: TabType; label: string }[]
+          ).map((tab) => (
+            <Button
+              key={tab.id}
+              variant={activeTab === tab.id ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setActiveTab(tab.id)}
+              className={`text-xs sm:text-sm whitespace-nowrap ${
+                activeTab === tab.id
+                  ? "bg-orange-500 hover:bg-orange-600 text-white"
+                  : "text-neutral-400 hover:text-white hover:bg-neutral-800"
+              }`}
+            >
+              {tab.label}
+            </Button>
+          ))}
+        </div>
+
+        {/* Busca */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-neutral-400" />
+          <Input
+            placeholder="Buscar..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10 bg-neutral-800 border-neutral-600 text-white placeholder-neutral-400 text-sm"
+          />
+        </div>
+
+        {/* Tabela */}
+        <Card className="bg-neutral-900 border-neutral-700">
+          <CardHeader>
+            <CardTitle className="text-sm font-medium text-neutral-300 tracking-wider">
+              LISTA DE COBRANÇAS ({filteredPayments.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="text-center py-8">
+                <p className="text-neutral-400">Carregando cobranças...</p>
               </div>
+            ) : filteredPayments.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-neutral-400">Nenhuma cobrança encontrada</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto -mx-2 sm:mx-0">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-neutral-700 bg-neutral-800/50">
+                      <th className="text-left py-3 px-2 sm:px-4 text-xs font-medium text-neutral-400 tracking-wider">
+                        CLIENTE
+                      </th>
+                      <th className="hidden sm:table-cell text-left py-3 px-4 text-xs font-medium text-neutral-400 tracking-wider">
+                        REFERÊNCIA
+                      </th>
+                      <th className="text-left py-3 px-2 sm:px-4 text-xs font-medium text-neutral-400 tracking-wider">
+                        VENCIMENTO
+                      </th>
+                      <th className="hidden md:table-cell text-left py-3 px-4 text-xs font-medium text-neutral-400 tracking-wider">
+                        VALOR
+                      </th>
+                      <th className="hidden lg:table-cell text-left py-3 px-4 text-xs font-medium text-neutral-400 tracking-wider">
+                        FORMA
+                      </th>
+                      <th className="text-left py-3 px-2 sm:px-4 text-xs font-medium text-neutral-400 tracking-wider">
+                        STATUS
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredPayments.map((payment, index) => (
+                      <tr
+                        key={payment.id}
+                        className={`border-b border-neutral-800 hover:bg-neutral-800 transition-colors cursor-pointer ${
+                          index % 2 === 0 ? "bg-neutral-900" : "bg-neutral-850"
+                        }`}
+                        onClick={() => setSelectedPayment(payment)}
+                      >
+                        <td className="py-3 px-2 sm:px-4 text-xs sm:text-sm text-white min-w-0">
+                          <div className="truncate">{getCustomerName(payment.customer_asaas_id)}</div>
+                          <div className="text-xs text-neutral-500 truncate">{formatCurrency(payment.value)}</div>
+                        </td>
+                        <td className="hidden sm:table-cell py-3 px-4 text-xs text-neutral-300 font-mono">
+                          {payment.asaas_id?.slice(-8) || "-"}
+                        </td>
+                        <td className="py-3 px-2 sm:px-4 text-xs sm:text-sm text-neutral-300 whitespace-nowrap">
+                          {formatDate(payment.due_date)}
+                        </td>
+                        <td className="hidden md:table-cell py-3 px-4 text-sm text-white font-mono font-bold">
+                          {formatCurrency(payment.value)}
+                        </td>
+                        <td className="hidden lg:table-cell py-3 px-4">
+                          <div className="flex items-center gap-2 text-neutral-300">
+                            {getBillingTypeIcon(payment.billing_type)}
+                            <span className="text-xs">{getBillingTypeLabel(payment.billing_type)}</span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-2 sm:px-4">
+                          <Badge className={`${getStatusColor(payment.status)} text-xs`}>{getStatusLabel(payment.status)}</Badge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-              {chargeMode === "subscription" ? (
-                <div className="text-center py-6 sm:py-8">
-                  <p className="text-xs sm:text-sm text-neutral-400 mb-4">Para criar uma assinatura, use o módulo de Assinaturas.</p>
+        {/* Modal Nova Cobrança */}
+        {showModal && (
+          <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-2 sm:p-4 z-50 overflow-y-auto">
+            <Card className="bg-neutral-900 border border-neutral-700 w-full max-w-lg my-4 sm:my-8">
+              <CardHeader className="sticky top-0 z-10 bg-neutral-800 border-b border-neutral-700 flex flex-row items-center justify-between px-4 sm:px-6 py-3 sm:py-4 rounded-t-lg">
+                <CardTitle className="text-base sm:text-lg font-bold text-white tracking-wider">NOVA COBRANÇA</CardTitle>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setShowModal(false)}
+                  className="text-neutral-400 hover:text-white h-8 w-8 sm:h-10 sm:w-10 shrink-0"
+                >
+                  <X className="w-4 h-4 sm:w-5 sm:h-5" />
+                </Button>
+              </CardHeader>
+              <CardContent className="space-y-4 p-4 sm:p-6 overflow-y-auto max-h-[calc(100vh-120px)]">
+                {/* Tipo de Cobrança */}
+                <div className="flex gap-2">
                   <Button
-                    onClick={() => setShowModal(false)}
-                    className="bg-orange-500 hover:bg-orange-600 text-white w-full"
+                    variant={chargeMode === "single" ? "default" : "outline"}
+                    onClick={() => setChargeMode("single")}
+                    className={
+                      chargeMode === "single"
+                        ? "bg-orange-500 hover:bg-orange-600 text-white flex-1 text-sm"
+                        : "border-neutral-700 text-neutral-400 flex-1 bg-transparent text-sm"
+                    }
                   >
-                    Ir para Assinaturas
+                    Venda Única
+                  </Button>
+                  <Button
+                    variant={chargeMode === "subscription" ? "default" : "outline"}
+                    onClick={() => setChargeMode("subscription")}
+                    className={
+                      chargeMode === "subscription"
+                        ? "bg-orange-500 hover:bg-orange-600 text-white flex-1 text-sm"
+                        : "border-neutral-700 text-neutral-400 flex-1 bg-transparent text-sm"
+                    }
+                  >
+                    Assinatura
                   </Button>
                 </div>
-              ) : (
-                <>
-                  <div>
-                    <label className="text-xs text-neutral-400 tracking-wider mb-1 block">CLIENTE *</label>
-                    <select
-                      value={formData.customer}
-                      onChange={(e) => setFormData({ ...formData, customer: e.target.value })}
-                      className="w-full bg-neutral-800 border border-neutral-600 text-white px-3 py-2 rounded text-sm"
+
+                {chargeMode === "subscription" ? (
+                  <div className="text-center py-6 sm:py-8">
+                    <p className="text-xs sm:text-sm text-neutral-400 mb-4">Para criar uma assinatura, use o módulo de Assinaturas.</p>
+                    <Button
+                      onClick={() => setShowModal(false)}
+                      className="bg-orange-500 hover:bg-orange-600 text-white w-full"
                     >
-                      <option value="">Selecione um cliente</option>
-                      {customers.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name} ({c.id})
-                        </option>
-                      ))}
-                    </select>
-                    {customers.length === 0 && (
-                      <p className="text-xs text-red-400 mt-1">
-                        Nenhum cliente encontrado. Cadastre um cliente primeiro.
-                      </p>
-                    )}
+                      Ir para Assinaturas
+                    </Button>
                   </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                ) : (
+                  <>
                     <div>
-                      <label className="text-xs text-neutral-400 tracking-wider mb-1 block">VALOR *</label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={formData.value || ""}
-                        onChange={(e) => setFormData({ ...formData, value: parseFloat(e.target.value) || 0 })}
-                        className="bg-neutral-800 border-neutral-600 text-white"
-                        placeholder="0,00"
-                      />
+                      <label className="text-xs text-neutral-400 tracking-wider mb-1 block">CLIENTE *</label>
+                      <select
+                        value={formData.customer}
+                        onChange={(e) => setFormData({ ...formData, customer: e.target.value })}
+                        className="w-full bg-neutral-800 border border-neutral-600 text-white px-3 py-2 rounded text-sm"
+                      >
+                        <option value="">Selecione um cliente</option>
+                        {customers.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name} ({c.id})
+                          </option>
+                        ))}
+                      </select>
+                      {customers.length === 0 && (
+                        <p className="text-xs text-red-400 mt-1">
+                          Nenhum cliente encontrado. Cadastre um cliente primeiro.
+                        </p>
+                      )}
                     </div>
-                    <div>
-                      <label className="text-xs text-neutral-400 tracking-wider mb-1 block">VENCIMENTO *</label>
-                      <Input
-                        type="date"
-                        value={formData.dueDate}
-                        onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
-                        className="bg-neutral-800 border-neutral-600 text-white"
-                      />
-                    </div>
-                  </div>
 
-                  <div>
-                    <label className="text-xs text-neutral-400 tracking-wider mb-1 block">FORMA DE PAGAMENTO *</label>
-                    <div className="flex gap-2">
-                      {(["PIX", "CREDIT_CARD"] as const).map((type) => (
-                        <Button
-                          key={type}
-                          variant={formData.billingType === type ? "default" : "outline"}
-                          onClick={() => setFormData({ ...formData, billingType: type })}
-                          className={
-                            formData.billingType === type
-                              ? "bg-orange-500 hover:bg-orange-600 text-white flex-1"
-                              : "border-neutral-700 text-neutral-400 flex-1 bg-transparent"
-                          }
-                        >
-                          {type === "PIX" && <QrCode className="w-4 h-4 mr-2" />}
-                          {type === "CREDIT_CARD" && <CreditCard className="w-4 h-4 mr-2" />}
-                          {type === "PIX" ? "Pix" : "Cartao"}
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="text-xs text-neutral-400 tracking-wider mb-1 block">DESCRIÇÃO</label>
-                    <Input
-                      value={formData.description || ""}
-                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                      className="bg-neutral-800 border-neutral-600 text-white"
-                      placeholder="Descrição da cobrança"
-                    />
-                  </div>
-
-                  {/* Coupon Section */}
-                  <div className="border border-neutral-700 rounded-lg p-4 space-y-3">
-                    <label className="text-xs text-neutral-400 tracking-wider flex items-center gap-2">
-                      <Tag className="w-3.5 h-3.5" />
-                      CUPOM DE DESCONTO
-                    </label>
-                    
-                    {!appliedCoupon ? (
-                      <div className="flex gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs text-neutral-400 tracking-wider mb-1 block">VALOR *</label>
                         <Input
-                          value={couponCode}
-                          onChange={(e) => {
-                            setCouponCode(e.target.value.toUpperCase())
-                            setCouponError(null)
-                          }}
-                          className="bg-neutral-800 border-neutral-600 text-white uppercase"
-                          placeholder="Digite o código do cupom"
-                          disabled={couponLoading}
+                          type="number"
+                          step="0.01"
+                          value={formData.value || ""}
+                          onChange={(e) => setFormData({ ...formData, value: parseFloat(e.target.value) || 0 })}
+                          className="bg-neutral-800 border-neutral-600 text-white"
+                          placeholder="0,00"
                         />
-                        <Button
-                          type="button"
-                          onClick={validateCoupon}
-                          disabled={couponLoading || !couponCode.trim() || !formData.value}
-                          className="bg-neutral-700 hover:bg-neutral-600 text-white"
-                        >
-                          {couponLoading ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            "Aplicar"
-                          )}
-                        </Button>
                       </div>
-                    ) : (
-                      <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <CheckCircle className="w-4 h-4 text-green-400" />
-                            <span className="text-green-400 font-medium">{appliedCoupon.code}</span>
-                          </div>
+                      <div>
+                        <label className="text-xs text-neutral-400 tracking-wider mb-1 block">VENCIMENTO *</label>
+                        <Input
+                          type="date"
+                          value={formData.dueDate}
+                          onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+                          className="bg-neutral-800 border-neutral-600 text-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-xs text-neutral-400 tracking-wider mb-1 block">FORMA DE PAGAMENTO *</label>
+                      <div className="flex gap-2">
+                        {(["PIX", "CREDIT_CARD"] as const).map((type) => (
+                          <Button
+                            key={type}
+                            variant={formData.billingType === type ? "default" : "outline"}
+                            onClick={() => setFormData({ ...formData, billingType: type })}
+                            className={
+                              formData.billingType === type
+                                ? "bg-orange-500 hover:bg-orange-600 text-white flex-1"
+                                : "border-neutral-700 text-neutral-400 flex-1 bg-transparent"
+                            }
+                          >
+                            {type === "PIX" && <QrCode className="w-4 h-4 mr-2" />}
+                            {type === "CREDIT_CARD" && <CreditCard className="w-4 h-4 mr-2" />}
+                            {type === "PIX" ? "Pix" : "Cartao"}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-xs text-neutral-400 tracking-wider mb-1 block">DESCRIÇÃO</label>
+                      <Input
+                        value={formData.description || ""}
+                        onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                        className="bg-neutral-800 border-neutral-600 text-white"
+                        placeholder="Descrição da cobrança"
+                      />
+                    </div>
+
+                    {/* Coupon Section */}
+                    <div className="border border-neutral-700 rounded-lg p-4 space-y-3">
+                      <label className="text-xs text-neutral-400 tracking-wider flex items-center gap-2">
+                        <Tag className="w-3.5 h-3.5" />
+                        CUPOM DE DESCONTO
+                      </label>
+
+                      {!appliedCoupon ? (
+                        <div className="flex gap-2">
+                          <Input
+                            value={couponCode}
+                            onChange={(e) => {
+                              setCouponCode(e.target.value.toUpperCase())
+                              setCouponError(null)
+                            }}
+                            className="bg-neutral-800 border-neutral-600 text-white uppercase"
+                            placeholder="Digite o código do cupom"
+                            disabled={couponLoading}
+                          />
                           <Button
                             type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={removeCoupon}
-                            className="text-neutral-400 hover:text-red-400 h-6 px-2"
+                            onClick={validateCoupon}
+                            disabled={couponLoading || !couponCode.trim() || !formData.value}
+                            className="bg-neutral-700 hover:bg-neutral-600 text-white"
                           >
-                            <X className="w-3 h-3" />
+                            {couponLoading ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              "Aplicar"
+                            )}
                           </Button>
                         </div>
-                        <div className="text-xs text-neutral-400">
-                          {appliedCoupon.discount_type === 'PERCENTAGE' 
-                            ? `${appliedCoupon.discount_value}% de desconto`
-                            : `R$ ${appliedCoupon.discount_value.toFixed(2)} de desconto`
-                          }
+                      ) : (
+                        <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <CheckCircle className="w-4 h-4 text-green-400" />
+                              <span className="text-green-400 font-medium">{appliedCoupon.code}</span>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={removeCoupon}
+                              className="text-neutral-400 hover:text-red-400 h-6 px-2"
+                            >
+                              <X className="w-3 h-3" />
+                            </Button>
+                          </div>
+                          <div className="text-xs text-neutral-400">
+                            {appliedCoupon.discount_type === 'PERCENTAGE'
+                              ? `${appliedCoupon.discount_value}% de desconto`
+                              : `R$ ${appliedCoupon.discount_value.toFixed(2)} de desconto`
+                            }
+                          </div>
+                          <div className="flex justify-between items-center pt-2 border-t border-green-500/20">
+                            <span className="text-xs text-neutral-400">Desconto aplicado:</span>
+                            <span className="text-green-400 font-mono font-bold">
+                              - {formatCurrency(appliedCoupon.calculated_discount)}
+                            </span>
+                          </div>
                         </div>
-                        <div className="flex justify-between items-center pt-2 border-t border-green-500/20">
-                          <span className="text-xs text-neutral-400">Desconto aplicado:</span>
-                          <span className="text-green-400 font-mono font-bold">
-                            - {formatCurrency(appliedCoupon.calculated_discount)}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {couponError && (
-                      <div className="flex items-center gap-2 text-red-400 text-xs">
-                        <AlertCircle className="w-3.5 h-3.5" />
-                        {couponError}
-                      </div>
-                    )}
-                    
-                    {!formData.value && !appliedCoupon && (
-                      <p className="text-xs text-neutral-500">Informe o valor da cobrança para aplicar um cupom</p>
-                    )}
-                  </div>
+                      )}
 
-                  {/* Price Summary */}
-                  {appliedCoupon && (
-                    <div className="bg-neutral-800 rounded-lg p-4 space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-neutral-400">Valor original:</span>
-                        <span className="text-neutral-300 font-mono">{formatCurrency(formData.value)}</span>
-                      </div>
-                      <div className="flex justify-between text-sm text-green-400">
-                        <span>Desconto ({appliedCoupon.code}):</span>
-                        <span className="font-mono">- {formatCurrency(appliedCoupon.calculated_discount)}</span>
-                      </div>
-                      <div className="flex justify-between text-lg font-bold pt-2 border-t border-neutral-700">
-                        <span className="text-white">Total:</span>
-                        <span className="text-orange-400 font-mono">{formatCurrency(getFinalValue())}</span>
-                      </div>
+                      {couponError && (
+                        <div className="flex items-center gap-2 text-red-400 text-xs">
+                          <AlertCircle className="w-3.5 h-3.5" />
+                          {couponError}
+                        </div>
+                      )}
+
+                      {!formData.value && !appliedCoupon && (
+                        <p className="text-xs text-neutral-500">Informe o valor da cobrança para aplicar um cupom</p>
+                      )}
                     </div>
-                  )}
 
-                  <div className="flex gap-2 pt-4 border-t border-neutral-700">
-                    <Button
-                      onClick={handleCreateCharge}
-                      disabled={saving || !formData.customer || !formData.value || !formData.dueDate}
-                      className="bg-orange-500 hover:bg-orange-600 text-white"
-                    >
-                      {saving ? "Criando..." : "Criar Cobrança"}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowModal(false)}
-                      className="border-neutral-700 text-neutral-400 hover:bg-neutral-800 bg-transparent"
-                    >
-                      Cancelar
-                    </Button>
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
+                    {/* Price Summary */}
+                    {appliedCoupon && (
+                      <div className="bg-neutral-800 rounded-lg p-4 space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-neutral-400">Valor original:</span>
+                          <span className="text-neutral-300 font-mono">{formatCurrency(formData.value)}</span>
+                        </div>
+                        <div className="flex justify-between text-sm text-green-400">
+                          <span>Desconto ({appliedCoupon.code}):</span>
+                          <span className="font-mono">- {formatCurrency(appliedCoupon.calculated_discount)}</span>
+                        </div>
+                        <div className="flex justify-between text-lg font-bold pt-2 border-t border-neutral-700">
+                          <span className="text-white">Total:</span>
+                          <span className="text-orange-400 font-mono">{formatCurrency(getFinalValue())}</span>
+                        </div>
+                      </div>
+                    )}
 
-      {/* Payment Detail Modal */}
+                    <div className="flex gap-2 pt-4 border-t border-neutral-700">
+                      <Button
+                        onClick={handleCreateCharge}
+                        disabled={saving || !formData.customer || !formData.value || !formData.dueDate}
+                        className="bg-orange-500 hover:bg-orange-600 text-white"
+                      >
+                        {saving ? "Criando..." : "Criar Cobrança"}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowModal(false)}
+                        className="border-neutral-700 text-neutral-400 hover:bg-neutral-800 bg-transparent"
+                      >
+                        Cancelar
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+      </div>
+
+      {/* Payment Detail Modal (shared) */}
       <PaymentDetailModal
         payment={selectedPayment}
         customer={
@@ -844,7 +1179,7 @@ export default function Cobrancas() {
         onPaymentUpdated={fetchData}
       />
 
-      {/* Success/Error Modal */}
+      {/* Success/Error Modal (shared) */}
       {successModal.show && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <Card className="bg-neutral-900 border-neutral-700 max-w-md w-full">
@@ -862,7 +1197,7 @@ export default function Cobrancas() {
                 <div className="flex-1">
                   <h3 className="text-lg font-bold text-white mb-2">{successModal.title}</h3>
                   <p className="text-neutral-400 text-sm">{successModal.message}</p>
-                  
+
                   {successModal.link && (
                     <div className="mt-4 p-3 bg-neutral-800 rounded-lg">
                       <p className="text-xs text-neutral-500 mb-2">Link de pagamento:</p>
@@ -882,7 +1217,7 @@ export default function Cobrancas() {
                   )}
                 </div>
               </div>
-              
+
               <div className="flex gap-2 mt-6">
                 {successModal.link && (
                   <Button
