@@ -34,6 +34,12 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import type { CustomerCreatePayload } from "@/lib/types/asaas"
 import { TagManager } from "@/components/tag-manager"
+import { PillTabBar } from "@/components/mobile/pill-tab-bar"
+import { StickySummary } from "@/components/mobile/sticky-summary"
+import { SwipeCard } from "@/components/mobile/swipe-card"
+import type { SwipeAction } from "@/components/mobile/swipe-card"
+import { MobileCard } from "@/components/mobile/mobile-card"
+import { FAB } from "@/components/mobile/fab"
 
 type FilterType = "all" | "active" | "pf" | "pj" | "archived"
 
@@ -570,6 +576,9 @@ export default function ClientesAsaas() {
     setDropdownOpen(null)
   }
 
+  const getClienteInitials = (name: string) =>
+    name.split(' ').slice(0, 2).map((n: string) => n[0]).join('').toUpperCase()
+
   // Tela de Detalhes do Cliente
   if (showDetails && selectedCustomer) {
     return (
@@ -864,9 +873,137 @@ export default function ClientesAsaas() {
   // Debug: log customers state
   console.log("[v0] Rendering ClientesAsaas - customers:", customers.length, "loading:", loading, "error:", error)
 
+  const activeCount = customers.filter(c => !c.deleted).length
+  const inactiveCount = customers.filter(c => !!c.deleted).length
+
   // Tela principal de lista de clientes
   return (
-    <div className="w-full h-full flex flex-col bg-neutral-950">
+    <>
+    {/* Mobile View */}
+    <div className="md:hidden flex flex-col h-full">
+      {/* Sticky header */}
+      <div className="sticky top-14 z-20 bg-neutral-900 border-b border-neutral-800 px-3 pt-3 pb-2 space-y-2">
+        <h1 className="text-lg font-bold text-white tracking-wider">Clientes</h1>
+        <PillTabBar
+          tabs={[
+            { key: 'all', label: 'Todos' },
+            { key: 'active', label: 'Ativos' },
+            { key: 'pf', label: 'PF' },
+            { key: 'pj', label: 'PJ' },
+          ]}
+          activeTab={filter}
+          onChange={(k) => setFilter(k as FilterType)}
+        />
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+          <input
+            type="text"
+            placeholder="Buscar clientes..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-9 pr-3 py-2 rounded-lg bg-neutral-800 border border-neutral-700 text-white text-sm placeholder-neutral-500 outline-none focus:border-orange-500"
+          />
+        </div>
+      </div>
+
+      {/* Summary */}
+      <StickySummary
+        items={[
+          { label: 'Total', value: customers.length, color: 'orange' },
+          { label: 'Ativos', value: activeCount, color: 'green' },
+          { label: 'Inativos', value: inactiveCount, color: 'neutral' },
+        ]}
+      />
+
+      {/* Scrollable list */}
+      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2 pb-24">
+        {loading ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="w-8 h-8 text-orange-400 animate-spin" />
+          </div>
+        ) : filteredCustomers.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 gap-3">
+            <User className="w-12 h-12 text-neutral-600" />
+            <p className="text-neutral-500 text-sm text-center">Nenhum cliente encontrado</p>
+            {(searchTerm || filter !== 'all') && (
+              <button
+                onClick={() => { setSearchTerm(''); setFilter('all') }}
+                className="text-xs text-orange-400 border border-orange-500/30 rounded-full px-4 py-1.5"
+              >
+                Limpar filtros
+              </button>
+            )}
+          </div>
+        ) : (
+          filteredCustomers.map((customer) => {
+            const mobileActions: SwipeAction[] = [
+              {
+                key: 'view',
+                label: 'Ver',
+                icon: <Eye className="w-4 h-4" />,
+                color: 'blue',
+                onTrigger: () => { setSelectedCustomer(customer); setShowDetails(true) },
+              },
+              {
+                key: 'charge',
+                label: 'Cobrar',
+                icon: <FileText className="w-4 h-4" />,
+                color: 'orange',
+                onTrigger: () => router.push('/pagamentos/cobrancas?cliente=' + customer.id + '&nome=' + encodeURIComponent(customer.name)),
+              },
+            ]
+            return (
+              <SwipeCard key={customer.id} actions={mobileActions}>
+                <MobileCard
+                  title={customer.name}
+                  subtitle={customer.email ? customer.email : customer.cpfCnpj}
+                  avatar={getClienteInitials(customer.name)}
+                  borderColor={!customer.deleted ? 'green' : 'none'}
+                  badge={{ label: !customer.deleted ? 'Ativo' : 'Inativo', color: !customer.deleted ? 'success' : 'info' }}
+                  expandable={true}
+                  expandedContent={
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <p className="text-xs text-neutral-500">E-mail</p>
+                        <p className="text-xs text-white truncate">{customer.email || '-'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-neutral-500">Telefone</p>
+                        <p className="text-xs text-white">{customer.mobilePhone || customer.phone || '-'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-neutral-500">CPF/CNPJ</p>
+                        <p className="text-xs text-white font-mono">{formatDocument(customer.cpfCnpj)}</p>
+                      </div>
+                      <div className="col-span-2 flex gap-2 mt-1">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setSelectedCustomer(customer); setShowDetails(true) }}
+                          className="flex-1 py-2 px-3 rounded text-xs font-medium bg-blue-500/20 text-blue-400"
+                        >
+                          Ver detalhes
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); router.push('/pagamentos/cobrancas?cliente=' + customer.id + '&nome=' + encodeURIComponent(customer.name)) }}
+                          className="flex-1 py-2 px-3 rounded text-xs font-medium bg-orange-500/20 text-orange-400"
+                        >
+                          Nova cobrança
+                        </button>
+                      </div>
+                    </div>
+                  }
+                />
+              </SwipeCard>
+            )
+          })
+        )}
+      </div>
+
+      {/* FAB */}
+      <FAB label="Novo cliente" onClick={() => setShowModal(true)} />
+    </div>
+
+    {/* Desktop View */}
+    <div className="hidden md:flex w-full h-full flex-col bg-neutral-950">
       {/* Header */}
       <div className="flex-shrink-0 border-b border-neutral-800 p-3 md:p-6">
         <div className="flex flex-col gap-3 md:gap-4">
@@ -1540,5 +1677,6 @@ export default function ClientesAsaas() {
         </div>
       )}
     </div>
+    </>
   )
 }
