@@ -70,7 +70,7 @@ export function StepForm({
         <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-neutral-800">
           <div className="flex items-center gap-2">
             {currentStep > 0 && (
-              <button onClick={handleBack} className="p-1 text-neutral-400 active:text-white">
+              <button onClick={handleBack} className="p-2.5 text-neutral-400 active:text-white">
                 <ChevronLeft className="w-5 h-5" />
               </button>
             )}

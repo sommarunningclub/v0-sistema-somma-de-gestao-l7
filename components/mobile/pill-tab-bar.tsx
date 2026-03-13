@@ -22,7 +22,8 @@ export function PillTabBar({ tabs, activeTab, onChange, className }: PillTabBarP
         <button
           key={tab.key}
           onClick={() => onChange(tab.key)}
-          className={`flex-shrink-0 py-1.5 px-3 rounded-full text-xs font-semibold whitespace-nowrap
+          aria-current={activeTab === tab.key ? 'page' as const : undefined}
+          className={`flex-shrink-0 py-2.5 px-4 rounded-full text-xs font-semibold whitespace-nowrap
             transition-colors active:scale-95
             ${activeTab === tab.key
               ? 'bg-orange-500 text-white'

@@ -28,7 +28,7 @@ export function StickySummary({ items, className }: StickySummaryProps) {
       style={{ gridTemplateColumns: `repeat(${Math.min(items.length, 4)}, 1fr)` }}
     >
       {items.map((item, i) => (
-        <div key={i} className={`rounded-xl p-2 text-center ${colorMap[item.color]}`}>
+        <div key={`${item.label}-${i}`} className={`rounded-xl p-2 text-center ${colorMap[item.color]}`}>
           <div className="text-sm font-bold leading-tight">{item.value}</div>
           <div className="text-[10px] opacity-70 mt-0.5 leading-tight">{item.label}</div>
         </div>

@@ -56,7 +56,7 @@ export function SwipeCard({
     const dx = startXRef.current - e.touches[0].clientX
     const dy = startYRef.current - e.touches[0].clientY
 
-    // First 10px: cancel swipe if vertical scroll wins
+    // First ~5px: cancel swipe if vertical scroll wins
     if (Math.abs(offset) < 5 && Math.abs(dy) > Math.abs(dx)) {
       cancelledRef.current = true
       setOffset(0)
@@ -74,9 +74,12 @@ export function SwipeCard({
     if (offset >= autoTriggerThreshold && actions[0]) {
       setOffset(totalActionsWidth)
       setTriggering(actions[0].key)
-      await actions[0].onTrigger()
-      setTriggering(null)
-      setOffset(0)
+      try {
+        await actions[0].onTrigger()
+      } finally {
+        setTriggering(null)
+        setOffset(0)
+      }
     } else if (offset >= revealThreshold) {
       setOffset(totalActionsWidth)
     } else {
@@ -94,11 +97,15 @@ export function SwipeCard({
         {actions.map((action) => (
           <button
             key={action.key}
+            aria-label={action.label}
             onClick={async () => {
               setTriggering(action.key)
-              await action.onTrigger()
-              setTriggering(null)
-              setOffset(0)
+              try {
+                await action.onTrigger()
+              } finally {
+                setTriggering(null)
+                setOffset(0)
+              }
             }}
             style={{ width: ACTION_WIDTH }}
             className={`flex flex-col items-center justify-center gap-1 text-[10px] font-semibold
