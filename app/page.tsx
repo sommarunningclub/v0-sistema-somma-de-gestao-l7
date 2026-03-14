@@ -28,6 +28,7 @@ export default function TacticalDashboard() {
   const [pagamentosTab, setPagamentosTab] = useState("dashboard")
   const [permissions, setPermissions] = useState<Record<string, boolean>>({})
   const [showAppsModal, setShowAppsModal] = useState(false)
+  const [checkinEventoId, setCheckinEventoId] = useState<string | null>(null)
 
   // Carrega permissoes quando o componente monta
   useEffect(() => {
@@ -383,8 +384,8 @@ export default function TacticalDashboard() {
           {/* Content Area - Safe area for notch */}
           <div className="flex-1 overflow-auto bg-black">
             {activeSection === "overview" && <CommandCenterPage />}
-            {activeSection === "checkin" && permissions.checkin && <CheckInPage />}
-            {activeSection === "eventos" && permissions.checkin && <EventosSommaPage />}
+            {activeSection === "checkin" && permissions.checkin && <CheckInPage initialEventoId={checkinEventoId} />}
+            {activeSection === "eventos" && permissions.checkin && <EventosSommaPage onViewCheckins={(eventoId: string) => { setCheckinEventoId(eventoId); setActiveSection("checkin") }} />}
             {activeSection === "agents" && permissions.membros && <AgentNetworkPage />}
             {activeSection === "parceiro" && permissions.parceiro && <ParcerioSommaPage />}
               {activeSection === "insiders" && permissions.pagamentos && <InsidersPage />}

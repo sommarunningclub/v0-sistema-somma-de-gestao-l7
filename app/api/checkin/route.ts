@@ -36,17 +36,14 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = getAdminClient()
 
-    console.log('[v0] Fetching check-ins from 2026-03-11 onwards')
+    const eventoId = request.nextUrl.searchParams.get('evento_id')
+    console.log('[v0] Fetching check-ins', eventoId ? `for evento ${eventoId}` : '(all)')
 
-    // Return all check-ins from 11/03/2026 onwards
     let query = supabase
       .from('checkins')
       .select('*')
-      .gte('data_hora_checkin', '2026-03-11T03:00:00.000Z')
       .order('data_hora_checkin', { ascending: false })
 
-    // Optional filter by evento_id
-    const eventoId = request.nextUrl.searchParams.get('evento_id')
     if (eventoId) {
       query = query.eq('evento_id', eventoId)
     }

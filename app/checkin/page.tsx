@@ -5,6 +5,7 @@ import {
   Search, RefreshCw, Download, CheckCircle2, XCircle,
   Users, Trash2, AlertTriangle, X, Shield,
   CheckCircle, Eye, FilterX, Loader2, SlidersHorizontal,
+  Calendar, ChevronDown,
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -30,7 +31,15 @@ interface CheckInData {
   validated_at?: string | null
 }
 
-export default function CheckInPage() {
+interface EventoOption {
+  id: string
+  titulo: string
+  data_evento: string
+  checkin_status: string
+  checkin_count: number
+}
+
+export default function CheckInPage({ initialEventoId }: { initialEventoId?: string | null }) {
   const [checkInData, setCheckInData] = useState<CheckInData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -43,30 +52,17 @@ export default function CheckInPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
 
-  // Parseia "DD/MM/YYYY, HH:MM" ou ISO — retorna null se inválido
-  const parseCheckinDate = (raw: string): Date | null => {
-    if (!raw) return null
-    // Formato brasileiro: "14/03/2026, 07:28"
-    const brMatch = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})/)
-    if (brMatch) {
-      const [, d, m, y] = brMatch
-      return new Date(`${y}-${m}-${d}T00:00:00`)
-    }
-    const d = new Date(raw)
-    return isNaN(d.getTime()) ? null : d
-  }
+  // Eventos integration
+  const [eventos, setEventos] = useState<EventoOption[]>([])
+  const [selectedEvento, setSelectedEvento] = useState<string | null>(null)
+  const [loadingEventos, setLoadingEventos] = useState(true)
+  const [eventoDropdownOpen, setEventoDropdownOpen] = useState(false)
 
-  const CUTOFF = new Date('2026-03-15T00:00:00')
-  const checkInFromCutoff = checkInData.filter(c => {
-    const d = parseCheckinDate(c.data)
-    return d !== null && d >= CUTOFF
-  })
-  const totalValidated = checkInFromCutoff.filter(c => c.validated).length
-  const totalPending = checkInFromCutoff.filter(c => !c.validated).length
+  const selectedEventoData = eventos.find(e => e.id === selectedEvento)
 
   // Mobile-specific state
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
-  const uniquePelotoes = Array.from(new Set(checkInFromCutoff.map(c => c.pelotao).filter(Boolean))) as string[]
+  const uniquePelotoes = Array.from(new Set(checkInData.map(c => c.pelotao).filter(Boolean))) as string[]
   const activeFilterCount = [selectedSexo !== null, selectedPelotao !== null, activeFilter !== 'all'].filter(Boolean).length
   const getCheckinInitials = (nome?: string) => (nome ?? 'X').split(' ').slice(0, 2).map((n: string) => n[0]).join('').toUpperCase()
   const pelotaoAvatarBg = (pelotao?: string): string => {
@@ -75,15 +71,50 @@ export default function CheckInPage() {
       Bravo: 'bg-blue-500/20 text-blue-400',
       Charlie: 'bg-purple-500/20 text-purple-400',
       Delta: 'bg-green-500/20 text-green-400',
+      '4km': 'bg-green-500/20 text-green-400',
+      '6km': 'bg-yellow-500/20 text-yellow-400',
+      '8km': 'bg-red-500/20 text-red-400',
     }
     return map[pelotao ?? ''] ?? 'bg-neutral-700 text-neutral-300'
   }
 
+  // Fetch events list
+  useEffect(() => {
+    async function fetchEventos() {
+      try {
+        const res = await fetch('/api/insider/eventos', { cache: 'no-store' })
+        if (!res.ok) throw new Error('Erro ao buscar eventos')
+        const json = await res.json()
+        const list: EventoOption[] = (json.data || []).map((e: any) => ({
+          id: e.id,
+          titulo: e.titulo,
+          data_evento: e.data_evento,
+          checkin_status: e.checkin_status,
+          checkin_count: e.checkin_count || 0,
+        }))
+        setEventos(list)
+        // Use initialEventoId if provided, otherwise auto-select
+        if (initialEventoId && list.some(e => e.id === initialEventoId)) {
+          setSelectedEvento(initialEventoId)
+        } else {
+          const active = list.find(e => e.checkin_status === 'aberto') || list.find(e => e.checkin_status === 'bloqueado') || list[0]
+          if (active) setSelectedEvento(active.id)
+        }
+      } catch (err) {
+        console.error('[v0] Error fetching eventos:', err)
+      } finally {
+        setLoadingEventos(false)
+      }
+    }
+    fetchEventos()
+  }, [])
+
   const fetchCheckInData = useCallback(async () => {
+    if (!selectedEvento) return
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch("/api/checkin", { cache: "no-store" })
+      const res = await fetch(`/api/checkin?evento_id=${selectedEvento}`, { cache: "no-store" })
       if (!res.ok) throw new Error(`Erro ${res.status}`)
       const json = await res.json()
       if (json.error) throw new Error(json.error)
@@ -94,9 +125,12 @@ export default function CheckInPage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [selectedEvento])
 
   useEffect(() => { fetchCheckInData() }, [fetchCheckInData])
+
+  const totalValidated = checkInData.filter(c => c.validated).length
+  const totalPending = checkInData.filter(c => !c.validated).length
 
   const handleToggleValidation = async (item: CheckInData) => {
     if (!item.id) return
@@ -140,10 +174,12 @@ export default function CheckInPage() {
     return cpf || ""
   }
 
-  const filtered = checkInData.filter(item => {
-    const itemDate = parseCheckinDate(item.data)
-    if (!itemDate || itemDate < CUTOFF) return false
+  const formatEventDate = (dateStr: string) => {
+    const [y, m, d] = dateStr.split('-').map(Number)
+    return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`
+  }
 
+  const filtered = checkInData.filter(item => {
     const q = searchTerm.toLowerCase()
     const matchesSearch = !q ||
       (item.nome || "").toLowerCase().includes(q) ||
@@ -179,18 +215,111 @@ export default function CheckInPage() {
     )
     const a = document.createElement("a")
     a.href = csv
-    a.download = `checkin_${new Date().toLocaleDateString("pt-BR").replace(/\//g, "-")}.csv`
+    a.download = `checkin_${selectedEventoData?.titulo?.replace(/[^a-zA-Z0-9]/g, '_') || 'export'}_${new Date().toLocaleDateString("pt-BR").replace(/\//g, "-")}.csv`
     a.click()
   }
 
-  // Calculate stats by sexo and pelotao (apenas a partir do corte de 15/03)
   const statsBySexo = (sexo: string | undefined) =>
-    checkInFromCutoff.filter(c => c.sexo === sexo).length
+    checkInData.filter(c => c.sexo === sexo).length
   const statsByPelotao = (pelotao: string | undefined) =>
-    checkInFromCutoff.filter(c => c.pelotao === pelotao).length
+    checkInData.filter(c => c.pelotao === pelotao).length
 
-  const uniqueSexos = Array.from(new Set(checkInFromCutoff.map(c => c.sexo).filter(Boolean)))
+  const uniqueSexos = Array.from(new Set(checkInData.map(c => c.sexo).filter(Boolean)))
     .sort() as string[]
+
+  const statusLabel = (status: string) => {
+    const map: Record<string, { label: string; color: string }> = {
+      aberto: { label: 'Aberto', color: 'text-green-400' },
+      bloqueado: { label: 'Bloqueado', color: 'text-yellow-400' },
+      encerrado: { label: 'Encerrado', color: 'text-neutral-500' },
+    }
+    return map[status] || { label: status, color: 'text-neutral-400' }
+  }
+
+  // Event selector component (shared between mobile and desktop)
+  const EventSelector = ({ mobile = false }: { mobile?: boolean }) => (
+    <div className="relative">
+      <button
+        onClick={() => setEventoDropdownOpen(!eventoDropdownOpen)}
+        className={`w-full flex items-center justify-between gap-2 rounded-xl border border-neutral-700 bg-neutral-900 hover:bg-neutral-800 transition-colors ${
+          mobile ? 'px-3 py-2.5 text-xs' : 'px-4 py-3 text-sm'
+        }`}
+      >
+        <div className="flex items-center gap-2.5 min-w-0">
+          <Calendar className={`flex-shrink-0 text-orange-500 ${mobile ? 'w-4 h-4' : 'w-4.5 h-4.5'}`} />
+          {selectedEventoData ? (
+            <div className="text-left min-w-0">
+              <p className="text-white font-medium truncate">{selectedEventoData.titulo}</p>
+              <p className="text-neutral-500 text-xs">
+                {formatEventDate(selectedEventoData.data_evento)} · <span className={statusLabel(selectedEventoData.checkin_status).color}>{statusLabel(selectedEventoData.checkin_status).label}</span> · {selectedEventoData.checkin_count} check-ins
+              </p>
+            </div>
+          ) : (
+            <span className="text-neutral-400">Selecione um evento</span>
+          )}
+        </div>
+        <ChevronDown className={`w-4 h-4 text-neutral-500 flex-shrink-0 transition-transform ${eventoDropdownOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {eventoDropdownOpen && (
+        <>
+          <div className="fixed inset-0 z-30" onClick={() => setEventoDropdownOpen(false)} />
+          <div className={`absolute left-0 right-0 z-40 mt-1 bg-neutral-900 border border-neutral-700 rounded-xl shadow-2xl overflow-hidden max-h-72 overflow-y-auto ${mobile ? 'text-xs' : 'text-sm'}`}>
+            {eventos.map(evento => {
+              const status = statusLabel(evento.checkin_status)
+              const isSelected = evento.id === selectedEvento
+              return (
+                <button
+                  key={evento.id}
+                  onClick={() => {
+                    setSelectedEvento(evento.id)
+                    setEventoDropdownOpen(false)
+                    setSearchTerm("")
+                    setActiveFilter("all")
+                    setSelectedSexo(null)
+                    setSelectedPelotao(null)
+                  }}
+                  className={`w-full text-left px-4 py-3 flex items-center justify-between gap-3 transition-colors ${
+                    isSelected
+                      ? 'bg-orange-500/10 border-l-2 border-orange-500'
+                      : 'hover:bg-neutral-800 border-l-2 border-transparent'
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <p className={`font-medium truncate ${isSelected ? 'text-orange-400' : 'text-white'}`}>{evento.titulo}</p>
+                    <p className="text-neutral-500 text-xs mt-0.5">
+                      {formatEventDate(evento.data_evento)} · <span className={status.color}>{status.label}</span>
+                    </p>
+                  </div>
+                  <div className="flex-shrink-0 text-right">
+                    <p className="text-neutral-400 font-mono text-xs">{evento.checkin_count}</p>
+                    <p className="text-neutral-600 text-[10px]">check-ins</p>
+                  </div>
+                </button>
+              )
+            })}
+            {eventos.length === 0 && (
+              <div className="px-4 py-6 text-center text-neutral-500 text-sm">
+                Nenhum evento encontrado
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  )
+
+  // Loading eventos
+  if (loadingEventos) {
+    return (
+      <div className="min-h-screen bg-neutral-950 text-white flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-7 h-7 animate-spin mx-auto mb-3 text-orange-500" />
+          <p className="text-neutral-400 text-sm">Carregando eventos...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-neutral-950 text-white">
@@ -208,7 +337,6 @@ export default function CheckInPage() {
               Check-in
             </h1>
             <div className="flex items-center gap-2">
-              {/* Filter button with badge */}
               <button
                 onClick={() => setMobileFiltersOpen(true)}
                 className="relative flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 border border-neutral-700 rounded-lg text-xs text-neutral-300 hover:bg-neutral-700 transition-colors"
@@ -221,7 +349,6 @@ export default function CheckInPage() {
                   </span>
                 )}
               </button>
-              {/* CSV export */}
               <button
                 onClick={handleExport}
                 disabled={filtered.length === 0}
@@ -233,10 +360,13 @@ export default function CheckInPage() {
             </div>
           </div>
 
+          {/* Event selector */}
+          <EventSelector mobile />
+
           {/* Pill tab bar */}
           <PillTabBar
             tabs={[
-              { key: 'all', label: 'Hoje' },
+              { key: 'all', label: 'Todos' },
               { key: 'validated', label: 'Validados' },
               { key: 'not_validated', label: 'Pendentes' },
             ]}
@@ -264,10 +394,10 @@ export default function CheckInPage() {
             )}
           </div>
 
-          {/* Summary — dentro do header sticky para ficar visível enquanto a lista rola */}
+          {/* Summary */}
           <StickySummary
             items={[
-              { label: 'Total', value: checkInFromCutoff.length, color: 'orange' },
+              { label: 'Total', value: checkInData.length, color: 'orange' },
               { label: 'Validados', value: totalValidated, color: 'green' },
               { label: 'Pendentes', value: totalPending, color: 'yellow' },
             ]}
@@ -307,7 +437,7 @@ export default function CheckInPage() {
               ) : (
                 <>
                   <Users className="w-9 h-9 text-neutral-600 mb-3" />
-                  <p className="text-neutral-400 text-sm">Nenhum check-in registrado</p>
+                  <p className="text-neutral-400 text-sm">Nenhum check-in neste evento</p>
                 </>
               )}
             </div>
@@ -400,8 +530,6 @@ export default function CheckInPage() {
             )
           })}
         </div>
-
-        {/* FAB for new check-in — deferred, no POST API available */}
 
         {/* Filters bottom sheet */}
         <MobileBottomSheet
@@ -510,13 +638,16 @@ export default function CheckInPage() {
             </div>
           </div>
 
+          {/* Event selector */}
+          <EventSelector />
+
           {/* Stats */}
           <div className="grid grid-cols-3 gap-3">
             <div
               onClick={() => setActiveFilter("all")}
               className={`cursor-pointer rounded-xl p-4 text-center border transition-colors ${activeFilter === "all" ? "bg-orange-500/15 border-orange-500/50" : "bg-neutral-900 border-neutral-800 hover:border-neutral-700"}`}
             >
-              <p className="text-2xl font-bold font-mono text-white">{checkInFromCutoff.length}</p>
+              <p className="text-2xl font-bold font-mono text-white">{checkInData.length}</p>
               <p className="text-xs text-neutral-400 mt-1 uppercase tracking-wider">Total</p>
             </div>
             <div
@@ -566,7 +697,7 @@ export default function CheckInPage() {
                           : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
                       }`}
                     >
-                      Todos ({checkInFromCutoff.length})
+                      Todos ({checkInData.length})
                     </button>
                     {uniqueSexos.map(sexo => {
                       const count = statsBySexo(sexo)
@@ -600,7 +731,7 @@ export default function CheckInPage() {
                           : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
                       }`}
                     >
-                      Todos ({checkInFromCutoff.length})
+                      Todos ({checkInData.length})
                     </button>
                     {uniquePelotoes.map(pelotao => {
                       const count = statsByPelotao(pelotao)
@@ -648,7 +779,7 @@ export default function CheckInPage() {
             <div className="text-center py-16">
               <Users className="w-10 h-10 text-neutral-700 mx-auto mb-3" />
               <p className="text-neutral-400 text-sm">
-                {searchTerm ? `Nenhum resultado para "${searchTerm}"` : "Nenhum check-in encontrado para hoje"}
+                {searchTerm ? `Nenhum resultado para "${searchTerm}"` : "Nenhum check-in neste evento"}
               </p>
             </div>
           )}

@@ -44,7 +44,7 @@ const DEFAULT_FORM = {
   pelotoes: ['4km', '6km', '8km'],
 }
 
-export default function EventosSommaPage() {
+export default function EventosSommaPage({ onViewCheckins }: { onViewCheckins?: (eventoId: string) => void }) {
   const [eventos, setEventos] = useState<EventoWithStats[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -410,10 +410,14 @@ export default function EventosSommaPage() {
                               <div>Fecha: {formatDatetimeBR(evento.checkin_fechamento)}</div>
                             </td>
                             <td className="py-3 px-4 text-center">
-                              <span className="inline-flex items-center gap-1 text-sm font-mono font-bold text-orange-400">
+                              <button
+                                onClick={() => onViewCheckins?.(evento.id)}
+                                className="inline-flex items-center gap-1 text-sm font-mono font-bold text-orange-400 hover:text-orange-300 hover:underline transition-colors cursor-pointer"
+                                title="Ver check-ins deste evento"
+                              >
                                 <Users className="w-3.5 h-3.5" />
                                 {evento.checkin_count}
-                              </span>
+                              </button>
                             </td>
                             <td className="py-3 px-4">
                               <div className="flex items-center justify-center gap-1">
@@ -473,10 +477,13 @@ export default function EventosSommaPage() {
                             <Clock className="w-3 h-3" />
                             {evento.horario_inicio || '07:00'}
                           </span>
-                          <span className="flex items-center gap-1 text-orange-400 font-mono font-bold">
+                          <button
+                            onClick={(e) => { e.stopPropagation(); onViewCheckins?.(evento.id) }}
+                            className="flex items-center gap-1 text-orange-400 font-mono font-bold hover:text-orange-300 hover:underline transition-colors"
+                          >
                             <Users className="w-3 h-3" />
                             {evento.checkin_count}
-                          </span>
+                          </button>
                         </div>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
