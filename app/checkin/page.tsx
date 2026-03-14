@@ -311,7 +311,7 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
       {/* ══════════════════════════════════════════
           MOBILE VIEW
       ══════════════════════════════════════════ */}
-      <div className="md:hidden flex flex-col" style={{ height: '100dvh' }}>
+      <div className="md:hidden">
 
         {/* ── Sticky header ── */}
         <div className="sticky top-14 z-20 bg-neutral-950 border-b border-neutral-800/60">
@@ -392,8 +392,8 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
           </div>
         </div>
 
-        {/* ── Scrollable list ── */}
-        <div className="flex-1 overflow-y-auto">
+        {/* ── List ── */}
+        <div>
 
           {/* Loading */}
           {loading && (
