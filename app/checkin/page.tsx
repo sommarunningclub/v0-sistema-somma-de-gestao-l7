@@ -43,12 +43,31 @@ export default function CheckInPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
 
+  // Parseia "DD/MM/YYYY, HH:MM" ou ISO — retorna null se inválido
+  const parseCheckinDate = (raw: string): Date | null => {
+    if (!raw) return null
+    // Formato brasileiro: "14/03/2026, 07:28"
+    const brMatch = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})/)
+    if (brMatch) {
+      const [, d, m, y] = brMatch
+      return new Date(`${y}-${m}-${d}T00:00:00`)
+    }
+    const d = new Date(raw)
+    return isNaN(d.getTime()) ? null : d
+  }
+
+  const CUTOFF = new Date('2026-03-15T00:00:00')
+  const checkInFromCutoff = checkInData.filter(c => {
+    const d = parseCheckinDate(c.data)
+    return d !== null && d >= CUTOFF
+  })
+  const totalValidated = checkInFromCutoff.filter(c => c.validated).length
+  const totalPending = checkInFromCutoff.filter(c => !c.validated).length
+
   // Mobile-specific state
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
-  const uniquePelotoes = Array.from(new Set(checkInData.map(c => c.pelotao).filter(Boolean))) as string[]
+  const uniquePelotoes = Array.from(new Set(checkInFromCutoff.map(c => c.pelotao).filter(Boolean))) as string[]
   const activeFilterCount = [selectedSexo !== null, selectedPelotao !== null, activeFilter !== 'all'].filter(Boolean).length
-  const totalValidated = checkInData.filter(c => c.validated).length
-  const totalPending = checkInData.filter(c => !c.validated).length
   const getCheckinInitials = (nome?: string) => (nome ?? 'X').split(' ').slice(0, 2).map((n: string) => n[0]).join('').toUpperCase()
   const pelotaoAvatarBg = (pelotao?: string): string => {
     const map: Record<string, string> = {
@@ -122,6 +141,9 @@ export default function CheckInPage() {
   }
 
   const filtered = checkInData.filter(item => {
+    const itemDate = parseCheckinDate(item.data)
+    if (!itemDate || itemDate < CUTOFF) return false
+
     const q = searchTerm.toLowerCase()
     const matchesSearch = !q ||
       (item.nome || "").toLowerCase().includes(q) ||
@@ -161,13 +183,13 @@ export default function CheckInPage() {
     a.click()
   }
 
-  // Calculate stats by sexo and pelotao
+  // Calculate stats by sexo and pelotao (apenas a partir do corte de 15/03)
   const statsBySexo = (sexo: string | undefined) =>
-    checkInData.filter(c => c.sexo === sexo).length
+    checkInFromCutoff.filter(c => c.sexo === sexo).length
   const statsByPelotao = (pelotao: string | undefined) =>
-    checkInData.filter(c => c.pelotao === pelotao).length
+    checkInFromCutoff.filter(c => c.pelotao === pelotao).length
 
-  const uniqueSexos = Array.from(new Set(checkInData.map(c => c.sexo).filter(Boolean)))
+  const uniqueSexos = Array.from(new Set(checkInFromCutoff.map(c => c.sexo).filter(Boolean)))
     .sort() as string[]
 
   return (
@@ -241,16 +263,16 @@ export default function CheckInPage() {
               </button>
             )}
           </div>
-        </div>
 
-        {/* Sticky summary */}
-        <StickySummary
-          items={[
-            { label: 'Total', value: checkInData.length, color: 'orange' },
-            { label: 'Validados', value: totalValidated, color: 'green' },
-            { label: 'Pendentes', value: totalPending, color: 'yellow' },
-          ]}
-        />
+          {/* Summary — dentro do header sticky para ficar visível enquanto a lista rola */}
+          <StickySummary
+            items={[
+              { label: 'Total', value: checkInFromCutoff.length, color: 'orange' },
+              { label: 'Validados', value: totalValidated, color: 'green' },
+              { label: 'Pendentes', value: totalPending, color: 'yellow' },
+            ]}
+          />
+        </div>
 
         {/* Scrollable list */}
         <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2 pb-24">
@@ -467,14 +489,6 @@ export default function CheckInPage() {
                 <Shield className="w-5 h-5 text-orange-500" />
                 CHECK-IN SOMMA
               </h1>
-              <p className="text-xs text-neutral-500 mt-1">
-                Registros de hoje em diante
-                {lastRefresh && (
-                  <span className="ml-2">
-                    · atualizado {lastRefresh.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
-                  </span>
-                )}
-              </p>
             </div>
             <div className="flex gap-2">
               <button
@@ -502,7 +516,7 @@ export default function CheckInPage() {
               onClick={() => setActiveFilter("all")}
               className={`cursor-pointer rounded-xl p-4 text-center border transition-colors ${activeFilter === "all" ? "bg-orange-500/15 border-orange-500/50" : "bg-neutral-900 border-neutral-800 hover:border-neutral-700"}`}
             >
-              <p className="text-2xl font-bold font-mono text-white">{checkInData.length}</p>
+              <p className="text-2xl font-bold font-mono text-white">{checkInFromCutoff.length}</p>
               <p className="text-xs text-neutral-400 mt-1 uppercase tracking-wider">Total</p>
             </div>
             <div
@@ -552,7 +566,7 @@ export default function CheckInPage() {
                           : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
                       }`}
                     >
-                      Todos ({checkInData.length})
+                      Todos ({checkInFromCutoff.length})
                     </button>
                     {uniqueSexos.map(sexo => {
                       const count = statsBySexo(sexo)
@@ -586,7 +600,7 @@ export default function CheckInPage() {
                           : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
                       }`}
                     >
-                      Todos ({checkInData.length})
+                      Todos ({checkInFromCutoff.length})
                     </button>
                     {uniquePelotoes.map(pelotao => {
                       const count = statsByPelotao(pelotao)
