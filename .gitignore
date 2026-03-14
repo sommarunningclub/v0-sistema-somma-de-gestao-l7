@@ -25,4 +25,5 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-gestao-somma.env.local.env.txt.superpowers/
+gestao-somma.env.local.env.txt
+.superpowers/
