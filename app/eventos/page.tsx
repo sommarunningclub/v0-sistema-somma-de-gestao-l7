@@ -477,13 +477,13 @@ export default function EventosSommaPage({ onViewCheckins }: { onViewCheckins?: 
                             <Clock className="w-3 h-3" />
                             {evento.horario_inicio || '07:00'}
                           </span>
-                          <button
+                          <span
                             onClick={(e) => { e.stopPropagation(); onViewCheckins?.(evento.id) }}
-                            className="flex items-center gap-1 text-orange-400 font-mono font-bold hover:text-orange-300 hover:underline transition-colors"
+                            className="flex items-center gap-1 text-orange-400 font-mono font-bold hover:text-orange-300 hover:underline transition-colors cursor-pointer"
                           >
                             <Users className="w-3 h-3" />
                             {evento.checkin_count}
-                          </button>
+                          </span>
                         </div>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
