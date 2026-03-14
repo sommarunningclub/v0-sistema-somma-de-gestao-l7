@@ -13,6 +13,24 @@ export { CRM_STAGES, type CRMStage }
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
+export type MeetingStatus = 'pendente' | 'agendado' | 'reagendado' | 'cancelado' | 'realizado'
+export type MeetingType = 'presencial' | 'online'
+
+export interface MeetingData {
+  status: MeetingStatus
+  type: MeetingType
+  start_at: string | null
+  end_at: string | null
+  timezone: string
+  notes: string
+  address: string | null
+  meeting_url: string | null
+  extra_attendees: string[]
+  google_event_id: string | null
+  google_sync_status: 'pending' | 'synced' | 'failed' | 'cancelled' | null
+  google_synced_at: string | null
+}
+
 export interface CRMLead {
   id: string
   name: string
@@ -26,6 +44,7 @@ export interface CRMLead {
   created_at: string
   updated_at: string
   created_by: string
+  meeting?: MeetingData | null
 }
 
 export interface CRMLeadNote {

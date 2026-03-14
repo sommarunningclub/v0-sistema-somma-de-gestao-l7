@@ -1,13 +1,14 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { X, Save, Trash2, Send, Paperclip, FileText, Download, Clock, MessageSquare, Building2, User, Phone, Mail, FileIcon, AlertTriangle, Search } from 'lucide-react'
+import { X, Save, Trash2, Send, Paperclip, FileText, Download, Clock, MessageSquare, Building2, User, Phone, Mail, FileIcon, AlertTriangle, Search, Calendar } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { CRM_STAGES } from '@/lib/crm-constants'
-import type { CRMLead, CRMLeadNote, CRMLeadAttachment, CRMStage } from '@/lib/services/crm'
+import type { CRMLead, CRMLeadNote, CRMLeadAttachment, CRMStage, MeetingData } from '@/lib/services/crm'
 import { getSession } from '@/components/protected-route'
 import { useCNPJLookup } from '@/hooks/use-cnpj-lookup'
+import { CRMMeetingTab } from '@/components/crm-meeting-tab'
 
 interface CRMLeadModalProps {
   lead: CRMLead | null
@@ -35,7 +36,8 @@ export function CRMLeadModal({ lead, isNew, onClose, onSave, onDelete }: CRMLead
   const [notes, setNotes] = useState<CRMLeadNote[]>([])
   const [attachments, setAttachments] = useState<CRMLeadAttachment[]>([])
   const [newNote, setNewNote] = useState('')
-  const [activeTab, setActiveTab] = useState<'details' | 'notes' | 'attachments'>('details')
+  const [activeTab, setActiveTab] = useState<'details' | 'notes' | 'attachments' | 'meeting'>('details')
+  const [currentMeeting, setCurrentMeeting] = useState<MeetingData | null | undefined>(lead?.meeting)
 
   // UI state
   const [saving, setSaving] = useState(false)
@@ -60,9 +62,15 @@ export function CRMLeadModal({ lead, isNew, onClose, onSave, onDelete }: CRMLead
     loadNotesAndAttachments()
   }, [loadNotesAndAttachments])
 
-  // CNPJ mask
-  const formatCNPJ = (value: string) => {
+  // CNPJ / CPF mask
+  const formatDocumento = (value: string) => {
     const nums = value.replace(/\D/g, '').slice(0, 14)
+    if (nums.length <= 11) {
+      return nums
+        .replace(/^(\d{3})(\d)/, '$1.$2')
+        .replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
+        .replace(/\.(\d{3})(\d{1,2})$/, '.$1-$2')
+    }
     return nums
       .replace(/^(\d{2})(\d)/, '$1.$2')
       .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
@@ -100,17 +108,38 @@ export function CRMLeadModal({ lead, isNew, onClose, onSave, onDelete }: CRMLead
     }
   }
 
+  // Fetch fresh company name from DB when opening existing lead
+  useEffect(() => {
+    if (!lead?.id || isNew) return
+    fetch(`/api/crm/${lead.id}`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data?.company_name) setCompanyName(data.company_name)
+      })
+      .catch(() => {})
+  }, [lead?.id, isNew])
+
+  const handleStageChange = async (newStage: CRMStage) => {
+    setStage(newStage)
+    if (newStage === 'agendamento' && !isNew) {
+      setActiveTab('meeting')
+    } else if (activeTab === 'meeting' && newStage !== 'agendamento') {
+      setActiveTab('details')
+    }
+    if (!lead?.id || isNew) return
+    await fetch(`/api/crm/${lead.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stage: newStage }),
+    })
+  }
+
   const handleCNPJLookup = async () => {
     const data = await lookupCNPJ(cnpj)
     if (data) {
-      // Auto-fill company data from CNPJ lookup
       setCompanyName(data.nome_fantasia || data.razao_social)
-      if (data.ddd_telefone_1) {
-        setPhone(data.ddd_telefone_1)
-      }
-      if (data.email) {
-        setEmail(data.email)
-      }
+      if (data.ddd_telefone_1) setPhone(data.ddd_telefone_1)
+      if (data.email) setEmail(data.email)
     }
   }
 
@@ -255,6 +284,7 @@ export function CRMLeadModal({ lead, isNew, onClose, onSave, onDelete }: CRMLead
               { key: 'details' as const, label: 'Dados', icon: User },
               { key: 'notes' as const, label: 'Histórico', icon: MessageSquare },
               { key: 'attachments' as const, label: 'Anexos', icon: Paperclip },
+              ...(stage === 'agendamento' ? [{ key: 'meeting' as const, label: 'Reunião', icon: Calendar }] : []),
             ].map((tab) => (
               <button
                 key={tab.key}
@@ -290,7 +320,7 @@ export function CRMLeadModal({ lead, isNew, onClose, onSave, onDelete }: CRMLead
                   {CRM_STAGES.map((s) => (
                     <button
                       key={s.id}
-                      onClick={() => setStage(s.id)}
+                      onClick={() => handleStageChange(s.id)}
                       className={`text-xs sm:text-sm py-2.5 px-3 rounded-lg border-2 transition-all min-h-[44px] flex items-center justify-center font-medium ${
                         stage === s.id
                           ? `${s.color} text-white border-transparent shadow-lg`
@@ -359,13 +389,13 @@ export function CRMLeadModal({ lead, isNew, onClose, onSave, onDelete }: CRMLead
               <div>
                 <label className="block text-xs font-medium text-neutral-400 mb-2">
                   <FileText className="w-3 h-3 inline mr-1" />
-                  CNPJ
+                  CNPJ / CPF
                 </label>
                 <div className="flex gap-2">
                   <Input
                     value={cnpj}
-                    onChange={(e) => setCnpj(formatCNPJ(e.target.value))}
-                    placeholder="00.000.000/0000-00"
+                    onChange={(e) => setCnpj(formatDocumento(e.target.value))}
+                    placeholder="000.000.000-00 ou 00.000.000/0000-00"
                     className="bg-neutral-800 border-neutral-700 text-white text-sm flex-1 h-11 sm:h-10 px-3.5"
                   />
                   <Button
@@ -373,7 +403,7 @@ export function CRMLeadModal({ lead, isNew, onClose, onSave, onDelete }: CRMLead
                     disabled={cnpjLoading || cnpj.replace(/\D/g, '').length !== 14}
                     className="bg-orange-600 hover:bg-orange-700 text-white px-4 min-h-[44px] sm:min-h-[40px] flex-shrink-0"
                     size="sm"
-                    title="Buscar dados da empresa"
+                    title="Buscar dados da empresa pelo CNPJ"
                   >
                     <Search className="w-4 h-4" />
                   </Button>
@@ -448,6 +478,16 @@ export function CRMLeadModal({ lead, isNew, onClose, onSave, onDelete }: CRMLead
                 </div>
               )}
             </div>
+          )}
+
+          {/* Meeting Tab */}
+          {activeTab === 'meeting' && !isNew && lead?.id && (
+            <CRMMeetingTab
+              leadId={lead.id}
+              leadEmail={email}
+              initialMeeting={currentMeeting}
+              onSaved={(saved) => setCurrentMeeting(saved)}
+            />
           )}
 
           {/* Attachments Tab */}

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Building2, Mail, Phone, GripVertical, ChevronRight } from 'lucide-react'
+import { Mail, Phone, GripVertical, ChevronRight, Video, MapPin, Calendar, Check, AlertCircle } from 'lucide-react'
 import { CRM_STAGES } from '@/lib/crm-constants'
 import type { CRMLead, CRMStage } from '@/lib/services/crm'
 
@@ -36,15 +36,8 @@ export function CRMLeadCard({ lead, onClick, onDragStart, onMoveCard }: CRMLeadC
         <div className="flex-1 min-w-0">
           <h4 className="text-sm font-semibold text-white truncate leading-tight">{lead.name}</h4>
 
-          {lead.company_name && (
-            <div className="flex items-center gap-1.5 mt-2">
-              <Building2 className="w-3 h-3 text-neutral-500 flex-shrink-0" />
-              <span className="text-xs text-neutral-400 truncate">{lead.company_name}</span>
-            </div>
-          )}
-
           {lead.email && (
-            <div className="flex items-center gap-1.5 mt-1">
+            <div className="flex items-center gap-1.5 mt-2">
               <Mail className="w-3 h-3 text-neutral-500 flex-shrink-0" />
               <span className="text-xs text-neutral-400 truncate">{lead.email}</span>
             </div>
@@ -57,8 +50,53 @@ export function CRMLeadCard({ lead, onClick, onDragStart, onMoveCard }: CRMLeadC
             </div>
           )}
 
-          {lead.description && (
-            <p className="text-xs text-neutral-500 mt-2.5 line-clamp-2">{lead.description}</p>
+          {(lead.company_name || lead.description) && (
+            <p className="text-xs text-neutral-500 mt-2.5 line-clamp-2">
+              {lead.company_name || lead.description}
+            </p>
+          )}
+
+          {/* Meeting summary — shown only in agendamento stage */}
+          {lead.stage === 'agendamento' && lead.meeting && (
+            <div className="mt-2.5 pt-2.5 border-t border-neutral-700/60 space-y-1.5">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {/* Status badge */}
+                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                  lead.meeting.status === 'agendado' ? 'bg-cyan-500/20 text-cyan-400' :
+                  lead.meeting.status === 'reagendado' ? 'bg-yellow-500/20 text-yellow-400' :
+                  lead.meeting.status === 'cancelado' ? 'bg-red-500/20 text-red-400' :
+                  lead.meeting.status === 'realizado' ? 'bg-green-500/20 text-green-400' :
+                  'bg-neutral-700 text-neutral-400'
+                }`}>
+                  {lead.meeting.status.charAt(0).toUpperCase() + lead.meeting.status.slice(1)}
+                </span>
+                {/* Type badge */}
+                <span className="flex items-center gap-1 text-[10px] text-neutral-500">
+                  {lead.meeting.type === 'online'
+                    ? <><Video className="w-3 h-3" /> Online</>
+                    : <><MapPin className="w-3 h-3" /> Presencial</>
+                  }
+                </span>
+                {/* Sync indicator */}
+                {lead.meeting.google_sync_status === 'synced' && (
+                  <Check className="w-3 h-3 text-green-500" title="Sincronizado com Google Calendar" />
+                )}
+                {lead.meeting.google_sync_status === 'failed' && (
+                  <AlertCircle className="w-3 h-3 text-red-400" title="Falha na sincronização" />
+                )}
+              </div>
+              {/* Date/time */}
+              {lead.meeting.start_at && (
+                <div className="flex items-center gap-1.5 text-[10px] text-neutral-500">
+                  <Calendar className="w-3 h-3 flex-shrink-0" />
+                  <span>
+                    {new Date(lead.meeting.start_at).toLocaleString('pt-BR', {
+                      day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+                    })}
+                  </span>
+                </div>
+              )}
+            </div>
           )}
 
           {/* Mobile move button */}
