@@ -4,15 +4,11 @@ import { useState, useEffect, useCallback } from "react"
 import {
   Search, RefreshCw, Download, CheckCircle2, XCircle,
   Users, Trash2, AlertTriangle, X, Shield,
-  CheckCircle, Eye, FilterX, Loader2, SlidersHorizontal,
-  Calendar, ChevronDown,
+  CheckCircle, FilterX, Loader2, SlidersHorizontal,
+  Calendar, ChevronDown, Eye,
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { PillTabBar } from "@/components/mobile/pill-tab-bar"
-import { StickySummary } from "@/components/mobile/sticky-summary"
-import { SwipeCard } from "@/components/mobile/swipe-card"
-import { MobileCard } from "@/components/mobile/mobile-card"
 import { MobileBottomSheet } from "@/components/mobile/mobile-bottom-sheet"
 
 interface CheckInData {
@@ -50,7 +46,7 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<CheckInData | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
 
   // Eventos integration
   const [eventos, setEventos] = useState<EventoOption[]>([])
@@ -60,25 +56,35 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
 
   const selectedEventoData = eventos.find(e => e.id === selectedEvento)
 
-  // Mobile-specific state
+  // Mobile filters
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
   const uniquePelotoes = Array.from(new Set(checkInData.map(c => c.pelotao).filter(Boolean))) as string[]
   const activeFilterCount = [selectedSexo !== null, selectedPelotao !== null, activeFilter !== 'all'].filter(Boolean).length
-  const getCheckinInitials = (nome?: string) => (nome ?? 'X').split(' ').slice(0, 2).map((n: string) => n[0]).join('').toUpperCase()
-  const pelotaoAvatarBg = (pelotao?: string): string => {
-    const map: Record<string, string> = {
-      Alfa: 'bg-orange-500/20 text-orange-400',
-      Bravo: 'bg-blue-500/20 text-blue-400',
-      Charlie: 'bg-purple-500/20 text-purple-400',
-      Delta: 'bg-green-500/20 text-green-400',
-      '4km': 'bg-green-500/20 text-green-400',
-      '6km': 'bg-yellow-500/20 text-yellow-400',
-      '8km': 'bg-red-500/20 text-red-400',
+
+  const pelotaoBadge = (pelotao?: string): { bg: string; text: string } => {
+    const map: Record<string, { bg: string; text: string }> = {
+      '4km':    { bg: 'bg-emerald-500/15', text: 'text-emerald-400' },
+      '6km':    { bg: 'bg-amber-500/15',   text: 'text-amber-400' },
+      '8km':    { bg: 'bg-red-500/15',     text: 'text-red-400' },
+      'Alfa':   { bg: 'bg-orange-500/15',  text: 'text-orange-400' },
+      'Bravo':  { bg: 'bg-blue-500/15',    text: 'text-blue-400' },
+      'Charlie':{ bg: 'bg-purple-500/15',  text: 'text-purple-400' },
+      'Delta':  { bg: 'bg-green-500/15',   text: 'text-green-400' },
     }
-    return map[pelotao ?? ''] ?? 'bg-neutral-700 text-neutral-300'
+    return map[pelotao ?? ''] ?? { bg: 'bg-neutral-700/50', text: 'text-neutral-400' }
   }
 
-  // Fetch events list
+  const getInitials = (nome?: string) =>
+    (nome ?? 'X').split(' ').filter(Boolean).slice(0, 2).map(n => n[0].toUpperCase()).join('')
+
+  // Extract time from pre-formatted "DD/MM/YYYY, HH:MM" string
+  const extractTime = (data: string): string => {
+    if (!data) return '—'
+    const parts = data.split(', ')
+    return parts[1] || parts[0] || '—'
+  }
+
+  // Fetch events
   useEffect(() => {
     async function fetchEventos() {
       try {
@@ -93,11 +99,12 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
           checkin_count: e.checkin_count || 0,
         }))
         setEventos(list)
-        // Use initialEventoId if provided, otherwise auto-select
         if (initialEventoId && list.some(e => e.id === initialEventoId)) {
           setSelectedEvento(initialEventoId)
         } else {
-          const active = list.find(e => e.checkin_status === 'aberto') || list.find(e => e.checkin_status === 'bloqueado') || list[0]
+          const active = list.find(e => e.checkin_status === 'aberto')
+            || list.find(e => e.checkin_status === 'bloqueado')
+            || list[0]
           if (active) setSelectedEvento(active.id)
         }
       } catch (err) {
@@ -119,7 +126,6 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
       const json = await res.json()
       if (json.error) throw new Error(json.error)
       setCheckInData(json.data || [])
-      setLastRefresh(new Date())
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao carregar dados")
     } finally {
@@ -145,8 +151,7 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
       setCheckInData(prev =>
         prev.map(c => c.id === item.id ? { ...c, validated: !item.validated } : c)
       )
-    } catch (err) {
-      console.error('[v0] Error toggling validation:', err)
+    } catch {
       alert("Erro ao atualizar validação")
     } finally {
       setUpdatingId(null)
@@ -219,55 +224,48 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
     a.click()
   }
 
-  const statsBySexo = (sexo: string | undefined) =>
-    checkInData.filter(c => c.sexo === sexo).length
-  const statsByPelotao = (pelotao: string | undefined) =>
-    checkInData.filter(c => c.pelotao === pelotao).length
-
-  const uniqueSexos = Array.from(new Set(checkInData.map(c => c.sexo).filter(Boolean)))
-    .sort() as string[]
+  const statsBySexo = (sexo: string | undefined) => checkInData.filter(c => c.sexo === sexo).length
+  const statsByPelotao = (pelotao: string | undefined) => checkInData.filter(c => c.pelotao === pelotao).length
+  const uniqueSexos = Array.from(new Set(checkInData.map(c => c.sexo).filter(Boolean))).sort() as string[]
 
   const statusLabel = (status: string) => {
     const map: Record<string, { label: string; color: string }> = {
-      aberto: { label: 'Aberto', color: 'text-green-400' },
+      aberto:    { label: 'Aberto',    color: 'text-green-400' },
       bloqueado: { label: 'Bloqueado', color: 'text-yellow-400' },
       encerrado: { label: 'Encerrado', color: 'text-neutral-500' },
     }
     return map[status] || { label: status, color: 'text-neutral-400' }
   }
 
-  // Event selector component (shared between mobile and desktop)
+  // Shared event selector
   const EventSelector = ({ mobile = false }: { mobile?: boolean }) => (
     <div className="relative">
       <button
         onClick={() => setEventoDropdownOpen(!eventoDropdownOpen)}
-        className={`w-full flex items-center justify-between gap-2 rounded-xl border border-neutral-700 bg-neutral-900 hover:bg-neutral-800 transition-colors ${
-          mobile ? 'px-3 py-2.5 text-xs' : 'px-4 py-3 text-sm'
-        }`}
+        className={`w-full flex items-center justify-between gap-2 rounded-xl border border-neutral-700 bg-neutral-900 hover:bg-neutral-800 transition-colors ${mobile ? 'px-3 py-2.5' : 'px-4 py-3'}`}
       >
         <div className="flex items-center gap-2.5 min-w-0">
-          <Calendar className={`flex-shrink-0 text-orange-500 ${mobile ? 'w-4 h-4' : 'w-4.5 h-4.5'}`} />
+          <Calendar className="w-4 h-4 flex-shrink-0 text-orange-500" />
           {selectedEventoData ? (
             <div className="text-left min-w-0">
-              <p className="text-white font-medium truncate">{selectedEventoData.titulo}</p>
+              <p className={`text-white font-medium truncate ${mobile ? 'text-xs' : 'text-sm'}`}>{selectedEventoData.titulo}</p>
               <p className="text-neutral-500 text-xs">
                 {formatEventDate(selectedEventoData.data_evento)} · <span className={statusLabel(selectedEventoData.checkin_status).color}>{statusLabel(selectedEventoData.checkin_status).label}</span> · {selectedEventoData.checkin_count} check-ins
               </p>
             </div>
           ) : (
-            <span className="text-neutral-400">Selecione um evento</span>
+            <span className={`text-neutral-400 ${mobile ? 'text-xs' : 'text-sm'}`}>Selecione um evento</span>
           )}
         </div>
         <ChevronDown className={`w-4 h-4 text-neutral-500 flex-shrink-0 transition-transform ${eventoDropdownOpen ? 'rotate-180' : ''}`} />
       </button>
-
       {eventoDropdownOpen && (
         <>
           <div className="fixed inset-0 z-30" onClick={() => setEventoDropdownOpen(false)} />
-          <div className={`absolute left-0 right-0 z-40 mt-1 bg-neutral-900 border border-neutral-700 rounded-xl shadow-2xl overflow-hidden max-h-72 overflow-y-auto ${mobile ? 'text-xs' : 'text-sm'}`}>
+          <div className="absolute left-0 right-0 z-40 mt-1 bg-neutral-900 border border-neutral-700 rounded-xl shadow-2xl overflow-hidden max-h-72 overflow-y-auto text-sm">
             {eventos.map(evento => {
-              const status = statusLabel(evento.checkin_status)
-              const isSelected = evento.id === selectedEvento
+              const st = statusLabel(evento.checkin_status)
+              const isSel = evento.id === selectedEvento
               return (
                 <button
                   key={evento.id}
@@ -279,17 +277,11 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
                     setSelectedSexo(null)
                     setSelectedPelotao(null)
                   }}
-                  className={`w-full text-left px-4 py-3 flex items-center justify-between gap-3 transition-colors ${
-                    isSelected
-                      ? 'bg-orange-500/10 border-l-2 border-orange-500'
-                      : 'hover:bg-neutral-800 border-l-2 border-transparent'
-                  }`}
+                  className={`w-full text-left px-4 py-3 flex items-center justify-between gap-3 transition-colors border-l-2 ${isSel ? 'bg-orange-500/10 border-orange-500' : 'hover:bg-neutral-800 border-transparent'}`}
                 >
                   <div className="min-w-0">
-                    <p className={`font-medium truncate ${isSelected ? 'text-orange-400' : 'text-white'}`}>{evento.titulo}</p>
-                    <p className="text-neutral-500 text-xs mt-0.5">
-                      {formatEventDate(evento.data_evento)} · <span className={status.color}>{status.label}</span>
-                    </p>
+                    <p className={`font-medium truncate ${isSel ? 'text-orange-400' : 'text-white'}`}>{evento.titulo}</p>
+                    <p className="text-neutral-500 text-xs mt-0.5">{formatEventDate(evento.data_evento)} · <span className={st.color}>{st.label}</span></p>
                   </div>
                   <div className="flex-shrink-0 text-right">
                     <p className="text-neutral-400 font-mono text-xs">{evento.checkin_count}</p>
@@ -298,137 +290,128 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
                 </button>
               )
             })}
-            {eventos.length === 0 && (
-              <div className="px-4 py-6 text-center text-neutral-500 text-sm">
-                Nenhum evento encontrado
-              </div>
-            )}
+            {eventos.length === 0 && <div className="px-4 py-6 text-center text-neutral-500 text-sm">Nenhum evento</div>}
           </div>
         </>
       )}
     </div>
   )
 
-  // Loading eventos
   if (loadingEventos) {
     return (
       <div className="min-h-screen bg-neutral-950 text-white flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-7 h-7 animate-spin mx-auto mb-3 text-orange-500" />
-          <p className="text-neutral-400 text-sm">Carregando eventos...</p>
-        </div>
+        <Loader2 className="w-7 h-7 animate-spin text-orange-500" />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-white">
+    <div className="bg-neutral-950 text-white" style={{ minHeight: '100dvh' }}>
 
-      {/* ── MOBILE VIEW ── */}
-      <div className="md:hidden flex flex-col h-full">
+      {/* ══════════════════════════════════════════
+          MOBILE VIEW
+      ══════════════════════════════════════════ */}
+      <div className="md:hidden flex flex-col" style={{ height: '100dvh' }}>
 
-        {/* Sticky header */}
-        <div className="sticky top-14 z-20 bg-neutral-900 border-b border-neutral-800 px-3 pt-3 pb-2 space-y-2">
+        {/* ── Sticky header ── */}
+        <div className="sticky top-14 z-20 bg-neutral-950 border-b border-neutral-800/60">
 
-          {/* Title row */}
-          <div className="flex items-center justify-between gap-2">
-            <h1 className="text-sm font-bold text-white tracking-wider flex items-center gap-1.5">
-              <Shield className="w-4 h-4 text-orange-500" />
-              Check-in
-            </h1>
+          {/* Row 1: Title + actions */}
+          <div className="flex items-center justify-between gap-2 px-4 pt-3 pb-2">
             <div className="flex items-center gap-2">
+              <Shield className="w-4 h-4 text-orange-500" />
+              <span className="text-sm font-bold text-white tracking-wide">Check-in</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={fetchCheckInData}
+                disabled={loading}
+                className="p-2 rounded-lg bg-neutral-900 border border-neutral-800 text-neutral-400 hover:text-white transition-colors disabled:opacity-40"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              </button>
               <button
                 onClick={() => setMobileFiltersOpen(true)}
-                className="relative flex items-center gap-1.5 px-3 py-1.5 bg-neutral-800 border border-neutral-700 rounded-lg text-xs text-neutral-300 hover:bg-neutral-700 transition-colors"
+                className="relative p-2 rounded-lg bg-neutral-900 border border-neutral-800 text-neutral-400 hover:text-white transition-colors"
               >
                 <SlidersHorizontal className="w-3.5 h-3.5" />
-                Filtros
                 {activeFilterCount > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-orange-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                    {activeFilterCount}
-                  </span>
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-orange-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">{activeFilterCount}</span>
                 )}
               </button>
               <button
                 onClick={handleExport}
                 disabled={filtered.length === 0}
-                className="flex items-center gap-1 px-3 py-1.5 bg-neutral-800 border border-neutral-700 rounded-lg text-xs text-neutral-300 hover:bg-neutral-700 transition-colors disabled:opacity-50"
+                className="p-2 rounded-lg bg-neutral-900 border border-neutral-800 text-neutral-400 hover:text-white transition-colors disabled:opacity-40"
               >
                 <Download className="w-3.5 h-3.5" />
-                CSV
               </button>
             </div>
           </div>
 
-          {/* Event selector */}
-          <EventSelector mobile />
-
-          {/* Pill tab bar */}
-          <PillTabBar
-            tabs={[
-              { key: 'all', label: 'Todos' },
-              { key: 'validated', label: 'Validados' },
-              { key: 'not_validated', label: 'Pendentes' },
-            ]}
-            activeTab={activeFilter}
-            onChange={(key) => setActiveFilter(key as "all" | "validated" | "not_validated")}
-          />
-
-          {/* Search input */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400 pointer-events-none" />
-            <input
-              type="text"
-              placeholder="Buscar nome, CPF, pelotão…"
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="w-full pl-8 pr-8 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-orange-500/50"
-            />
-            {searchTerm && (
-              <button
-                onClick={() => setSearchTerm("")}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white transition-colors"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            )}
+          {/* Row 2: Event selector */}
+          <div className="px-4 pb-2">
+            <EventSelector mobile />
           </div>
 
-          {/* Summary */}
-          <StickySummary
-            items={[
-              { label: 'Total', value: checkInData.length, color: 'orange' },
-              { label: 'Validados', value: totalValidated, color: 'green' },
-              { label: 'Pendentes', value: totalPending, color: 'yellow' },
-            ]}
-          />
+          {/* Row 3: Stats strip */}
+          <div className="grid grid-cols-3 divide-x divide-neutral-800 border-t border-neutral-800">
+            {[
+              { label: 'Total', value: checkInData.length, active: activeFilter === 'all', onClick: () => setActiveFilter('all'), color: 'text-white' },
+              { label: 'Validados', value: totalValidated, active: activeFilter === 'validated', onClick: () => setActiveFilter('validated'), color: 'text-emerald-400' },
+              { label: 'Pendentes', value: totalPending, active: activeFilter === 'not_validated', onClick: () => setActiveFilter('not_validated'), color: 'text-amber-400' },
+            ].map(s => (
+              <button
+                key={s.label}
+                onClick={s.onClick}
+                className={`py-2.5 text-center transition-colors ${s.active ? 'bg-neutral-800/70' : 'hover:bg-neutral-900'}`}
+              >
+                <p className={`text-base font-bold font-mono leading-none ${s.color}`}>{s.value}</p>
+                <p className="text-[10px] text-neutral-500 mt-0.5 uppercase tracking-wider">{s.label}</p>
+              </button>
+            ))}
+          </div>
+
+          {/* Row 4: Search */}
+          <div className="px-4 py-2 border-t border-neutral-800/60">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-500 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Nome, CPF, pelotão…"
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-8 py-2 bg-neutral-900 border border-neutral-800 rounded-lg text-xs text-white placeholder-neutral-600 focus:outline-none focus:border-orange-500/40 transition-colors"
+              />
+              {searchTerm && (
+                <button onClick={() => setSearchTerm("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white">
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* Scrollable list */}
-        <div className="flex-1 overflow-y-auto px-3 py-3 space-y-2 pb-24">
+        {/* ── Scrollable list ── */}
+        <div className="flex-1 overflow-y-auto">
 
           {/* Loading */}
           {loading && (
-            <div className="flex flex-col items-center justify-center py-16 text-neutral-400">
-              <Loader2 className="w-7 h-7 animate-spin mb-3 text-orange-500" />
-              <p className="text-sm">Carregando check-ins…</p>
+            <div className="flex flex-col items-center justify-center py-20">
+              <Loader2 className="w-6 h-6 animate-spin text-orange-500 mb-3" />
+              <p className="text-neutral-500 text-xs">Carregando…</p>
             </div>
           )}
 
-          {/* Empty state */}
+          {/* Empty */}
           {!loading && filtered.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="flex flex-col items-center justify-center py-20 text-center px-6">
               {activeFilterCount > 0 || searchTerm ? (
                 <>
-                  <FilterX className="w-9 h-9 text-neutral-600 mb-3" />
-                  <p className="text-neutral-400 text-sm mb-3">Nenhum resultado</p>
+                  <FilterX className="w-8 h-8 text-neutral-700 mb-3" />
+                  <p className="text-neutral-400 text-sm font-medium mb-4">Nenhum resultado</p>
                   <button
-                    onClick={() => {
-                      setSearchTerm("")
-                      setActiveFilter("all")
-                      setSelectedSexo(null)
-                      setSelectedPelotao(null)
-                    }}
+                    onClick={() => { setSearchTerm(""); setActiveFilter("all"); setSelectedSexo(null); setSelectedPelotao(null) }}
                     className="px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-xs text-neutral-300 hover:bg-neutral-700 transition-colors"
                   >
                     Limpar filtros
@@ -436,355 +419,225 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
                 </>
               ) : (
                 <>
-                  <Users className="w-9 h-9 text-neutral-600 mb-3" />
+                  <Users className="w-8 h-8 text-neutral-700 mb-3" />
                   <p className="text-neutral-400 text-sm">Nenhum check-in neste evento</p>
                 </>
               )}
             </div>
           )}
 
-          {/* Items */}
-          {!loading && filtered.map((item, idx) => {
-            const isUpdating = updatingId === item.id
-            const formattedTime = item.data
-              ? (() => {
-                  try {
-                    return new Date(item.data).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
-                  } catch {
-                    return item.data
-                  }
-                })()
-              : "—"
-            const subtitleText = [formattedTime, item.pelotao].filter(Boolean).join(" · ")
+          {/* Check-in cards */}
+          {!loading && filtered.length > 0 && (
+            <div className="divide-y divide-neutral-800/60">
+              {filtered.map((item, idx) => {
+                const isUpdating = updatingId === item.id
+                const isExpanded = expandedId === (item.id || String(idx))
+                const badge = pelotaoBadge(item.pelotao)
+                const time = extractTime(item.data)
 
-            return (
-              <SwipeCard
-                key={item.id || idx}
-                disabled={isUpdating}
-                actions={[
-                  {
-                    key: 'validate',
-                    label: item.validated ? 'Desfazer' : 'Validar',
-                    icon: <CheckCircle className="w-4 h-4" />,
-                    color: item.validated ? 'orange' : 'green',
-                    onTrigger: () => handleToggleValidation(item),
-                  },
-                  {
-                    key: 'view',
-                    label: 'Ver',
-                    icon: <Eye className="w-4 h-4" />,
-                    color: 'blue',
-                    onTrigger: () => {},
-                  },
-                ]}
-              >
-                <MobileCard
-                  title={item.nome ?? '—'}
-                  subtitle={subtitleText}
-                  avatar={getCheckinInitials(item.nome)}
-                  avatarBg={pelotaoAvatarBg(item.pelotao)}
-                  borderColor={item.validated ? 'green' : 'yellow'}
-                  isUpdating={isUpdating}
-                  expandable
-                  expandedContent={
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div>
-                          <p className="text-neutral-500 mb-0.5">CPF</p>
-                          <p className="text-neutral-200 font-mono">{formatCPF(item.cpf)}</p>
-                        </div>
-                        <div>
-                          <p className="text-neutral-500 mb-0.5">Telefone</p>
-                          <p className="text-neutral-200 font-mono">{item.telefone || '—'}</p>
-                        </div>
-                        <div className="col-span-2">
-                          <p className="text-neutral-500 mb-0.5">Email</p>
-                          <p className="text-neutral-200 truncate">{item.email || '—'}</p>
+                return (
+                  <div key={item.id || idx} className={`transition-colors ${isUpdating ? 'opacity-60' : ''}`}>
+
+                    {/* Main row */}
+                    <div
+                      className="flex items-center gap-3 px-4 py-3.5 active:bg-neutral-900/50"
+                      onClick={() => setExpandedId(isExpanded ? null : (item.id || String(idx)))}
+                    >
+                      {/* Avatar */}
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold ${badge.bg} ${badge.text}`}>
+                        {getInitials(item.nome)}
+                      </div>
+
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-white text-sm font-semibold leading-tight truncate">{item.nome || '—'}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          {item.pelotao && (
+                            <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded-md ${badge.bg} ${badge.text}`}>
+                              {item.pelotao}
+                            </span>
+                          )}
+                          <span className="text-neutral-500 text-[11px]">{time}</span>
                         </div>
                       </div>
-                      <div className="flex gap-2 pt-1">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleToggleValidation(item) }}
-                          disabled={isUpdating}
-                          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition-colors disabled:opacity-50 ${
-                            item.validated
-                              ? 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/30'
-                              : 'bg-green-500/15 text-green-400 border border-green-500/30'
-                          }`}
-                        >
-                          <CheckCircle className="w-3.5 h-3.5" />
-                          {item.validated ? 'Desfazer' : 'Validar'}
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setConfirmDelete(item) }}
-                          className="flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium bg-red-500/15 text-red-400 border border-red-500/30 transition-colors hover:bg-red-500/25"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                          Excluir
-                        </button>
-                      </div>
+
+                      {/* Validation button */}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleToggleValidation(item) }}
+                        disabled={isUpdating}
+                        className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all active:scale-95 disabled:opacity-50 ${
+                          item.validated
+                            ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                            : 'bg-neutral-800 text-neutral-400 border border-neutral-700 hover:border-orange-500/50 hover:text-orange-400'
+                        }`}
+                      >
+                        {isUpdating
+                          ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          : item.validated
+                            ? <><CheckCircle className="w-3.5 h-3.5" /> OK</>
+                            : <><CheckCircle className="w-3.5 h-3.5" /> Validar</>
+                        }
+                      </button>
                     </div>
-                  }
-                />
-              </SwipeCard>
-            )
-          })}
+
+                    {/* Expanded content */}
+                    {isExpanded && (
+                      <div className="px-4 pb-4 bg-neutral-900/40 border-t border-neutral-800/50">
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-3 pt-3 text-xs">
+                          <div>
+                            <p className="text-neutral-600 uppercase tracking-wider text-[10px] mb-1">CPF</p>
+                            <p className="text-neutral-200 font-mono">{formatCPF(item.cpf)}</p>
+                          </div>
+                          <div>
+                            <p className="text-neutral-600 uppercase tracking-wider text-[10px] mb-1">Telefone</p>
+                            <p className="text-neutral-200 font-mono">{item.telefone || '—'}</p>
+                          </div>
+                          <div>
+                            <p className="text-neutral-600 uppercase tracking-wider text-[10px] mb-1">Sexo</p>
+                            <p className="text-neutral-200 capitalize">{item.sexo || '—'}</p>
+                          </div>
+                          <div>
+                            <p className="text-neutral-600 uppercase tracking-wider text-[10px] mb-1">Check-in</p>
+                            <p className="text-neutral-200">{item.data || '—'}</p>
+                          </div>
+                          {item.email && (
+                            <div className="col-span-2">
+                              <p className="text-neutral-600 uppercase tracking-wider text-[10px] mb-1">Email</p>
+                              <p className="text-neutral-200 truncate">{item.email}</p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Action row */}
+                        <div className="flex gap-2 mt-4">
+                          <button
+                            onClick={() => handleToggleValidation(item)}
+                            disabled={isUpdating}
+                            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-xs font-semibold transition-colors disabled:opacity-50 ${
+                              item.validated
+                                ? 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+                                : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                            }`}
+                          >
+                            <CheckCircle className="w-3.5 h-3.5" />
+                            {item.validated ? 'Desfazer validação' : 'Confirmar presença'}
+                          </button>
+                          <button
+                            onClick={() => setConfirmDelete(item)}
+                            className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20 transition-colors hover:bg-red-500/20"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Bottom padding */}
+          <div className="h-8" />
         </div>
 
-        {/* Filters bottom sheet */}
-        <MobileBottomSheet
-          isOpen={mobileFiltersOpen}
-          onClose={() => setMobileFiltersOpen(false)}
-          title="Filtrar Check-ins"
-          height="auto"
-        >
-          <div className="space-y-5">
-            {/* Pelotão */}
+        {/* ── Filters bottom sheet ── */}
+        <MobileBottomSheet isOpen={mobileFiltersOpen} onClose={() => setMobileFiltersOpen(false)} title="Filtrar" height="auto">
+          <div className="space-y-5 pb-2">
             <div>
-              <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Pelotão</p>
+              <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2.5">Pelotão</p>
               <div className="flex flex-wrap gap-2">
-                <button
-                  onClick={() => setSelectedPelotao(null)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                    selectedPelotao === null
-                      ? 'bg-orange-500 text-white'
-                      : 'bg-neutral-800 text-neutral-300 border border-neutral-700'
-                  }`}
-                >
-                  Todos
-                </button>
-                {uniquePelotoes.map(pelotao => (
-                  <button
-                    key={pelotao}
-                    onClick={() => setSelectedPelotao(pelotao)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                      selectedPelotao === pelotao
-                        ? 'bg-orange-500 text-white'
-                        : 'bg-neutral-800 text-neutral-300 border border-neutral-700'
-                    }`}
-                  >
-                    {pelotao}
-                  </button>
+                <button onClick={() => setSelectedPelotao(null)} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${selectedPelotao === null ? 'bg-orange-500 text-white' : 'bg-neutral-800 text-neutral-300 border border-neutral-700'}`}>Todos</button>
+                {uniquePelotoes.map(p => (
+                  <button key={p} onClick={() => setSelectedPelotao(p)} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${selectedPelotao === p ? 'bg-orange-500 text-white' : 'bg-neutral-800 text-neutral-300 border border-neutral-700'}`}>{p}</button>
                 ))}
               </div>
             </div>
-
-            {/* Status */}
             <div>
-              <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">Status</p>
+              <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2.5">Status</p>
               <div className="flex flex-wrap gap-2">
-                {(
-                  [
-                    { key: 'all', label: 'Todos' },
-                    { key: 'validated', label: 'Validados' },
-                    { key: 'not_validated', label: 'Pendentes' },
-                  ] as { key: "all" | "validated" | "not_validated"; label: string }[]
-                ).map(opt => (
-                  <button
-                    key={opt.key}
-                    onClick={() => setActiveFilter(opt.key)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-                      activeFilter === opt.key
-                        ? 'bg-orange-500 text-white'
-                        : 'bg-neutral-800 text-neutral-300 border border-neutral-700'
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
+                {([{ key: 'all', label: 'Todos' }, { key: 'validated', label: 'Validados' }, { key: 'not_validated', label: 'Pendentes' }] as const).map(o => (
+                  <button key={o.key} onClick={() => setActiveFilter(o.key)} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${activeFilter === o.key ? 'bg-orange-500 text-white' : 'bg-neutral-800 text-neutral-300 border border-neutral-700'}`}>{o.label}</button>
                 ))}
               </div>
             </div>
-
-            {/* Apply */}
-            <button
-              onClick={() => setMobileFiltersOpen(false)}
-              className="w-full py-3 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-xl transition-colors"
-            >
+            <button onClick={() => setMobileFiltersOpen(false)} className="w-full py-3 bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold rounded-xl transition-colors">
               Aplicar
             </button>
           </div>
         </MobileBottomSheet>
       </div>
 
-      {/* ── DESKTOP VIEW ── */}
+      {/* ══════════════════════════════════════════
+          DESKTOP VIEW
+      ══════════════════════════════════════════ */}
       <div className="hidden md:block">
         <div className="max-w-7xl mx-auto px-4 py-6 space-y-5">
-
-          {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <h1 className="text-xl font-bold text-white flex items-center gap-2 tracking-wider">
-                <Shield className="w-5 h-5 text-orange-500" />
-                CHECK-IN SOMMA
-              </h1>
-            </div>
+            <h1 className="text-xl font-bold text-white flex items-center gap-2 tracking-wider">
+              <Shield className="w-5 h-5 text-orange-500" />
+              CHECK-IN SOMMA
+            </h1>
             <div className="flex gap-2">
-              <button
-                onClick={fetchCheckInData}
-                disabled={loading}
-                className="flex items-center gap-1.5 px-3 py-2 bg-neutral-900 border border-neutral-700 rounded-lg text-sm text-neutral-300 hover:bg-neutral-800 transition-colors disabled:opacity-50"
-              >
+              <button onClick={fetchCheckInData} disabled={loading} className="flex items-center gap-1.5 px-3 py-2 bg-neutral-900 border border-neutral-700 rounded-lg text-sm text-neutral-300 hover:bg-neutral-800 transition-colors disabled:opacity-50">
                 <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
                 <span className="hidden sm:inline">Atualizar</span>
               </button>
-              <button
-                onClick={handleExport}
-                disabled={filtered.length === 0}
-                className="flex items-center gap-1.5 px-3 py-2 bg-neutral-900 border border-neutral-700 rounded-lg text-sm text-neutral-300 hover:bg-neutral-800 transition-colors disabled:opacity-50"
-              >
+              <button onClick={handleExport} disabled={filtered.length === 0} className="flex items-center gap-1.5 px-3 py-2 bg-neutral-900 border border-neutral-700 rounded-lg text-sm text-neutral-300 hover:bg-neutral-800 transition-colors disabled:opacity-50">
                 <Download className="w-4 h-4" />
                 <span className="hidden sm:inline">Exportar CSV</span>
               </button>
             </div>
           </div>
 
-          {/* Event selector */}
           <EventSelector />
 
-          {/* Stats */}
           <div className="grid grid-cols-3 gap-3">
-            <div
-              onClick={() => setActiveFilter("all")}
-              className={`cursor-pointer rounded-xl p-4 text-center border transition-colors ${activeFilter === "all" ? "bg-orange-500/15 border-orange-500/50" : "bg-neutral-900 border-neutral-800 hover:border-neutral-700"}`}
-            >
-              <p className="text-2xl font-bold font-mono text-white">{checkInData.length}</p>
-              <p className="text-xs text-neutral-400 mt-1 uppercase tracking-wider">Total</p>
-            </div>
-            <div
-              onClick={() => setActiveFilter("validated")}
-              className={`cursor-pointer rounded-xl p-4 text-center border transition-colors ${activeFilter === "validated" ? "bg-green-500/15 border-green-500/50" : "bg-neutral-900 border-neutral-800 hover:border-neutral-700"}`}
-            >
-              <p className="text-2xl font-bold font-mono text-green-400">{totalValidated}</p>
-              <p className="text-xs text-neutral-400 mt-1 uppercase tracking-wider">Validados</p>
-            </div>
-            <div
-              onClick={() => setActiveFilter("not_validated")}
-              className={`cursor-pointer rounded-xl p-4 text-center border transition-colors ${activeFilter === "not_validated" ? "bg-red-500/15 border-red-500/50" : "bg-neutral-900 border-neutral-800 hover:border-neutral-700"}`}
-            >
-              <p className="text-2xl font-bold font-mono text-orange-400">{totalPending}</p>
-              <p className="text-xs text-neutral-400 mt-1 uppercase tracking-wider">Pendentes</p>
-            </div>
+            {[
+              { label: 'Total',      value: checkInData.length, filter: 'all' as const,           color: 'text-white',       activeClasses: 'bg-orange-500/15 border-orange-500/50' },
+              { label: 'Validados',  value: totalValidated,     filter: 'validated' as const,     color: 'text-green-400',   activeClasses: 'bg-green-500/15 border-green-500/50' },
+              { label: 'Pendentes',  value: totalPending,       filter: 'not_validated' as const, color: 'text-orange-400',  activeClasses: 'bg-red-500/15 border-red-500/50' },
+            ].map(s => (
+              <div key={s.label} onClick={() => setActiveFilter(s.filter)} className={`cursor-pointer rounded-xl p-4 text-center border transition-colors ${activeFilter === s.filter ? s.activeClasses : 'bg-neutral-900 border-neutral-800 hover:border-neutral-700'}`}>
+                <p className={`text-2xl font-bold font-mono ${s.color}`}>{s.value}</p>
+                <p className="text-xs text-neutral-400 mt-1 uppercase tracking-wider">{s.label}</p>
+              </div>
+            ))}
           </div>
 
-          {/* Search */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400 pointer-events-none" />
-            <Input
-              placeholder="Buscar por nome, CPF, pelotão, telefone ou email..."
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="pl-9 pr-9 bg-neutral-900 border-neutral-700 text-white placeholder-neutral-500 text-sm"
-            />
-            {searchTerm && (
-              <button onClick={() => setSearchTerm("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white transition-colors">
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
+            <Input placeholder="Buscar por nome, CPF, pelotão, telefone ou email..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-9 pr-9 bg-neutral-900 border-neutral-700 text-white placeholder-neutral-500 text-sm" />
+            {searchTerm && <button onClick={() => setSearchTerm("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white"><X className="w-3.5 h-3.5" /></button>}
           </div>
 
-          {/* Filters: Sexo and Pelotão */}
           {(uniqueSexos.length > 0 || uniquePelotoes.length > 0) && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {uniqueSexos.length > 0 && (
                 <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
                   <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-3">Por Sexo</h3>
                   <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={() => setSelectedSexo(null)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                        selectedSexo === null
-                          ? "bg-orange-500 text-white"
-                          : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
-                      }`}
-                    >
-                      Todos ({checkInData.length})
-                    </button>
-                    {uniqueSexos.map(sexo => {
-                      const count = statsBySexo(sexo)
-                      return (
-                        <button
-                          key={sexo}
-                          onClick={() => setSelectedSexo(sexo)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                            selectedSexo === sexo
-                              ? "bg-blue-500 text-white"
-                              : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
-                          }`}
-                        >
-                          {sexo} ({count})
-                        </button>
-                      )
-                    })}
+                    <button onClick={() => setSelectedSexo(null)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${selectedSexo === null ? "bg-orange-500 text-white" : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"}`}>Todos ({checkInData.length})</button>
+                    {uniqueSexos.map(sexo => <button key={sexo} onClick={() => setSelectedSexo(sexo)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${selectedSexo === sexo ? "bg-blue-500 text-white" : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"}`}>{sexo} ({statsBySexo(sexo)})</button>)}
                   </div>
                 </div>
               )}
-
               {uniquePelotoes.length > 0 && (
                 <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
                   <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-3">Por Pelotão</h3>
                   <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={() => setSelectedPelotao(null)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                        selectedPelotao === null
-                          ? "bg-orange-500 text-white"
-                          : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
-                      }`}
-                    >
-                      Todos ({checkInData.length})
-                    </button>
-                    {uniquePelotoes.map(pelotao => {
-                      const count = statsByPelotao(pelotao)
-                      return (
-                        <button
-                          key={pelotao}
-                          onClick={() => setSelectedPelotao(pelotao)}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                            selectedPelotao === pelotao
-                              ? "bg-purple-500 text-white"
-                              : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
-                          }`}
-                        >
-                          {pelotao} ({count})
-                        </button>
-                      )
-                    })}
+                    <button onClick={() => setSelectedPelotao(null)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${selectedPelotao === null ? "bg-orange-500 text-white" : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"}`}>Todos ({checkInData.length})</button>
+                    {uniquePelotoes.map(p => <button key={p} onClick={() => setSelectedPelotao(p)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${selectedPelotao === p ? "bg-purple-500 text-white" : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"}`}>{p} ({statsByPelotao(p)})</button>)}
                   </div>
                 </div>
               )}
             </div>
           )}
 
-          {/* Loading */}
-          {loading && (
-            <div className="text-center py-16 text-neutral-400">
-              <RefreshCw className="w-7 h-7 animate-spin mx-auto mb-3 text-orange-500" />
-              <p className="text-sm">Carregando check-ins...</p>
-            </div>
-          )}
+          {loading && <div className="text-center py-16"><RefreshCw className="w-7 h-7 animate-spin mx-auto mb-3 text-orange-500" /><p className="text-neutral-400 text-sm">Carregando...</p></div>}
+          {!loading && error && <div className="bg-red-900/20 border border-red-800/50 rounded-xl p-4 text-red-400 text-sm flex gap-3 items-start"><AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" /><div><p className="font-medium">Erro ao carregar dados</p><p className="text-red-500 text-xs mt-0.5">{error}</p></div></div>}
+          {!loading && !error && filtered.length === 0 && <div className="text-center py-16"><Users className="w-10 h-10 text-neutral-700 mx-auto mb-3" /><p className="text-neutral-400 text-sm">{searchTerm ? `Nenhum resultado para "${searchTerm}"` : "Nenhum check-in neste evento"}</p></div>}
 
-          {/* Error */}
-          {!loading && error && (
-            <div className="bg-red-900/20 border border-red-800/50 rounded-xl p-4 text-red-400 text-sm flex gap-3 items-start">
-              <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="font-medium">Erro ao carregar dados</p>
-                <p className="text-red-500 text-xs mt-0.5">{error}</p>
-              </div>
-            </div>
-          )}
-
-          {/* Empty */}
-          {!loading && !error && filtered.length === 0 && (
-            <div className="text-center py-16">
-              <Users className="w-10 h-10 text-neutral-700 mx-auto mb-3" />
-              <p className="text-neutral-400 text-sm">
-                {searchTerm ? `Nenhum resultado para "${searchTerm}"` : "Nenhum check-in neste evento"}
-              </p>
-            </div>
-          )}
-
-          {/* Tabela desktop */}
           {!loading && !error && filtered.length > 0 && (
             <div>
               <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
@@ -792,26 +645,16 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-neutral-800 bg-neutral-800/50">
-                        <th className="text-left py-3 px-4 text-xs font-semibold text-neutral-400 uppercase tracking-wider">Pelotão</th>
-                        <th className="text-left py-3 px-4 text-xs font-semibold text-neutral-400 uppercase tracking-wider">Nome</th>
-                        <th className="text-left py-3 px-4 text-xs font-semibold text-neutral-400 uppercase tracking-wider">Telefone</th>
-                        <th className="text-left py-3 px-4 text-xs font-semibold text-neutral-400 uppercase tracking-wider">CPF</th>
-                        <th className="text-left py-3 px-4 text-xs font-semibold text-neutral-400 uppercase tracking-wider">Data/Hora</th>
-                        <th className="text-left py-3 px-4 text-xs font-semibold text-neutral-400 uppercase tracking-wider">Validação</th>
-                        <th className="text-center py-3 px-4 text-xs font-semibold text-neutral-400 uppercase tracking-wider">Ações</th>
+                        {["Pelotão","Nome","Telefone","CPF","Data/Hora","Validação","Ações"].map((h, i) => (
+                          <th key={h} className={`py-3 px-4 text-xs font-semibold text-neutral-400 uppercase tracking-wider ${i === 6 ? 'text-center' : 'text-left'}`}>{h}</th>
+                        ))}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-neutral-800">
                       {filtered.map((item, idx) => (
                         <tr key={item.id || idx} className="hover:bg-neutral-800/40 transition-colors">
                           <td className="py-3 px-4">
-                            {item.pelotao ? (
-                              <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30 font-mono text-xs font-semibold">
-                                {item.pelotao}
-                              </Badge>
-                            ) : (
-                              <span className="text-neutral-600 text-xs">—</span>
-                            )}
+                            {item.pelotao ? <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30 font-mono text-xs font-semibold">{item.pelotao}</Badge> : <span className="text-neutral-600 text-xs">—</span>}
                           </td>
                           <td className="py-3 px-4 font-medium text-white max-w-[180px]">
                             <p className="truncate">{item.nome || "—"}</p>
@@ -821,29 +664,12 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
                           <td className="py-3 px-4 text-neutral-300 font-mono text-xs">{formatCPF(item.cpf)}</td>
                           <td className="py-3 px-4 text-neutral-400 text-xs whitespace-nowrap">{item.data || "—"}</td>
                           <td className="py-3 px-4">
-                            <button
-                              onClick={() => handleToggleValidation(item)}
-                              disabled={updatingId === item.id}
-                              className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50 ${
-                                item.validated
-                                  ? "bg-green-500/15 text-green-400 hover:bg-green-500/25"
-                                  : "bg-neutral-800 text-neutral-500 hover:bg-neutral-700 hover:text-white"
-                              }`}
-                            >
-                              {item.validated
-                                ? <><CheckCircle2 className="w-3.5 h-3.5" /> Validado</>
-                                : <><XCircle className="w-3.5 h-3.5" /> Pendente</>
-                              }
+                            <button onClick={() => handleToggleValidation(item)} disabled={updatingId === item.id} className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg transition-colors disabled:opacity-50 ${item.validated ? "bg-green-500/15 text-green-400 hover:bg-green-500/25" : "bg-neutral-800 text-neutral-500 hover:bg-neutral-700 hover:text-white"}`}>
+                              {item.validated ? <><CheckCircle2 className="w-3.5 h-3.5" /> Validado</> : <><XCircle className="w-3.5 h-3.5" /> Pendente</>}
                             </button>
                           </td>
                           <td className="py-3 px-4 text-center">
-                            <button
-                              onClick={() => setConfirmDelete(item)}
-                              className="p-1.5 rounded-lg text-neutral-600 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                              title="Deletar check-in"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            <button onClick={() => setConfirmDelete(item)} className="p-1.5 rounded-lg text-neutral-600 hover:text-red-400 hover:bg-red-500/10 transition-colors"><Trash2 className="w-4 h-4" /></button>
                           </td>
                         </tr>
                       ))}
@@ -857,9 +683,9 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
         </div>
       </div>
 
-      {/* Modal confirmação de deleção */}
+      {/* ── Delete confirmation modal ── */}
       {confirmDelete && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4">
           <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6 w-full max-w-sm shadow-2xl">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center flex-shrink-0">
@@ -867,35 +693,18 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
               </div>
               <div>
                 <h3 className="text-white font-semibold">Deletar check-in?</h3>
-                <p className="text-xs text-neutral-400">Esta ação remove o registro do banco de dados e não pode ser desfeita.</p>
+                <p className="text-xs text-neutral-400">Ação irreversível.</p>
               </div>
             </div>
-
-            <div className="bg-neutral-800 rounded-xl p-3 mb-5 space-y-1.5 text-sm">
+            <div className="bg-neutral-800 rounded-xl p-3 mb-5 space-y-1 text-sm">
               <p className="text-white font-medium">{confirmDelete.nome || "—"}</p>
               <p className="text-neutral-400 font-mono text-xs">{formatCPF(confirmDelete.cpf)}</p>
               {confirmDelete.pelotao && <p className="text-orange-400 text-xs">Pelotão: {confirmDelete.pelotao}</p>}
-              <p className="text-neutral-500 text-xs">{confirmDelete.data}</p>
             </div>
-
             <div className="flex gap-3">
-              <button
-                onClick={() => setConfirmDelete(null)}
-                disabled={!!deletingId}
-                className="flex-1 py-2.5 rounded-xl bg-neutral-800 text-neutral-300 hover:bg-neutral-700 text-sm font-medium transition-colors disabled:opacity-50"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleDelete}
-                disabled={!!deletingId}
-                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-medium transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
-              >
-                {deletingId ? (
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                ) : (
-                  <><Trash2 className="w-4 h-4" /> Deletar</>
-                )}
+              <button onClick={() => setConfirmDelete(null)} disabled={!!deletingId} className="flex-1 py-2.5 rounded-xl bg-neutral-800 text-neutral-300 hover:bg-neutral-700 text-sm font-medium transition-colors disabled:opacity-50">Cancelar</button>
+              <button onClick={handleDelete} disabled={!!deletingId} className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-medium transition-colors disabled:opacity-60 flex items-center justify-center gap-2">
+                {deletingId ? <RefreshCw className="w-4 h-4 animate-spin" /> : <><Trash2 className="w-4 h-4" /> Deletar</>}
               </button>
             </div>
           </div>
