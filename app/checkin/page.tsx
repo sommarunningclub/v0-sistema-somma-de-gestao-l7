@@ -84,6 +84,12 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
     return parts[1] || parts[0] || '—'
   }
 
+  // Reset scroll position on mount
+  useEffect(() => {
+    const container = document.getElementById('main-content-scroll')
+    if (container) container.scrollTop = 0
+  }, [])
+
   // Fetch events
   useEffect(() => {
     async function fetchEventos() {

@@ -382,7 +382,7 @@ export default function TacticalDashboard() {
           </header>
 
           {/* Content Area - Safe area for notch */}
-          <div className="flex-1 overflow-auto bg-black">
+          <div id="main-content-scroll" className="flex-1 overflow-auto bg-black">
             {activeSection === "overview" && <CommandCenterPage />}
             {activeSection === "checkin" && permissions.checkin && <CheckInPage initialEventoId={checkinEventoId} />}
             {activeSection === "eventos" && permissions.checkin && <EventosSommaPage onViewCheckins={(eventoId: string) => { setCheckinEventoId(eventoId); setActiveSection("checkin") }} />}
