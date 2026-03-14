@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { ChevronRight, ChevronDown, Monitor, Settings, Shield, Target, Users, Bell, RefreshCw, CreditCard, LogOut, CheckSquare, Briefcase, LayoutDashboard, Receipt, Ticket, Zap, ChevronLeft, Star, X as CloseIcon, Link2, Handshake } from "lucide-react"
+import { ChevronRight, ChevronDown, Monitor, Settings, Shield, Target, Users, Bell, RefreshCw, CreditCard, LogOut, CheckSquare, Briefcase, LayoutDashboard, Receipt, Ticket, Zap, ChevronLeft, Star, X as CloseIcon, Link2, Handshake, Calendar } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { UserProfile } from "@/components/user-profile"
 import ProtectedRouteComponent from "@/components/protected-route"
@@ -17,6 +17,7 @@ import CheckInPage from "./checkin/page"
 import ParcerioSommaPage from "./parceiro/page"
 import OperationsPage from "./operations/page"
 import CRMPage from "./crm/page"
+import EventosSommaPage from "./eventos/page"
 
 export default function TacticalDashboard() {
   const [activeSection, setActiveSection] = useState("overview")
@@ -139,6 +140,7 @@ export default function TacticalDashboard() {
               {[
                 { id: "overview", icon: Monitor, label: "DASHBOARD", permissionKey: "dashboard" },
                 { id: "checkin", icon: CheckSquare, label: "CHECK-IN", permissionKey: "checkin" },
+                { id: "eventos", icon: Calendar, label: "EVENTOS", permissionKey: "checkin" },
                 { id: "agents", icon: Users, label: "MEMBROS", permissionKey: "membros" },
                 { id: "parceiro", icon: Briefcase, label: "PARCEIRO SOMMA", permissionKey: "parceiro" },
                 { id: "insiders", icon: Star, label: "INSIDERS", permissionKey: "pagamentos" },
@@ -288,6 +290,7 @@ export default function TacticalDashboard() {
                 {[
                   { id: "overview",      icon: Monitor,      label: "Dashboard",   permissionKey: "dashboard" },
                   { id: "checkin",       icon: CheckSquare,  label: "Check-in",    permissionKey: "checkin" },
+                  { id: "eventos",      icon: Calendar,     label: "Eventos",     permissionKey: "checkin" },
                   { id: "agents",        icon: Users,        label: "Membros",     permissionKey: "membros" },
                   { id: "parceiro",      icon: Briefcase,    label: "Parceiro",    permissionKey: "parceiro" },
                   { id: "insiders",      icon: Star,         label: "Insiders",    permissionKey: "pagamentos" },
@@ -381,6 +384,7 @@ export default function TacticalDashboard() {
           <div className="flex-1 overflow-auto bg-black">
             {activeSection === "overview" && <CommandCenterPage />}
             {activeSection === "checkin" && permissions.checkin && <CheckInPage />}
+            {activeSection === "eventos" && permissions.checkin && <EventosSommaPage />}
             {activeSection === "agents" && permissions.membros && <AgentNetworkPage />}
             {activeSection === "parceiro" && permissions.parceiro && <ParcerioSommaPage />}
               {activeSection === "insiders" && permissions.pagamentos && <InsidersPage />}

@@ -39,11 +39,19 @@ export async function GET(request: NextRequest) {
     console.log('[v0] Fetching check-ins from 2026-03-11 onwards')
 
     // Return all check-ins from 11/03/2026 onwards
-    const { data, error } = await supabase
+    let query = supabase
       .from('checkins')
       .select('*')
       .gte('data_hora_checkin', '2026-03-11T03:00:00.000Z')
       .order('data_hora_checkin', { ascending: false })
+
+    // Optional filter by evento_id
+    const eventoId = request.nextUrl.searchParams.get('evento_id')
+    if (eventoId) {
+      query = query.eq('evento_id', eventoId)
+    }
+
+    const { data, error } = await query
 
     if (error) {
       console.error('[v0] Supabase error fetching checkins:', error)
