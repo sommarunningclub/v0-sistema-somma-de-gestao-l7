@@ -549,7 +549,9 @@ export function TarefasTaskModal({
               className="rounded-lg shadow-2xl"
               style={{
                 maxHeight: 'calc(100vh - 140px)',
-                maxWidth: 'calc(100% - 120px)',
+                maxWidth: '100%',
+                width: '100%',
+                height: 'auto',
                 objectFit: 'contain',
               }}
               onClick={e => e.stopPropagation()}
