@@ -2,7 +2,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { X, Plus, Trash2, Check, Paperclip, FileText, Image, ExternalLink } from 'lucide-react'
+import { X, Plus, Trash2, Check, Paperclip, FileText, Download, ChevronLeft, ChevronRight, ZoomIn } from 'lucide-react'
 import { TAREFAS_PRIORIDADES } from '@/lib/tarefas-constants'
 import type { TarefasTask, TarefasColumn, TarefasUser, ChecklistItem, TarefasAnexo } from '@/lib/services/tarefas'
 import { getSession } from '@/components/protected-route'
@@ -149,12 +149,34 @@ export function TarefasTaskModal({
     if (res.ok) setAnexos(prev => prev.filter(a => a.id !== id))
   }
 
+  const imageAnexos = anexos.filter(a => isImage(a.file_type))
+  const previewIndex = previewAnexo ? imageAnexos.findIndex(a => a.id === previewAnexo.id) : -1
+
   const handleAnexoClick = (anexo: TarefasAnexo) => {
     if (isImage(anexo.file_type)) {
       setPreviewAnexo(anexo)
     } else {
       window.open(anexo.file_url, '_blank')
     }
+  }
+
+  const handlePrevImage = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (previewIndex > 0) setPreviewAnexo(imageAnexos[previewIndex - 1])
+  }
+
+  const handleNextImage = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (previewIndex < imageAnexos.length - 1) setPreviewAnexo(imageAnexos[previewIndex + 1])
+  }
+
+  function getFileIcon(fileType: string) {
+    if (fileType === 'application/pdf') return { icon: FileText, color: 'text-red-400', bg: 'bg-red-500/10', label: 'PDF' }
+    if (fileType.includes('word') || fileType.includes('document')) return { icon: FileText, color: 'text-blue-400', bg: 'bg-blue-500/10', label: 'DOC' }
+    if (fileType.includes('excel') || fileType.includes('sheet')) return { icon: FileText, color: 'text-green-400', bg: 'bg-green-500/10', label: 'XLS' }
+    if (fileType.includes('presentation') || fileType.includes('powerpoint')) return { icon: FileText, color: 'text-orange-400', bg: 'bg-orange-500/10', label: 'PPT' }
+    if (fileType === 'text/csv') return { icon: FileText, color: 'text-teal-400', bg: 'bg-teal-500/10', label: 'CSV' }
+    return { icon: FileText, color: 'text-neutral-400', bg: 'bg-neutral-700', label: 'FILE' }
   }
 
   return (
@@ -328,7 +350,7 @@ export function TarefasTaskModal({
 
             {/* ── Aba Anexos ── */}
             {!isNew && activeTab === 'anexos' && (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {/* Upload button */}
                 <input
                   ref={fileInputRef}
@@ -340,60 +362,104 @@ export function TarefasTaskModal({
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploading}
-                  className="w-full flex items-center justify-center gap-2 py-3 border border-dashed border-neutral-700 rounded-lg text-sm text-neutral-400 hover:text-white hover:border-orange-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="w-full flex items-center justify-center gap-2 py-3.5 border border-dashed border-neutral-700 rounded-xl text-sm text-neutral-400 hover:text-white hover:border-orange-500 hover:bg-orange-500/5 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  <Paperclip className="w-4 h-4" />
-                  {uploading ? 'Enviando...' : 'Clique para anexar arquivo'}
+                  {uploading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-orange-500/40 border-t-orange-500 rounded-full animate-spin" />
+                      <span>Enviando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Paperclip className="w-4 h-4" />
+                      <span>Clique para anexar arquivo</span>
+                    </>
+                  )}
                 </button>
 
-                {/* Lista de anexos */}
                 {anexos.length === 0 ? (
-                  <p className="text-center text-neutral-600 text-xs py-6">Nenhum anexo ainda</p>
-                ) : (
-                  <div className="space-y-2">
-                    {anexos.map(anexo => (
-                      <div key={anexo.id} className="flex items-center gap-3 p-3 bg-neutral-800 rounded-lg group/anexo">
-                        {/* Thumbnail ou ícone */}
-                        <button
-                          onClick={() => handleAnexoClick(anexo)}
-                          className="flex-shrink-0 w-10 h-10 rounded-md overflow-hidden bg-neutral-700 flex items-center justify-center hover:ring-2 hover:ring-orange-500 transition-all"
-                        >
-                          {isImage(anexo.file_type) ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={anexo.file_url} alt={anexo.file_name} className="w-full h-full object-cover" />
-                          ) : anexo.file_type === 'application/pdf' ? (
-                            <FileText className="w-5 h-5 text-red-400" />
-                          ) : (
-                            <FileText className="w-5 h-5 text-neutral-400" />
-                          )}
-                        </button>
-
-                        {/* Nome e tamanho */}
-                        <button
-                          onClick={() => handleAnexoClick(anexo)}
-                          className="flex-1 min-w-0 text-left"
-                        >
-                          <p className="text-white text-xs font-medium truncate">{anexo.file_name}</p>
-                          <p className="text-neutral-500 text-[11px] mt-0.5">
-                            {formatFileSize(anexo.file_size)}
-                            {!isImage(anexo.file_type) && (
-                              <span className="ml-1.5 inline-flex items-center gap-0.5 text-neutral-600">
-                                <ExternalLink className="w-2.5 h-2.5" /> abrir
-                              </span>
-                            )}
-                          </p>
-                        </button>
-
-                        {/* Delete */}
-                        <button
-                          onClick={() => handleDeleteAnexo(anexo.id)}
-                          className="opacity-0 group-hover/anexo:opacity-100 p-1.5 text-neutral-600 hover:text-red-400 transition-opacity flex-shrink-0"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
+                  <div className="flex flex-col items-center justify-center py-10 gap-2 text-neutral-600">
+                    <Paperclip className="w-8 h-8 opacity-30" />
+                    <p className="text-xs">Nenhum anexo ainda</p>
                   </div>
+                ) : (
+                  <>
+                    {/* Grid de imagens */}
+                    {imageAnexos.length > 0 && (
+                      <div>
+                        <p className="text-neutral-500 text-[11px] uppercase tracking-wider mb-2">Imagens</p>
+                        <div className="grid grid-cols-3 gap-2">
+                          {imageAnexos.map(anexo => (
+                            <div key={anexo.id} className="relative group/img aspect-square">
+                              <button
+                                onClick={() => handleAnexoClick(anexo)}
+                                className="w-full h-full rounded-lg overflow-hidden bg-neutral-800 border border-neutral-700 hover:border-orange-500 transition-all"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={anexo.file_url} alt={anexo.file_name} className="w-full h-full object-cover" />
+                                <div className="absolute inset-0 bg-black/0 group-hover/img:bg-black/40 transition-all flex items-center justify-center">
+                                  <ZoomIn className="w-5 h-5 text-white opacity-0 group-hover/img:opacity-100 transition-opacity" />
+                                </div>
+                              </button>
+                              <button
+                                onClick={() => handleDeleteAnexo(anexo.id)}
+                                className="absolute top-1.5 right-1.5 p-1 bg-black/70 rounded-md text-white/60 hover:text-red-400 opacity-0 group-hover/img:opacity-100 transition-opacity"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Lista de arquivos não-imagem */}
+                    {anexos.filter(a => !isImage(a.file_type)).length > 0 && (
+                      <div>
+                        {imageAnexos.length > 0 && <p className="text-neutral-500 text-[11px] uppercase tracking-wider mb-2">Arquivos</p>}
+                        <div className="space-y-1.5">
+                          {anexos.filter(a => !isImage(a.file_type)).map(anexo => {
+                            const { icon: Icon, color, bg, label } = getFileIcon(anexo.file_type)
+                            return (
+                              <div key={anexo.id} className="flex items-center gap-3 p-3 bg-neutral-800/60 rounded-xl border border-neutral-800 hover:border-neutral-700 group/doc transition-colors">
+                                {/* Ícone do tipo */}
+                                <div className={`flex-shrink-0 w-10 h-10 rounded-lg ${bg} flex flex-col items-center justify-center gap-0.5`}>
+                                  <Icon className={`w-4 h-4 ${color}`} />
+                                  <span className={`text-[9px] font-bold ${color} leading-none`}>{label}</span>
+                                </div>
+
+                                {/* Nome e tamanho */}
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-white text-xs font-medium truncate">{anexo.file_name}</p>
+                                  <p className="text-neutral-500 text-[11px] mt-0.5">{formatFileSize(anexo.file_size)}</p>
+                                </div>
+
+                                {/* Ações */}
+                                <div className="flex items-center gap-1 opacity-0 group-hover/doc:opacity-100 transition-opacity">
+                                  <a
+                                    href={anexo.file_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="p-1.5 text-neutral-400 hover:text-white bg-neutral-700 rounded-md"
+                                    title="Abrir"
+                                  >
+                                    <Download className="w-3.5 h-3.5" />
+                                  </a>
+                                  <button
+                                    onClick={() => handleDeleteAnexo(anexo.id)}
+                                    className="p-1.5 text-neutral-400 hover:text-red-400 bg-neutral-700 rounded-md"
+                                    title="Excluir"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )}
@@ -431,27 +497,83 @@ export function TarefasTaskModal({
         </div>
       </div>
 
-      {/* Preview lightbox (imagens) */}
+      {/* Lightbox de imagens */}
       {previewAnexo && (
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4"
+          className="fixed inset-0 z-[60] flex flex-col bg-black/95"
           onClick={() => setPreviewAnexo(null)}
         >
-          <button
-            onClick={() => setPreviewAnexo(null)}
-            className="absolute top-4 right-4 p-2 text-white/70 hover:text-white bg-black/50 rounded-full"
-          >
-            <X className="w-5 h-5" />
-          </button>
-          <div className="max-w-full max-h-full" onClick={e => e.stopPropagation()}>
+          {/* Top bar */}
+          <div className="flex items-center justify-between px-5 py-3 flex-shrink-0" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setPreviewAnexo(null)}
+                className="p-2 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <div>
+                <p className="text-white text-sm font-medium truncate max-w-[200px] sm:max-w-xs">{previewAnexo.file_name}</p>
+                <p className="text-white/40 text-xs">{formatFileSize(previewAnexo.file_size)}{imageAnexos.length > 1 && ` · ${previewIndex + 1} de ${imageAnexos.length}`}</p>
+              </div>
+            </div>
+            <a
+              href={previewAnexo.file_url}
+              download={previewAnexo.file_name}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-white/70 hover:text-white bg-white/10 hover:bg-white/20 rounded-lg transition-colors"
+              onClick={e => e.stopPropagation()}
+            >
+              <Download className="w-3.5 h-3.5" />
+              Download
+            </a>
+          </div>
+
+          {/* Imagem central */}
+          <div className="flex-1 flex items-center justify-center relative px-4 pb-4 min-h-0">
+            {/* Navegação anterior */}
+            {previewIndex > 0 && (
+              <button
+                onClick={handlePrevImage}
+                className="absolute left-3 z-10 p-2.5 bg-black/50 hover:bg-black/80 text-white rounded-full transition-colors"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+            )}
+
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={previewAnexo.file_url}
               alt={previewAnexo.file_name}
-              className="max-w-[90vw] max-h-[85vh] object-contain rounded-lg"
+              className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+              style={{ maxHeight: 'calc(100vh - 100px)' }}
+              onClick={e => e.stopPropagation()}
             />
-            <p className="text-white/60 text-xs text-center mt-2">{previewAnexo.file_name}</p>
+
+            {/* Navegação próxima */}
+            {previewIndex < imageAnexos.length - 1 && (
+              <button
+                onClick={handleNextImage}
+                className="absolute right-3 z-10 p-2.5 bg-black/50 hover:bg-black/80 text-white rounded-full transition-colors"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            )}
           </div>
+
+          {/* Miniaturas de navegação (quando há múltiplas imagens) */}
+          {imageAnexos.length > 1 && (
+            <div className="flex justify-center gap-2 pb-4 flex-shrink-0" onClick={e => e.stopPropagation()}>
+              {imageAnexos.map((a, i) => (
+                <button
+                  key={a.id}
+                  onClick={() => setPreviewAnexo(a)}
+                  className={`w-2 h-2 rounded-full transition-all ${i === previewIndex ? 'bg-white scale-125' : 'bg-white/30 hover:bg-white/60'}`}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </>
