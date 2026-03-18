@@ -266,24 +266,36 @@ export default function TarefasPage() {
 
   if (boards.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full gap-4 text-center px-6">
-        <KanbanSquare className="w-12 h-12 text-neutral-600" />
-        <div>
-          <p className="text-white font-semibold">Nenhum quadro ainda</p>
-          <p className="text-neutral-500 text-sm mt-1">Crie seu primeiro quadro para começar</p>
+      <>
+        <div className="flex flex-col items-center justify-center h-full gap-4 text-center px-6">
+          <KanbanSquare className="w-12 h-12 text-neutral-600" />
+          <div>
+            <p className="text-white font-semibold">Nenhum quadro ainda</p>
+            <p className="text-neutral-500 text-sm mt-1">Crie seu primeiro quadro para começar</p>
+          </div>
+          {isAdmin && (
+            <button
+              onClick={() => setBoardModal({ open: true, board: null, isNew: true })}
+              className="px-4 py-2 bg-orange-500 text-black text-sm font-bold rounded-lg hover:bg-orange-400"
+            >
+              Criar quadro
+            </button>
+          )}
+          {!isAdmin && (
+            <p className="text-neutral-500 text-sm">Solicite ao administrador a criação de um quadro.</p>
+          )}
         </div>
-        {isAdmin && (
-          <button
-            onClick={() => setBoardModal({ open: true, board: null, isNew: true })}
-            className="px-4 py-2 bg-orange-500 text-black text-sm font-bold rounded-lg hover:bg-orange-400"
-          >
-            Criar quadro
-          </button>
+
+        {boardModal.open && (
+          <TarefasBoardModal
+            board={boardModal.board}
+            isNew={boardModal.isNew}
+            onClose={() => setBoardModal(s => ({ ...s, open: false }))}
+            onSave={handleSaveBoard}
+            onDelete={handleDeleteBoard}
+          />
         )}
-        {!isAdmin && (
-          <p className="text-neutral-500 text-sm">Solicite ao administrador a criação de um quadro.</p>
-        )}
-      </div>
+      </>
     )
   }
 
