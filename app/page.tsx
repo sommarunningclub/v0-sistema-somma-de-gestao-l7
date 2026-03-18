@@ -19,6 +19,7 @@ import OperationsPage from "./operations/page"
 import CRMPage from "./crm/page"
 import EventosSommaPage from "./eventos/page"
 import TarefasPage from "./tarefas/page"
+import { TarefasFiltersProvider } from "@/lib/context/tarefas-filters-context"
 
 export default function TacticalDashboard() {
   const [activeSection, setActiveSection] = useState("overview")
@@ -394,7 +395,7 @@ export default function TacticalDashboard() {
             {activeSection === "parceiro" && permissions.parceiro && <ParcerioSommaPage />}
               {activeSection === "insiders" && permissions.pagamentos && <InsidersPage />}
             {activeSection === "crm" && permissions.crm && <CRMPage />}
-            {activeSection === "tarefas" && permissions.tarefas && <TarefasPage />}
+            {activeSection === "tarefas" && permissions.tarefas && <TarefasFiltersProvider><TarefasPage /></TarefasFiltersProvider>}
               {activeSection === "intelligence" && permissions.carteiras && <IntelligencePage />}
             {activeSection === "pagamentos" && permissions.pagamentos && <PagamentosPage activeTab={pagamentosTab} />}
             {activeSection === "systems" && permissions.admin && <SystemsPage />}
