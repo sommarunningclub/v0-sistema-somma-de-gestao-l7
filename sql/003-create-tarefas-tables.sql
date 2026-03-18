@@ -28,7 +28,7 @@ CREATE INDEX IF NOT EXISTS idx_tarefas_columns_board ON tarefas_columns(board_id
 -- 3. Tasks (cards)
 CREATE TABLE IF NOT EXISTS tarefas_tasks (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  column_id UUID NOT NULL REFERENCES tarefas_columns(id),
+  column_id UUID NOT NULL REFERENCES tarefas_columns(id), -- intentional RESTRICT: API layer guards deletion via 409
   board_id UUID NOT NULL REFERENCES tarefas_boards(id),
   titulo TEXT NOT NULL,
   descricao TEXT,

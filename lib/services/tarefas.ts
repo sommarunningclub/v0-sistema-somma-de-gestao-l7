@@ -165,7 +165,9 @@ export async function getTasks(boardId: string): Promise<TarefasTask[]> {
 }
 
 export async function createTask(task: Omit<TarefasTask, 'id' | 'criado_em' | 'atualizado_em'>): Promise<TarefasTask | null> {
-  // Get next posicao in column
+  // Note: two-step max(posicao)+1 pattern has a race condition under concurrent inserts.
+  // posicao collisions cause silent ordering issues (no error). Drag-and-drop bulk-updates
+  // in the DnD layer are the authoritative source of order and will overwrite this value.
   const { data: existing } = await getSupabase()
     .from('tarefas_tasks')
     .select('posicao')
@@ -183,7 +185,7 @@ export async function createTask(task: Omit<TarefasTask, 'id' | 'criado_em' | 'a
   return { ...data, checklist: Array.isArray(data.checklist) ? data.checklist : [] }
 }
 
-export async function updateTask(id: string, updates: Partial<TarefasTask>): Promise<TarefasTask | null> {
+export async function updateTask(id: string, updates: Partial<Omit<TarefasTask, 'id' | 'criado_em' | 'atualizado_em'>>): Promise<TarefasTask | null> {
   const { data, error } = await getSupabase()
     .from('tarefas_tasks')
     .update(updates)
@@ -195,7 +197,7 @@ export async function updateTask(id: string, updates: Partial<TarefasTask>): Pro
 }
 
 export async function moveTask(id: string, newColumnId: string, newBoardId: string): Promise<boolean> {
-  // Get next posicao in target column
+  // Same race condition as createTask — see comment there. DnD bulk-update is authoritative.
   const { data: existing } = await getSupabase()
     .from('tarefas_tasks')
     .select('posicao')
