@@ -2,10 +2,14 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { RefreshCw, Settings, Plus, KanbanSquare } from 'lucide-react'
+import { RefreshCw, Settings, Plus, KanbanSquare, Filter, CalendarDays, CalendarRange } from 'lucide-react'
 import { TarefasKanbanBoard } from '@/components/tarefas-kanban-board'
 import { TarefasTaskModal } from '@/components/tarefas-task-modal'
 import { TarefasBoardModal } from '@/components/tarefas-board-modal'
+import { TarefasFiltersPanel, TarefasFiltersPanelMobile } from '@/components/tarefas-filters-panel'
+import { TarefasCalendar } from '@/components/tarefas-calendar'
+import { TarefasCalendarWeek } from '@/components/tarefas-calendar-week'
+import { useTarefasFilters } from '@/lib/context/tarefas-filters-context'
 import type { TarefasBoard, TarefasColumn, TarefasTask, TarefasUser } from '@/lib/services/tarefas'
 import { getSession } from '@/components/protected-route'
 import { TAREFAS_PRIORIDADES } from '@/lib/tarefas-constants'
@@ -28,6 +32,11 @@ export default function TarefasPage() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [mobileActiveColumnId, setMobileActiveColumnId] = useState<string | null>(null)
+  const [view, setView] = useState<'kanban' | 'calendar-month' | 'calendar-week'>('kanban')
+  const [filtersPanelOpen, setFiltersPanelOpen] = useState(false)
+
+  // Filters
+  const { applyFilters, hasActiveFilters } = useTarefasFilters()
 
   // Modal state
   const [taskModal, setTaskModal] = useState<{ open: boolean; task: Partial<TarefasTask> | null; isNew: boolean; defaultColumnId?: string }>({
@@ -247,7 +256,8 @@ export default function TarefasPage() {
 
   const selectedBoard = boards.find(b => b.id === selectedBoardId)
   const activeColumn = columns.find(c => c.id === mobileActiveColumnId)
-  const mobileTasks = tasks.filter(t => t.column_id === mobileActiveColumnId).sort((a, b) => a.posicao - b.posicao)
+  const filteredTasks = applyFilters(tasks)
+  const mobileTasks = filteredTasks.filter(t => t.column_id === mobileActiveColumnId).sort((a, b) => a.posicao - b.posicao)
 
   // ── Loading ────────────────────────────────────────────────────────────────
 
@@ -313,6 +323,40 @@ export default function TarefasPage() {
             <span className="text-orange-500 font-bold text-sm tracking-widest uppercase">Tarefas</span>
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0">
+            {/* View toggle */}
+            <div className="hidden md:flex items-center bg-neutral-800 border border-neutral-700 rounded-lg overflow-hidden">
+              <button
+                onClick={() => setView('kanban')}
+                title="Kanban"
+                className={`p-2 transition-colors ${view === 'kanban' ? 'bg-orange-500 text-black' : 'text-neutral-400 hover:text-white'}`}
+              >
+                <KanbanSquare className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setView('calendar-month')}
+                title="Calendário mensal"
+                className={`p-2 transition-colors ${view === 'calendar-month' ? 'bg-orange-500 text-black' : 'text-neutral-400 hover:text-white'}`}
+              >
+                <CalendarDays className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setView('calendar-week')}
+                title="Calendário semanal"
+                className={`p-2 transition-colors ${view === 'calendar-week' ? 'bg-orange-500 text-black' : 'text-neutral-400 hover:text-white'}`}
+              >
+                <CalendarRange className="w-4 h-4" />
+              </button>
+            </div>
+            {/* Mobile filter button */}
+            <button
+              onClick={() => setFiltersPanelOpen(true)}
+              className={`md:hidden relative p-2 rounded-lg border transition-colors ${hasActiveFilters ? 'bg-orange-500/20 border-orange-500/50 text-orange-400' : 'bg-neutral-800 border-neutral-700 text-neutral-400 hover:text-white'}`}
+            >
+              <Filter className="w-4 h-4" />
+              {hasActiveFilters && (
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-orange-500 border-2 border-neutral-900" />
+              )}
+            </button>
             <button
               onClick={handleRefresh}
               className="p-2 text-neutral-400 hover:text-white bg-neutral-800 rounded-lg border border-neutral-700 transition-colors"
@@ -364,8 +408,30 @@ export default function TarefasPage() {
           )}
         </div>
 
-        {/* Row 3 (mobile only): column tabs */}
-        <div className="md:hidden flex gap-2 overflow-x-auto pb-0.5">
+        {/* Row 3 (mobile only): view toggle */}
+        <div className="md:hidden flex items-center gap-1.5">
+          <button
+            onClick={() => setView('kanban')}
+            className={`flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${view === 'kanban' ? 'bg-orange-500/20 border-orange-500/50 text-orange-400' : 'bg-neutral-800 border-neutral-700 text-neutral-400'}`}
+          >
+            <KanbanSquare className="w-3.5 h-3.5" /> Kanban
+          </button>
+          <button
+            onClick={() => setView('calendar-month')}
+            className={`flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${view === 'calendar-month' ? 'bg-orange-500/20 border-orange-500/50 text-orange-400' : 'bg-neutral-800 border-neutral-700 text-neutral-400'}`}
+          >
+            <CalendarDays className="w-3.5 h-3.5" /> Mês
+          </button>
+          <button
+            onClick={() => setView('calendar-week')}
+            className={`flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg border transition-colors ${view === 'calendar-week' ? 'bg-orange-500/20 border-orange-500/50 text-orange-400' : 'bg-neutral-800 border-neutral-700 text-neutral-400'}`}
+          >
+            <CalendarRange className="w-3.5 h-3.5" /> Semana
+          </button>
+        </div>
+
+        {/* Row 4 (mobile only): column tabs - only in kanban view */}
+        <div className={`md:hidden flex gap-2 overflow-x-auto pb-0.5 ${view !== 'kanban' ? 'hidden' : ''}`}>
           {columns.map(col => {
             const count = tasks.filter(t => t.column_id === col.id).length
             return (
@@ -387,27 +453,84 @@ export default function TarefasPage() {
       </div>
 
       {/* ── Content ── */}
+      <div className="flex flex-1 overflow-hidden">
 
-      {/* Desktop Kanban */}
-      <div className="hidden md:flex flex-1 overflow-hidden px-4 py-4">
-        {selectedBoard && (
-          <TarefasKanbanBoard
-            board={selectedBoard}
-            columns={columns}
-            tasks={tasks}
-            onCardClick={handleCardClick}
-            onAddTask={handleAddTask}
-            onMoveTask={handleMoveTask}
-            onMoveColumn={handleMoveColumn}
-            onRenameColumn={handleRenameColumn}
-            onDeleteColumn={handleDeleteColumnRequest}
-            onAddColumn={handleAddColumn}
-          />
+        {/* Desktop filter sidebar */}
+        <TarefasFiltersPanel columns={columns} />
+
+        {/* Main content area */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+
+        {/* Desktop views */}
+        {view === 'kanban' && (
+          <div className="hidden md:flex flex-1 overflow-hidden px-4 py-4">
+            {selectedBoard && (
+              <TarefasKanbanBoard
+                board={selectedBoard}
+                columns={columns}
+                tasks={filteredTasks}
+                onCardClick={handleCardClick}
+                onAddTask={handleAddTask}
+                onMoveTask={handleMoveTask}
+                onMoveColumn={handleMoveColumn}
+                onRenameColumn={handleRenameColumn}
+                onDeleteColumn={handleDeleteColumnRequest}
+                onAddColumn={handleAddColumn}
+              />
+            )}
+          </div>
         )}
-      </div>
 
-      {/* Mobile list */}
-      <div className="md:hidden flex-1 overflow-y-auto">
+        {view === 'calendar-month' && (
+          <div className="hidden md:flex flex-1 overflow-hidden">
+            <TarefasCalendar
+              tasks={filteredTasks}
+              onTaskClick={id => {
+                const task = tasks.find(t => t.id === id)
+                if (task) handleCardClick(task)
+              }}
+            />
+          </div>
+        )}
+
+        {view === 'calendar-week' && (
+          <div className="hidden md:flex flex-1 overflow-hidden">
+            <TarefasCalendarWeek
+              tasks={filteredTasks}
+              onTaskClick={id => {
+                const task = tasks.find(t => t.id === id)
+                if (task) handleCardClick(task)
+              }}
+            />
+          </div>
+        )}
+
+        {/* Mobile: calendar views (full width) */}
+        {(view === 'calendar-month' || view === 'calendar-week') && (
+          <div className="md:hidden flex-1 overflow-auto">
+            {view === 'calendar-month' && (
+              <TarefasCalendar
+                tasks={filteredTasks}
+                onTaskClick={id => {
+                  const task = tasks.find(t => t.id === id)
+                  if (task) handleCardClick(task)
+                }}
+              />
+            )}
+            {view === 'calendar-week' && (
+              <TarefasCalendarWeek
+                tasks={filteredTasks}
+                onTaskClick={id => {
+                  const task = tasks.find(t => t.id === id)
+                  if (task) handleCardClick(task)
+                }}
+              />
+            )}
+          </div>
+        )}
+
+        {/* Mobile list (kanban view only) */}
+        <div className={`md:hidden flex-1 overflow-y-auto ${view !== 'kanban' ? 'hidden' : ''}`}>
         {columns.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-40 gap-3 text-center px-6">
             <p className="text-neutral-500 text-sm">Nenhuma coluna neste quadro</p>
@@ -473,7 +596,17 @@ export default function TarefasPage() {
           </div>
         )}
         <div className="h-24" />
-      </div>
+        </div>{/* end mobile list */}
+
+        </div>{/* end main content */}
+      </div>{/* end outer content wrapper */}
+
+      {/* Mobile filter overlay */}
+      <TarefasFiltersPanelMobile
+        columns={columns}
+        isOpen={filtersPanelOpen}
+        onClose={() => setFiltersPanelOpen(false)}
+      />
 
       {/* ── Column delete confirmation ── */}
       {columnDeleteConfirm && (
