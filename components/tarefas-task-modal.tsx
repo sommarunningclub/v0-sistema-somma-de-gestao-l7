@@ -531,7 +531,7 @@ export function TarefasTaskModal({
           </div>
 
           {/* Imagem central */}
-          <div className="flex-1 flex items-center justify-center relative px-4 pb-4 min-h-0">
+          <div className="flex-1 flex items-center justify-center relative px-14 pb-4">
             {/* Navegação anterior */}
             {previewIndex > 0 && (
               <button
@@ -546,8 +546,13 @@ export function TarefasTaskModal({
             <img
               src={previewAnexo.file_url}
               alt={previewAnexo.file_name}
-              className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
-              style={{ maxHeight: 'calc(100vh - 100px)' }}
+              className="rounded-lg shadow-2xl object-contain"
+              style={{
+                maxHeight: 'calc(100vh - 140px)',
+                maxWidth: '100%',
+                width: 'auto',
+                height: 'auto',
+              }}
               onClick={e => e.stopPropagation()}
             />
 
