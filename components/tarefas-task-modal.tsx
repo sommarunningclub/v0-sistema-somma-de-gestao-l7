@@ -546,12 +546,11 @@ export function TarefasTaskModal({
             <img
               src={previewAnexo.file_url}
               alt={previewAnexo.file_name}
-              className="rounded-lg shadow-2xl object-contain"
+              className="rounded-lg shadow-2xl"
               style={{
                 maxHeight: 'calc(100vh - 140px)',
-                maxWidth: '100%',
-                width: 'auto',
-                height: 'auto',
+                maxWidth: 'calc(100% - 120px)',
+                objectFit: 'contain',
               }}
               onClick={e => e.stopPropagation()}
             />
