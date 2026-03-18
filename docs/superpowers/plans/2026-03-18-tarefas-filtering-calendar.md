@@ -350,7 +350,11 @@ export const TarefasFiltersPanel: React.FC<TarefasFiltersPanelProps> = ({ column
   })
 
   React.useEffect(() => {
-    getTeamUsers().then(setUsers)
+    getTeamUsers()
+      .then(setUsers)
+      .catch(err => {
+        console.error('[tarefas-filters-panel] Error loading users:', err)
+      })
   }, [])
 
   const toggleSection = (section: string) => {
@@ -400,7 +404,7 @@ export const TarefasFiltersPanel: React.FC<TarefasFiltersPanelProps> = ({ column
   return (
     <>
       {/* Desktop Sidebar */}
-      <div className="hidden md:flex flex-col w-64 border-r border-gray-200 bg-white h-screen sticky top-0 overflow-y-auto">
+      <div className="hidden md:flex md:flex-col md:w-64 border-r border-gray-200 bg-white h-screen sticky top-0 overflow-y-auto">
         {/* Header */}
         <div className="p-4 border-b border-gray-200">
           <div className="flex items-center justify-between">
@@ -631,7 +635,11 @@ export const TarefasFiltersPanelMobile: React.FC<TarefasFiltersPanelProps & { is
   const [users, setUsers] = React.useState<any[]>([])
 
   React.useEffect(() => {
-    getTeamUsers().then(setUsers)
+    getTeamUsers()
+      .then(setUsers)
+      .catch(err => {
+        console.error('[tarefas-filters-panel] Error loading users:', err)
+      })
   }, [])
 
   const handlePriorityChange = (priority: any) => {
@@ -897,17 +905,24 @@ git commit -m "feat: add filter panel component with desktop sidebar and mobile 
 **Files:**
 - Modify: `app/tarefas/page.tsx`
 
+- [ ] **Step 0: Verify TarefasListView component exists**
+
+Before updating the page, confirm that `components/tarefas-list-view.tsx` exists. If it doesn't exist, create a minimal version or skip the 'list' view option for now. The list view is not part of this spec but referenced in the page layout.
+
 - [ ] **Step 1: Update page to use filter panel**
 
-Update `app/tarefas/page.tsx` to wrap with filter panel and add view toggle. See spec section "Integration Points" for layout reference.
+Update `app/tarefas/page.tsx` to wrap with filter panel and add view toggle. See spec section "Integration Points" for layout reference. Make sure TarefasListView is properly imported or handled.
 
 ```typescript
 'use client'
 
 import React, { useState } from 'react'
+import { Filter } from 'lucide-react'
 import { TarefasFiltersPanel, TarefasFiltersPanelMobile } from '@/components/tarefas-filters-panel'
 import { useTarefasFilters } from '@/lib/context/tarefas-filters-context'
-// ... other imports
+import { TarefasCalendar } from '@/components/tarefas-calendar'
+import { TarefasCalendarWeek } from '@/components/tarefas-calendar-week'
+// ... other imports (TarefasKanbanBoard, TarefasListView, etc.)
 
 export default function TarefasPage() {
   const [filtersPanelOpen, setFiltersPanelOpen] = useState(false)
@@ -923,20 +938,27 @@ export default function TarefasPage() {
 
   return (
     <div className="flex h-screen">
-      {/* Desktop Filter Sidebar */}
-      <TarefasFiltersPanel columns={columns} />
+      {/* Desktop Filter Sidebar - hidden on mobile */}
+      <div className="hidden md:flex">
+        <TarefasFiltersPanel columns={columns} />
+      </div>
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
         <div className="border-b border-gray-200 p-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            {/* Mobile Filter Button */}
+            {/* Mobile Filter Button - only visible on mobile */}
             <button
               onClick={() => setFiltersPanelOpen(true)}
-              className="md:hidden p-2 hover:bg-gray-100 rounded"
+              className="md:hidden p-2 hover:bg-gray-100 rounded relative"
             >
-              {/* Filter icon */}
+              <Filter className="w-5 h-5 text-gray-700" />
+              {filters.priorities.length > 0 && (
+                <span className="absolute top-0 right-0 inline-flex items-center justify-center w-4 h-4 rounded-full bg-orange-500 text-white text-xs font-bold">
+                  {Object.values(filters).filter(v => (Array.isArray(v) ? v.length > 0 : !!v)).length}
+                </span>
+              )}
             </button>
 
             {/* View Toggle */}
@@ -1052,9 +1074,17 @@ export const TarefasCalendar: React.FC<TarefasCalendarProps> = ({ tasks, onTaskC
     const grouped: Record<string, TarefasTask[]> = {}
     tasks.forEach(task => {
       if (task.data_entrega) {
-        const date = task.data_entrega.split('T')[0] // YYYY-MM-DD
-        if (!grouped[date]) grouped[date] = []
-        grouped[date].push(task)
+        try {
+          // Handle ISO format (2026-03-25T10:00:00Z) or simple date (2026-03-25)
+          const dateStr = task.data_entrega.includes('T')
+            ? task.data_entrega.split('T')[0]
+            : task.data_entrega
+          if (!grouped[dateStr]) grouped[dateStr] = []
+          grouped[dateStr].push(task)
+        } catch (e) {
+          // Skip tasks with invalid date format
+          console.warn(`Invalid date format for task ${task.id}: ${task.data_entrega}`)
+        }
       }
     })
     return grouped
@@ -1062,7 +1092,10 @@ export const TarefasCalendar: React.FC<TarefasCalendarProps> = ({ tasks, onTaskC
 
   const getDayTasks = (day: number | null) => {
     if (!day) return []
-    const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    const year = currentDate.getFullYear()
+    const month = String(currentDate.getMonth() + 1).padStart(2, '0')
+    const dayStr = String(day).padStart(2, '0')
+    const dateStr = `${year}-${month}-${dayStr}`
     return tasksByDate[dateStr] || []
   }
 
@@ -1180,7 +1213,7 @@ export const TarefasCalendar: React.FC<TarefasCalendarProps> = ({ tasks, onTaskC
       {selectedDayTasks && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold mb-4">Tasks for this day</h3>
+            <h3 className="text-lg font-semibold mb-4">Tarefas para este dia</h3>
             <div className="space-y-2 max-h-96 overflow-y-auto">
               {selectedDayTasks.map(task => (
                 <div
@@ -1350,18 +1383,18 @@ export const TarefasCalendarWeek: React.FC<TarefasCalendarWeekProps> = ({ tasks,
     setCurrentWeekStart(addDays(currentWeekStart, 7))
   }
 
-  const getPriorityColor = (priority: string) => {
+  const getPriorityColorClass = (priority: string): string => {
     switch (priority) {
       case 'urgente':
-        return 'red-600'
+        return 'bg-red-600'
       case 'alta':
-        return 'orange-500'
+        return 'bg-orange-500'
       case 'media':
-        return 'purple-500'
+        return 'bg-purple-500'
       case 'baixa':
-        return 'blue-500'
+        return 'bg-blue-500'
       default:
-        return 'gray-400'
+        return 'bg-gray-400'
     }
   }
 
@@ -1424,7 +1457,7 @@ export const TarefasCalendarWeek: React.FC<TarefasCalendarWeekProps> = ({ tasks,
                     >
                       <div className="flex items-start gap-2">
                         <div
-                          className={`w-2 h-2 rounded-full mt-1 bg-${getPriorityColor(task.prioridade)}`}
+                          className={`w-2 h-2 rounded-full mt-1 ${getPriorityColorClass(task.prioridade)}`}
                         />
                         <div className="flex-1 min-w-0">
                           <div className="font-medium text-gray-900 text-sm truncate">
