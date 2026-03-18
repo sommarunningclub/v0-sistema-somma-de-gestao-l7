@@ -2,11 +2,10 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { RefreshCw, Settings, Plus, KanbanSquare, Filter, CalendarDays, CalendarRange } from 'lucide-react'
+import { RefreshCw, Settings, Plus, KanbanSquare, Filter, CalendarDays, CalendarRange, ChevronDown, X } from 'lucide-react'
 import { TarefasKanbanBoard } from '@/components/tarefas-kanban-board'
 import { TarefasTaskModal } from '@/components/tarefas-task-modal'
 import { TarefasBoardModal } from '@/components/tarefas-board-modal'
-import { TarefasFiltersPanel, TarefasFiltersPanelMobile } from '@/components/tarefas-filters-panel'
 import { TarefasCalendar } from '@/components/tarefas-calendar'
 import { TarefasCalendarWeek } from '@/components/tarefas-calendar-week'
 import { useTarefasFilters } from '@/lib/context/tarefas-filters-context'
@@ -33,10 +32,40 @@ export default function TarefasPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [mobileActiveColumnId, setMobileActiveColumnId] = useState<string | null>(null)
   const [view, setView] = useState<'kanban' | 'calendar-month' | 'calendar-week'>('kanban')
-  const [filtersPanelOpen, setFiltersPanelOpen] = useState(false)
+  const [filtersBarOpen, setFiltersBarOpen] = useState(false)
 
   // Filters
-  const { applyFilters, hasActiveFilters } = useTarefasFilters()
+  const { filters, setFilters, clearFilters, applyFilters, hasActiveFilters } = useTarefasFilters()
+
+  const activeFilterCount = [
+    filters.priorities.length,
+    filters.responsavelIds.length,
+    filters.statuses.length,
+    filters.columnIds.length,
+    filters.dateRange.start ? 1 : 0,
+    filters.dateRange.end ? 1 : 0,
+  ].filter(Boolean).length
+
+  const togglePriority = (p: typeof filters.priorities[number]) => {
+    const updated = filters.priorities.includes(p)
+      ? filters.priorities.filter(x => x !== p)
+      : [...filters.priorities, p]
+    setFilters({ ...filters, priorities: updated })
+  }
+
+  const toggleStatus = (s: 'pending' | 'completed') => {
+    const updated = filters.statuses.includes(s)
+      ? filters.statuses.filter(x => x !== s)
+      : [...filters.statuses, s]
+    setFilters({ ...filters, statuses: updated })
+  }
+
+  const toggleUser = (id: string) => {
+    const updated = filters.responsavelIds.includes(id)
+      ? filters.responsavelIds.filter(x => x !== id)
+      : [...filters.responsavelIds, id]
+    setFilters({ ...filters, responsavelIds: updated })
+  }
 
   // Modal state
   const [taskModal, setTaskModal] = useState<{ open: boolean; task: Partial<TarefasTask> | null; isNew: boolean; defaultColumnId?: string }>({
@@ -347,16 +376,6 @@ export default function TarefasPage() {
                 <CalendarRange className="w-4 h-4" />
               </button>
             </div>
-            {/* Mobile filter button */}
-            <button
-              onClick={() => setFiltersPanelOpen(true)}
-              className={`md:hidden relative p-2 rounded-lg border transition-colors ${hasActiveFilters ? 'bg-orange-500/20 border-orange-500/50 text-orange-400' : 'bg-neutral-800 border-neutral-700 text-neutral-400 hover:text-white'}`}
-            >
-              <Filter className="w-4 h-4" />
-              {hasActiveFilters && (
-                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-orange-500 border-2 border-neutral-900" />
-              )}
-            </button>
             <button
               onClick={handleRefresh}
               className="p-2 text-neutral-400 hover:text-white bg-neutral-800 rounded-lg border border-neutral-700 transition-colors"
@@ -383,8 +402,8 @@ export default function TarefasPage() {
           </div>
         </div>
 
-        {/* Row 2: board selector */}
-        <div className="flex gap-2 overflow-x-auto pb-0.5">
+        {/* Row 2: board selector + filter toggle */}
+        <div className="flex gap-2 overflow-x-auto pb-0.5 items-center">
           {boards.map(board => (
             <button
               key={board.id}
@@ -406,7 +425,113 @@ export default function TarefasPage() {
               <Plus className="w-3 h-3" /> Quadro
             </button>
           )}
+          {/* Filter toggle button */}
+          <button
+            onClick={() => setFiltersBarOpen(v => !v)}
+            className={`ml-auto flex-shrink-0 flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+              hasActiveFilters
+                ? 'bg-orange-500/20 border-orange-500/50 text-orange-400'
+                : 'bg-neutral-800 border-neutral-700 text-neutral-400 hover:text-white'
+            }`}
+          >
+            <Filter className="w-3.5 h-3.5" />
+            <span>Filtros</span>
+            {activeFilterCount > 0 && (
+              <span className="w-4 h-4 rounded-full bg-orange-500 text-black text-[10px] font-bold flex items-center justify-center">
+                {activeFilterCount}
+              </span>
+            )}
+            <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${filtersBarOpen ? 'rotate-180' : ''}`} />
+          </button>
         </div>
+
+        {/* Row 3: Collapsible filter bar */}
+        {filtersBarOpen && (
+          <div className="border-t border-neutral-800 pt-2 flex flex-wrap gap-1.5 items-center">
+            {/* Priority pills */}
+            {TAREFAS_PRIORIDADES.map(p => {
+              const active = filters.priorities.includes(p.id as any)
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => togglePriority(p.id as any)}
+                  className={`text-xs px-2.5 py-1 rounded-full border font-medium transition-colors ${
+                    active ? `${p.badgeBg} ${p.badgeText} border-transparent` : 'bg-neutral-800 border-neutral-700 text-neutral-400 hover:text-white'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              )
+            })}
+
+            <div className="w-px h-4 bg-neutral-700" />
+
+            {/* Status pills */}
+            {[{ id: 'pending' as const, label: 'Pendente' }, { id: 'completed' as const, label: 'Concluída' }].map(s => (
+              <button
+                key={s.id}
+                onClick={() => toggleStatus(s.id)}
+                className={`text-xs px-2.5 py-1 rounded-full border font-medium transition-colors ${
+                  filters.statuses.includes(s.id)
+                    ? 'bg-orange-500/20 border-orange-500/50 text-orange-400'
+                    : 'bg-neutral-800 border-neutral-700 text-neutral-400 hover:text-white'
+                }`}
+              >
+                {s.label}
+              </button>
+            ))}
+
+            {users.length > 0 && <div className="w-px h-4 bg-neutral-700" />}
+
+            {/* User pills */}
+            {users.map(user => {
+              const active = filters.responsavelIds.includes(user.id)
+              const firstName = user.full_name?.split(' ')[0] || user.email?.split('@')[0] || 'User'
+              return (
+                <button
+                  key={user.id}
+                  onClick={() => toggleUser(user.id)}
+                  className={`text-xs px-2.5 py-1 rounded-full border font-medium transition-colors ${
+                    active
+                      ? 'bg-blue-500/20 border-blue-500/50 text-blue-400'
+                      : 'bg-neutral-800 border-neutral-700 text-neutral-400 hover:text-white'
+                  }`}
+                >
+                  {firstName}
+                </button>
+              )
+            })}
+
+            <div className="w-px h-4 bg-neutral-700" />
+
+            {/* Date range */}
+            <input
+              type="date"
+              value={filters.dateRange.start || ''}
+              onChange={e => setFilters({ ...filters, dateRange: { ...filters.dateRange, start: e.target.value || null } })}
+              className="text-xs bg-neutral-800 border border-neutral-700 rounded px-2 py-1 text-neutral-300 focus:outline-none focus:border-neutral-500"
+            />
+            <span className="text-neutral-600 text-xs">–</span>
+            <input
+              type="date"
+              value={filters.dateRange.end || ''}
+              onChange={e => setFilters({ ...filters, dateRange: { ...filters.dateRange, end: e.target.value || null } })}
+              className="text-xs bg-neutral-800 border border-neutral-700 rounded px-2 py-1 text-neutral-300 focus:outline-none focus:border-neutral-500"
+            />
+
+            {hasActiveFilters && (
+              <>
+                <div className="w-px h-4 bg-neutral-700" />
+                <button
+                  onClick={clearFilters}
+                  className="flex items-center gap-1 text-xs text-neutral-500 hover:text-red-400 transition-colors"
+                >
+                  <X className="w-3 h-3" /> Limpar
+                </button>
+              </>
+            )}
+          </div>
+        )}
 
         {/* Row 3 (mobile only): view toggle */}
         <div className="md:hidden flex items-center gap-1.5">
@@ -454,9 +579,6 @@ export default function TarefasPage() {
 
       {/* ── Content ── */}
       <div className="flex flex-1 overflow-hidden">
-
-        {/* Desktop filter sidebar */}
-        <TarefasFiltersPanel columns={columns} />
 
         {/* Main content area */}
         <div className="flex-1 flex flex-col overflow-hidden">
@@ -600,13 +722,6 @@ export default function TarefasPage() {
 
         </div>{/* end main content */}
       </div>{/* end outer content wrapper */}
-
-      {/* Mobile filter overlay */}
-      <TarefasFiltersPanelMobile
-        columns={columns}
-        isOpen={filtersPanelOpen}
-        onClose={() => setFiltersPanelOpen(false)}
-      />
 
       {/* ── Column delete confirmation ── */}
       {columnDeleteConfirm && (
