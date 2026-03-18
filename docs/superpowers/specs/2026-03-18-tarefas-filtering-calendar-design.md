@@ -67,10 +67,12 @@ export const TarefasFiltersProvider: React.FC<{children: React.ReactNode}> = ({ 
       const matchResponsavel = filters.responsavelIds.length === 0 || filters.responsavelIds.includes(task.responsavel_id || '')
       const matchStatus = filters.statuses.length === 0 || filters.statuses.includes(getTaskStatus(task))
       const matchColumn = filters.columnIds.length === 0 || filters.columnIds.includes(task.column_id)
+
+      // Date range: both empty = no filter, otherwise check if task.data_entrega is within range (inclusive)
       const matchDate = (!filters.dateRange.start && !filters.dateRange.end) ||
         (task.data_entrega &&
-         task.data_entrega >= filters.dateRange.start &&
-         task.data_entrega <= filters.dateRange.end)
+         (!filters.dateRange.start || task.data_entrega >= filters.dateRange.start) &&
+         (!filters.dateRange.end || task.data_entrega <= filters.dateRange.end))
 
       return matchPriority && matchResponsavel && matchStatus && matchColumn && matchDate
     })
@@ -192,6 +194,10 @@ Each cell is clickable and shows a modal with tasks for that date.
 #### Week View
 
 ```typescript
+import { useMemo, useState } from 'react'
+import { addDays, formatISO } from 'date-fns'
+import type { TarefasTask } from '@/lib/services/tarefas'
+
 interface TarefasCalendarWeekProps {
   boardId: string
   tasks: TarefasTask[]
@@ -285,9 +291,10 @@ Mon 03   Tue 04   Wed 05   Thu 06   Fri 07   Sat 08   Sun 09
 **Behavior:**
 - Opening filter panel does NOT change current view (Kanban/List/Calendar)
 - Filters persist across page navigation automatically (localStorage)
-- Clicking filter checkbox updates state immediately but doesn't apply until "Aplicar" is clicked
-- "Cancelar" discards pending changes and closes overlay
-- "Aplicar" confirms changes, closes overlay, and filters are applied to current view
+- **Checkbox behavior:** Each checkbox change updates the filter state immediately (real-time, matching desktop behavior). The UI reflects selections as user clicks.
+- **Apply/Cancel buttons:**
+  * "Aplicar" closes the overlay and ensures the filters are applied to the current view
+  * "Cancelar" closes the overlay without saving any uncommitted changes (reverts to last saved state from localStorage)
 
 ### Calendar (Month View)
 
