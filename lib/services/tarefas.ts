@@ -223,6 +223,48 @@ export async function deleteTask(id: string): Promise<boolean> {
   return true
 }
 
+// ─── Attachments ──────────────────────────────────────────────────────────────
+
+export interface TarefasAnexo {
+  id: string
+  task_id: string
+  file_name: string
+  file_url: string
+  file_type: string
+  file_size: number
+  uploaded_by: string
+  criado_em: string
+}
+
+export async function getTaskAttachments(taskId: string): Promise<TarefasAnexo[]> {
+  const { data, error } = await getSupabase()
+    .from('tarefas_anexos')
+    .select('*')
+    .eq('task_id', taskId)
+    .order('criado_em', { ascending: true })
+  if (error) { console.error('[v0] tarefas getTaskAttachments:', error); return [] }
+  return data || []
+}
+
+export async function createTaskAttachment(a: Omit<TarefasAnexo, 'id' | 'criado_em'>): Promise<TarefasAnexo | null> {
+  const { data, error } = await getSupabase()
+    .from('tarefas_anexos')
+    .insert(a)
+    .select()
+    .single()
+  if (error) { console.error('[v0] tarefas createTaskAttachment:', error); return null }
+  return data
+}
+
+export async function deleteTaskAttachment(id: string): Promise<boolean> {
+  const { error } = await getSupabase()
+    .from('tarefas_anexos')
+    .delete()
+    .eq('id', id)
+  if (error) { console.error('[v0] tarefas deleteTaskAttachment:', error); return false }
+  return true
+}
+
 // ─── Users ────────────────────────────────────────────────────────────────────
 
 export async function getTeamUsers(): Promise<TarefasUser[]> {
