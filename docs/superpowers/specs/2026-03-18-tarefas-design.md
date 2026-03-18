@@ -50,6 +50,7 @@ A new **Tarefas** (Tasks) module integrated into the SOMMA admin system SPA. A T
 | `nome` | text | Column name (user-defined) |
 | `cor` | text | Hex color for column dot indicator |
 | `posicao` | int | Column order within board |
+| `criado_por` | uuid | FK → auth.users (for audit) |
 | `criado_em` | timestamptz | |
 
 ### `tarefas_tasks`
@@ -69,31 +70,44 @@ A new **Tarefas** (Tasks) module integrated into the SOMMA admin system SPA. A T
 | `criado_em` | timestamptz | |
 | `atualizado_em` | timestamptz | |
 
+### Column deletion behavior
+- **Block deletion** if the column still contains tasks — return HTTP 409 with message "Mova ou exclua as tarefas antes de remover a coluna."
+- The UI must show a confirmation dialog listing how many tasks exist before calling DELETE.
+- Cascade deletion of tasks is NOT used to prevent accidental data loss.
+
 ---
 
 ## 4. API Routes
 
 ```
 app/api/tarefas/
-  boards/route.ts           GET (list boards), POST (create board)
-  boards/[id]/route.ts      PATCH (update), DELETE
-  columns/route.ts          GET (by board_id), POST (create column)
-  columns/[id]/route.ts     PATCH (rename, reorder), DELETE
-  tasks/route.ts            GET (by board_id or column_id), POST (create task)
-  tasks/[id]/route.ts       PATCH (update: move, edit, check), DELETE
+  boards/route.ts           GET (list all boards), POST (create board — admin only)
+  boards/[id]/route.ts      PATCH (update board), DELETE (admin only)
+  columns/route.ts          GET ?board_id=, POST (create column)
+  columns/[id]/route.ts     PATCH (rename, reorder, change color), DELETE (blocked if has tasks)
+  tasks/route.ts            GET ?board_id=, POST (create task)
+  tasks/[id]/route.ts       PATCH (move column, edit fields, toggle checklist item), DELETE
+  users/route.ts            GET (list users with id + full_name for assignee dropdown)
 ```
 
 All routes use `SUPABASE_SERVICE_ROLE_KEY` consistent with the project pattern.
+
+**GET /api/tarefas/tasks?board_id=** returns tasks joined with the assignee's `full_name` and a generated avatar string (first 2 letters of full_name) so the frontend never needs a separate user lookup per card.
+
+**GET /api/tarefas/users** fetches from the project's `users` table (same used by other modules) returning `{ id, full_name, email }` — used to populate the responsável dropdown in the task modal.
 
 ---
 
 ## 5. Component Architecture
 
+`app/tarefas/page.tsx` follows the **same SPA pattern** as all other modules (e.g., `app/crm/page.tsx`, `app/checkin/page.tsx`). It is a `'use client'` component exported as default and **imported + rendered conditionally inside `app/page.tsx`** — it is NOT a standalone Next.js route.
+
 ```
 app/tarefas/page.tsx                  ← 'use client' — main page, state management
-  - Fetches boards, columns, tasks
-  - Controls board selector, modal state
+  - Fetches boards, columns, tasks, and users list
+  - Controls board selector (dropdown inside module header), modal state
   - Passes down handlers
+  - Board selector lives here, NOT in app/page.tsx global toolbar
 
 components/
   tarefas-kanban-board.tsx            ← DndContext wrapper (@dnd-kit/core)
@@ -103,14 +117,15 @@ components/
     - Droppable column area
     - Inline column name editing (click to edit)
     - Add card button at bottom
+    - Delete column: shows confirmation with task count
   tarefas-card.tsx                    ← useSortable hook
-    - Displays: title, priority badge, assignee avatar, due date, checklist progress
+    - Displays: title, priority badge, assignee avatar (initials), due date, checklist progress
     - Overdue badge: red ⚠ Vencida if data_entrega < today
     - Click opens tarefas-task-modal
   tarefas-task-modal.tsx              ← Create / Edit task
-    - Form fields: título, descrição, prioridade, responsável, data_entrega
+    - Form fields: título, descrição, prioridade, responsável (dropdown from users list), data_entrega
     - Checklist editor: add/remove/check items
-    - Column selector dropdown
+    - Column selector dropdown (to move task on mobile)
   tarefas-board-modal.tsx             ← Create / Edit / Delete board (admin only)
 
 lib/
@@ -128,7 +143,7 @@ lib/
 - Drag columns to reorder
 - Click column header to rename inline
 - "+ Nova Coluna" button as last column placeholder
-- Board selector dropdown in top bar
+- Board selector dropdown inside module top bar (within `app/tarefas/page.tsx`, not global toolbar)
 - "Gerenciar Quadros" button (admin only) opens `tarefas-board-modal`
 
 ### Mobile
@@ -148,33 +163,55 @@ lib/
 
 ---
 
-## 7. Sidebar Registration
+## 7. Sidebar & App Modal Registration
 
-In `app/page.tsx`:
+In `app/page.tsx`, add in **two places**:
+
+### 7a. Desktop/mobile sidebar navigation array
 ```tsx
 import { KanbanSquare } from 'lucide-react'
 
-// In navigation array:
+// In navigation items array (alongside checkin, eventos, etc.):
 { id: "tarefas", icon: KanbanSquare, label: "TAREFAS", permissionKey: "tarefas" }
+```
 
-// In content area:
+### 7b. Mobile Apps Modal grid (showAppsModal)
+```tsx
+// In the apps modal grid array alongside other modules:
+{ id: "tarefas", icon: KanbanSquare, label: "Tarefas", permissionKey: "tarefas" }
+```
+
+### 7c. Content area conditional render
+```tsx
 {activeSection === "tarefas" && permissions.tarefas && <TarefasPage />}
 ```
 
-Permission key `tarefas` needs to be added to the permissions system.
+---
+
+## 8. Permissions System
+
+The project uses a `permissions` jsonb column on the `users` table. Adding `tarefas`:
+
+| Role | Default value |
+|------|--------------|
+| `admin` | `true` |
+| `coordenador` | `true` |
+| `professor` | `false` (grant manually per user) |
+
+The Admin panel (`/systems` module, user edit form) already has toggles per permission key. Add a `tarefas` toggle there following the existing pattern for `checkin`, `crm`, etc. No new API needed — it uses the existing PATCH `/api/admin/users/[id]` endpoint that updates the `permissions` jsonb.
 
 ---
 
-## 8. Dependencies
+## 9. Dependencies
 
-New package to install:
+New packages to install:
 ```bash
 npm install @dnd-kit/core @dnd-kit/sortable @dnd-kit/utilities
 ```
 
 ---
 
-## 9. Out of Scope (this version)
+## 10. Out of Scope (this version)
 
 - Comments on tasks
 - File attachments
