@@ -17,6 +17,7 @@ interface ModulePermissions {
   carteiras: boolean
   pagamentos: boolean
   crm: boolean
+  tarefas: boolean
   admin: boolean
 }
 
@@ -38,6 +39,7 @@ const DEFAULT_PERMISSIONS: ModulePermissions = {
   carteiras: false,
   pagamentos: false,
   crm: false,
+  tarefas: false,
   admin: false,
 }
 
@@ -49,6 +51,7 @@ const MODULE_LABELS: Record<keyof ModulePermissions, string> = {
   carteiras: "Carteiras",
   pagamentos: "Pagamentos",
   crm: "CRM",
+  tarefas: "Tarefas",
   admin: "Administração",
 }
 
