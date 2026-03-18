@@ -602,25 +602,8 @@ export const TarefasFiltersPanel: React.FC<TarefasFiltersPanelProps> = ({ column
         )}
       </div>
 
-      {/* Mobile Filter Button (sm:) */}
-      <button
-        className="md:hidden p-2 hover:bg-gray-100 rounded"
-        title="Abrir filtros"
-      >
-        <Filter className="w-5 h-5 text-gray-700" />
-        {hasActiveFilters && (
-          <span className="absolute top-1 right-1 inline-flex items-center justify-center w-4 h-4 rounded-full bg-orange-500 text-white text-xs font-bold">
-            {[
-              filters.priorities.length,
-              filters.responsavelIds.length,
-              filters.statuses.length,
-              filters.columnIds.length,
-              filters.dateRange.start ? 1 : 0,
-              filters.dateRange.end ? 1 : 0,
-            ].filter(n => n > 0).length}
-          </span>
-        )}
-      </button>
+      {/* Mobile Filter Button (sm:) - rendered by the page component, not here */}
+      {/* The page component (app/tarefas/page.tsx) handles the mobile filter button with proper state management */}
     </>
   )
 }
@@ -995,8 +978,24 @@ export default function TarefasPage() {
         <div className="flex-1 overflow-auto">
           {view === 'kanban' && <TarefasKanbanBoard tasks={filteredTasks} />}
           {view === 'list' && <TarefasListView tasks={filteredTasks} />}
-          {view === 'calendar-month' && <TarefasCalendar tasks={filteredTasks} />}
-          {view === 'calendar-week' && <TarefasCalendarWeek tasks={filteredTasks} />}
+          {view === 'calendar-month' && (
+            <TarefasCalendar
+              tasks={filteredTasks}
+              onTaskClick={(taskId) => {
+                // Handle task click - open task modal or navigate
+                console.log('Task clicked:', taskId)
+              }}
+            />
+          )}
+          {view === 'calendar-week' && (
+            <TarefasCalendarWeek
+              tasks={filteredTasks}
+              onTaskClick={(taskId) => {
+                // Handle task click - open task modal or navigate
+                console.log('Task clicked:', taskId)
+              }}
+            />
+          )}
         </div>
       </div>
 
