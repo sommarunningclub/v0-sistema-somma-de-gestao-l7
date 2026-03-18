@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { ChevronRight, ChevronDown, Monitor, Settings, Shield, Target, Users, Bell, RefreshCw, CreditCard, LogOut, CheckSquare, Briefcase, LayoutDashboard, Receipt, Ticket, Zap, ChevronLeft, Star, X as CloseIcon, Link2, Handshake, Calendar } from "lucide-react"
+import { ChevronRight, ChevronDown, Monitor, Settings, Shield, Target, Users, Bell, RefreshCw, CreditCard, LogOut, CheckSquare, Briefcase, LayoutDashboard, Receipt, Ticket, Zap, ChevronLeft, Star, X as CloseIcon, Link2, Handshake, Calendar, KanbanSquare } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { UserProfile } from "@/components/user-profile"
 import ProtectedRouteComponent from "@/components/protected-route"
@@ -18,6 +18,7 @@ import ParcerioSommaPage from "./parceiro/page"
 import OperationsPage from "./operations/page"
 import CRMPage from "./crm/page"
 import EventosSommaPage from "./eventos/page"
+import TarefasPage from "./tarefas/page"
 
 export default function TacticalDashboard() {
   const [activeSection, setActiveSection] = useState("overview")
@@ -39,6 +40,7 @@ export default function TacticalDashboard() {
         membros: hasPermission('membros'),
         parceiro: hasPermission('parceiro'),
         crm: hasPermission('crm'),
+        tarefas: hasPermission('tarefas'),
         carteiras: hasPermission('carteiras'),
         pagamentos: hasPermission('pagamentos'),
         admin: hasPermission('admin'),
@@ -146,6 +148,7 @@ export default function TacticalDashboard() {
                 { id: "parceiro", icon: Briefcase, label: "PARCEIRO SOMMA", permissionKey: "parceiro" },
                 { id: "insiders", icon: Star, label: "INSIDERS", permissionKey: "pagamentos" },
                 { id: "crm", icon: Handshake, label: "CRM", permissionKey: "crm" },
+                { id: "tarefas", icon: KanbanSquare, label: "TAREFAS", permissionKey: "tarefas" },
                 { id: "intelligence", icon: Target, label: "CARTEIRAS", permissionKey: "carteiras" },
               ].map((item) => {
                 const hasAccess = permissions[item.permissionKey] !== false
@@ -296,6 +299,7 @@ export default function TacticalDashboard() {
                   { id: "parceiro",      icon: Briefcase,    label: "Parceiro",    permissionKey: "parceiro" },
                   { id: "insiders",      icon: Star,         label: "Insiders",    permissionKey: "pagamentos" },
                   { id: "crm",           icon: Handshake,    label: "CRM",         permissionKey: "crm" },
+                  { id: "tarefas",       icon: KanbanSquare, label: "Tarefas",     permissionKey: "tarefas" },
                   { id: "intelligence",  icon: Target,       label: "Carteiras",   permissionKey: "carteiras" },
                   { id: "pagamentos",    icon: CreditCard,   label: "Assessoria",  permissionKey: "pagamentos" },
                   { id: "systems",       icon: Settings,     label: "Admin",       permissionKey: "admin" },
@@ -390,6 +394,7 @@ export default function TacticalDashboard() {
             {activeSection === "parceiro" && permissions.parceiro && <ParcerioSommaPage />}
               {activeSection === "insiders" && permissions.pagamentos && <InsidersPage />}
             {activeSection === "crm" && permissions.crm && <CRMPage />}
+            {activeSection === "tarefas" && permissions.tarefas && <TarefasPage />}
               {activeSection === "intelligence" && permissions.carteiras && <IntelligencePage />}
             {activeSection === "pagamentos" && permissions.pagamentos && <PagamentosPage activeTab={pagamentosTab} />}
             {activeSection === "systems" && permissions.admin && <SystemsPage />}
