@@ -26,13 +26,13 @@ Both features operate on the same task dataset and respect the global filter sta
 
 ```typescript
 interface FilterState {
-  priorities: TarefaPrioridade[]       // ['Baixa', 'Média', 'Alta', 'Crítica']
+  priorities: TarefaPrioridade[]       // ['baixa', 'media', 'alta', 'urgente']
   responsavelIds: string[]              // Selected user IDs
   dateRange: {
-    start: Date | null
-    end: Date | null
+    start: string | null               // ISO date string (YYYY-MM-DD)
+    end: string | null                 // ISO date string (YYYY-MM-DD)
   }
-  statuses: TaskStatus[]               // ['pending', 'in_progress', 'completed']
+  statuses: ('completed' | 'pending')[] // ['pending', 'completed']
   columnIds: string[]                  // Selected column IDs
 }
 
@@ -57,13 +57,17 @@ export const TarefasFiltersProvider: React.FC<{children: React.ReactNode}> = ({ 
     localStorage.setItem('tarefas-filters', JSON.stringify(filters))
   }, [filters])
 
+  const getTaskStatus = (task: TarefasTask): 'completed' | 'pending' => {
+    return task.concluida ? 'completed' : 'pending'
+  }
+
   const applyFilters = useCallback((tasks: TarefasTask[]) => {
     return tasks.filter(task => {
       const matchPriority = filters.priorities.length === 0 || filters.priorities.includes(task.prioridade)
       const matchResponsavel = filters.responsavelIds.length === 0 || filters.responsavelIds.includes(task.responsavel_id || '')
       const matchStatus = filters.statuses.length === 0 || filters.statuses.includes(getTaskStatus(task))
       const matchColumn = filters.columnIds.length === 0 || filters.columnIds.includes(task.column_id)
-      const matchDate = !filters.dateRange.start && !filters.dateRange.end ||
+      const matchDate = (!filters.dateRange.start && !filters.dateRange.end) ||
         (task.data_entrega &&
          task.data_entrega >= filters.dateRange.start &&
          task.data_entrega <= filters.dateRange.end)
@@ -72,11 +76,18 @@ export const TarefasFiltersProvider: React.FC<{children: React.ReactNode}> = ({ 
     })
   }, [filters])
 
+  const hasActiveFilters = filters.priorities.length > 0 ||
+    filters.responsavelIds.length > 0 ||
+    filters.statuses.length > 0 ||
+    filters.columnIds.length > 0 ||
+    !!filters.dateRange.start ||
+    !!filters.dateRange.end
+
   const value: TarefasFiltersContextType = {
     filters,
     setFilters,
     clearFilters: () => setFilters(INITIAL_FILTERS),
-    hasActiveFilters: /* check if any filter is non-empty */,
+    hasActiveFilters,
     applyFilters
   }
 
@@ -103,10 +114,10 @@ export const useTarefasFilters = () => {
 - Toggle button (icon only) at top-left to collapse/expand
 - Active filter badge on toggle icon showing count
 - Filter sections collapse independently:
-  * **Priority** - Checkboxes for Baixa, Média, Alta, Crítica
+  * **Priority** - Checkboxes for Baixa, Média, Alta, Urgente
   * **Responsible User** - Dropdown search with user list
-  * **Delivery Date Range** - Date picker (start/end)
-  * **Status** - Checkboxes for Pendente, Em Andamento, Concluída
+  * **Delivery Date Range** - Date picker (start/end, inclusive on both dates)
+  * **Status** - Checkboxes for Pendente, Concluída
   * **Column** - Checkboxes for each board column
 - "Clear All Filters" button at bottom
 - Filters apply in real-time on change
@@ -199,13 +210,22 @@ export const TarefasCalendarWeek: React.FC<TarefasCalendarWeekProps> = ({ boardI
   const [currentWeekStart, setCurrentWeekStart] = useState(getWeekStart(new Date()))
 
   // Group tasks by day within current week
+  // Note: data_entrega is ISO date string. Validate before parsing to avoid errors with invalid dates.
   const tasksByDay = useMemo(() => {
     const grouped: Record<string, TarefasTask[]> = {}
     for (let i = 0; i < 7; i++) {
       const day = addDays(currentWeekStart, i)
-      grouped[formatISO(day, { representation: 'date' })] = tasks.filter(
-        t => t.data_entrega && formatISO(new Date(t.data_entrega), { representation: 'date' }) === formatISO(day, { representation: 'date' })
-      )
+      const dayISO = formatISO(day, { representation: 'date' })
+      grouped[dayISO] = tasks.filter(t => {
+        if (!t.data_entrega) return false
+        try {
+          const taskDate = formatISO(new Date(t.data_entrega), { representation: 'date' })
+          return taskDate === dayISO
+        } catch {
+          // Invalid date string - skip this task
+          return false
+        }
+      })
     }
     return grouped
   }, [currentWeekStart, tasks])
@@ -249,15 +269,25 @@ Mon 03   Tue 04   Wed 05   Thu 06   Fri 07   Sat 08   Sun 09
 
 ### Filter Panel (Mobile)
 
-**Location:** Full-screen overlay from left, triggered by header button
+**Location:** Full-screen overlay from left, triggered by header button (sm:hidden)
 
 **Visual:**
-- Header: Title "Filtros" + close button (X) at top
-- Same accordion sections as desktop
+- Overlay: Fixed position, full height, z-index 40
+- Slide-in animation: `translate-x-0` (open) vs `translate-x-full` (closed)
+- Backdrop: Clickable, click to dismiss, semi-transparent gray-900/50
+- Header: Title "Filtros" + close button (X, 44px touch target) at top
+- Content: Same accordion sections as desktop (Priority, Responsible, Date Range, Status, Column)
 - Footer: Two buttons side-by-side:
-  * "Cancelar" (gray, left)
-  * "Aplicar" (orange/primary, right)
-- Safe-area padding at bottom for home indicator
+  * "Cancelar" (gray, left, 44px height)
+  * "Aplicar" (orange/primary, right, 44px height)
+- Safe-area padding: `pb-[env(safe-area-inset-bottom)]` for home indicator on notched devices
+
+**Behavior:**
+- Opening filter panel does NOT change current view (Kanban/List/Calendar)
+- Filters persist across page navigation automatically (localStorage)
+- Clicking filter checkbox updates state immediately but doesn't apply until "Aplicar" is clicked
+- "Cancelar" discards pending changes and closes overlay
+- "Aplicar" confirms changes, closes overlay, and filters are applied to current view
 
 ### Calendar (Month View)
 
@@ -270,7 +300,7 @@ Mon 03   Tue 04   Wed 05   Thu 06   Fri 07   Sat 08   Sun 09
 
 **Task Indicators:**
 - Small circular dots (8px diameter)
-- Priority colors: 🔴 Crítica (red-600), 🟡 Alta (orange-500), 🔵 Média (blue-500), ⚪ Baixa (gray-400)
+- Priority colors: 🔴 Urgente (red-600), 🟡 Alta (orange-500), 🟣 Média (purple-500), 🔵 Baixa (blue-500)
 - Max 4 indicators visible per cell, "+" for overflow
 - Clickable: triggers modal with all tasks for that date
 
@@ -297,6 +327,8 @@ Mon 03   Tue 04   Wed 05   Thu 06   Fri 07   Sat 08   Sun 09
 
 **File:** `app/tarefas/layout.tsx` (MODIFY)
 
+The `TarefasFiltersProvider` must wrap the entire content after boards and tasks are loaded. Place it at the top level of the layout to ensure all views (Kanban, List, Calendar) have access to filters.
+
 ```typescript
 import { TarefasFiltersProvider } from '@/lib/context/tarefas-filters-context'
 
@@ -309,6 +341,8 @@ export default function TarefasLayout({ children }) {
 }
 ```
 
+**Placement note:** The provider wraps the entire children tree, so all route segments under `/app/tarefas/*` can access `useTarefasFilters()`. The filter state persists in localStorage automatically and survives page navigation.
+
 ### 2. Filter Application Flow
 
 ```
@@ -316,7 +350,7 @@ User clicks filter checkbox
   ↓
 setFilters() in TarefasFiltersContext updates state
   ↓
-localStorage persisted automatically
+localStorage persisted automatically as JSON
   ↓
 Component consuming useTarefasFilters() re-renders
   ↓
@@ -324,6 +358,12 @@ applyFilters(tasks) computes filtered dataset
   ↓
 All views (Kanban, List, Calendar) receive filtered tasks
 ```
+
+**Filter Logic Details:**
+- **Within a category** (e.g., multiple priorities selected): OR logic - if no filters selected in a category, all values pass
+- **Between categories**: AND logic - task must match priority AND status AND date AND responsible user AND column
+- **Date range**: Inclusive on both start and end dates. Compares ISO date strings (YYYY-MM-DD). Task is included if `data_entrega` >= start date AND `data_entrega` <= end date
+- **Status mapping**: A task with `concluida: true` maps to 'completed' status; `concluida: false` maps to 'pending' status
 
 ### 3. View Integration
 
@@ -425,10 +465,15 @@ const [view, setView] = useState<'kanban' | 'list' | 'calendar-month' | 'calenda
 
 **File:** `lib/context/__tests__/tarefas-filters-context.test.ts`
 
-- Filter logic: Priority, responsible, date range, status, column
-- Filter combinations (AND logic within categories, OR between)
-- LocalStorage persistence
-- Clear filters
+- **Filter logic:**
+  * Priority filter: Only tasks with selected priorities pass (empty selection = all priorities pass)
+  * Responsible user filter: Only tasks assigned to selected users pass (empty = all users pass)
+  * Date range filter: Only tasks with `data_entrega` within range pass (inclusive, empty = no date filter)
+  * Status filter: Only tasks matching selected status pass (empty = both completed and pending pass)
+  * Column filter: Only tasks in selected columns pass (empty = all columns pass)
+- **Filter combinations:** AND logic between all categories (priority AND status AND date AND responsible AND column)
+- **LocalStorage persistence:** Filters survive page reload
+- **Clear filters:** All selections reset to empty state
 
 **File:** `components/__tests__/tarefas-filters-panel.test.tsx`
 
