@@ -287,6 +287,7 @@ export async function getPopupStats(id: string): Promise<PopupStats | null> {
   const browser_breakdown = Object.entries(browserCount)
     .map(([browser, count]) => ({ browser, count }))
     .sort((a, b) => b.count - a.count)
+    .slice(0, 10)
 
   // UTM source breakdown (skip empty)
   const utmCount: Record<string, number> = {}
