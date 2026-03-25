@@ -2,7 +2,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { ArrowLeft, BarChart2, MousePointer, Smartphone, Monitor } from 'lucide-react'
+import { ArrowLeft, BarChart2, MousePointer, Smartphone, Eye, TrendingUp, X } from 'lucide-react'
 import { useRouter, useParams } from 'next/navigation'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import type { Popup } from '@/lib/services/popups'
@@ -12,14 +12,32 @@ interface Stats {
   clicks_today: number
   mobile_clicks: number
   desktop_clicks: number
-  daily_series: { date: string; clicks: number }[]
+  total_views: number
+  total_dismissals: number
+  ctr: number
+  daily_series: { date: string; clicks: number; views: number; dismissals: number }[]
   recent_events: {
     id: string
     clicked_at: string
     page: string
     device_type: string
     user_session_id: string
+    referrer: string
+    utm_source: string
+    browser: string
+    viewport_width: number | null
   }[]
+  referrer_breakdown: { referrer: string; count: number }[]
+  browser_breakdown: { browser: string; count: number }[]
+  utm_source_breakdown: { utm_source: string; count: number }[]
+}
+
+function getReferrerHost(url: string): string {
+  try {
+    return new URL(url).hostname
+  } catch {
+    return url
+  }
 }
 
 export default function PopupAnalyticsPage() {
@@ -101,8 +119,8 @@ export default function PopupAnalyticsPage() {
 
       {loading ? (
         <div className="p-4 space-y-4">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {[1, 2, 3, 4].map((i) => (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
               <div key={i} className="h-20 bg-neutral-900 rounded-xl animate-pulse" />
             ))}
           </div>
@@ -111,12 +129,14 @@ export default function PopupAnalyticsPage() {
       ) : stats ? (
         <div className="p-4 space-y-5">
           {/* Metric cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {[
               { label: 'Total de cliques', value: stats.total_clicks, icon: MousePointer, color: 'text-orange-400' },
-              { label: 'Cliques hoje', value: stats.clicks_today, icon: MousePointer, color: 'text-blue-400' },
-              { label: '% Mobile', value: `${mobileRate}%`, icon: Smartphone, color: 'text-green-400' },
-              { label: '% Desktop', value: `${100 - mobileRate}%`, icon: Monitor, color: 'text-purple-400' },
+              { label: 'Impressões (30d)', value: stats.total_views, icon: Eye, color: 'text-blue-400' },
+              { label: 'CTR', value: `${stats.ctr}%`, icon: TrendingUp, color: 'text-green-400' },
+              { label: 'Fechamentos', value: stats.total_dismissals, icon: X, color: 'text-red-400' },
+              { label: '% Mobile', value: `${mobileRate}%`, icon: Smartphone, color: 'text-purple-400' },
+              { label: 'Cliques hoje', value: stats.clicks_today, icon: MousePointer, color: 'text-yellow-400' },
             ].map(({ label, value, icon: Icon, color }) => (
               <div key={label} className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
                 <Icon className={`w-4 h-4 ${color} mb-2`} />
@@ -128,7 +148,7 @@ export default function PopupAnalyticsPage() {
 
           {/* Bar chart */}
           <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
-            <h2 className="text-sm font-medium text-white mb-4">Cliques por dia — últimos 30 dias</h2>
+            <h2 className="text-sm font-medium text-white mb-4">Cliques e impressões — últimos 30 dias</h2>
             <ResponsiveContainer width="100%" height={180}>
               <BarChart data={stats.daily_series} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#262626" vertical={false} />
@@ -142,13 +162,62 @@ export default function PopupAnalyticsPage() {
                 <Tooltip
                   contentStyle={{ background: '#171717', border: '1px solid #262626', borderRadius: 8 }}
                   labelStyle={{ color: '#a3a3a3', fontSize: 11 }}
-                  itemStyle={{ color: '#f97316', fontSize: 12 }}
+                  itemStyle={{ fontSize: 12 }}
                   labelFormatter={fmtDate}
                 />
-                <Bar dataKey="clicks" fill="#f97316" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="views" fill="#3b82f6" radius={[3, 3, 0, 0]} name="Impressões" />
+                <Bar dataKey="clicks" fill="#f97316" radius={[3, 3, 0, 0]} name="Cliques" />
               </BarChart>
             </ResponsiveContainer>
           </div>
+
+          {/* Referrer breakdown */}
+          {stats.referrer_breakdown.length > 0 && (
+            <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+              <div className="px-4 py-3 border-b border-neutral-800">
+                <h2 className="text-sm font-medium text-white">Origens de tráfego</h2>
+              </div>
+              <div className="p-4 space-y-2">
+                {stats.referrer_breakdown.map(({ referrer, count }) => {
+                  const maxCount = stats.referrer_breakdown[0].count
+                  const pct = Math.round((count / maxCount) * 100)
+                  return (
+                    <div key={referrer} className="flex items-center gap-3">
+                      <span className="text-xs text-neutral-400 w-32 truncate flex-shrink-0" title={referrer}>{referrer}</span>
+                      <div className="flex-1 bg-neutral-800 rounded-full h-1.5">
+                        <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="text-xs text-neutral-500 w-8 text-right flex-shrink-0">{count}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Browser breakdown */}
+          {stats.browser_breakdown.length > 0 && (
+            <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
+              <div className="px-4 py-3 border-b border-neutral-800">
+                <h2 className="text-sm font-medium text-white">Navegadores</h2>
+              </div>
+              <div className="p-4 space-y-2">
+                {stats.browser_breakdown.map(({ browser, count }) => {
+                  const maxCount = stats.browser_breakdown[0].count
+                  const pct = Math.round((count / maxCount) * 100)
+                  return (
+                    <div key={browser} className="flex items-center gap-3">
+                      <span className="text-xs text-neutral-400 w-20 flex-shrink-0">{browser}</span>
+                      <div className="flex-1 bg-neutral-800 rounded-full h-1.5">
+                        <div className="bg-orange-500 h-1.5 rounded-full" style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="text-xs text-neutral-500 w-8 text-right flex-shrink-0">{count}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Recent events */}
           {stats.recent_events.length > 0 && (
@@ -163,6 +232,8 @@ export default function PopupAnalyticsPage() {
                       <th className="text-left px-4 py-2 text-neutral-500 font-medium">Data/hora</th>
                       <th className="text-left px-4 py-2 text-neutral-500 font-medium">Página</th>
                       <th className="text-left px-4 py-2 text-neutral-500 font-medium">Dispositivo</th>
+                      <th className="text-left px-4 py-2 text-neutral-500 font-medium">Navegador</th>
+                      <th className="text-left px-4 py-2 text-neutral-500 font-medium">Origem</th>
                       <th className="text-left px-4 py-2 text-neutral-500 font-medium">Sessão</th>
                     </tr>
                   </thead>
@@ -175,6 +246,10 @@ export default function PopupAnalyticsPage() {
                           <span className={`px-1.5 py-0.5 rounded text-xs ${ev.device_type === 'mobile' ? 'text-green-400 bg-green-500/10' : 'text-blue-400 bg-blue-500/10'}`}>
                             {ev.device_type}
                           </span>
+                        </td>
+                        <td className="px-4 py-2.5 text-neutral-400">{ev.browser || '—'}</td>
+                        <td className="px-4 py-2.5 text-neutral-500 max-w-[120px] truncate" title={ev.referrer}>
+                          {ev.referrer ? getReferrerHost(ev.referrer) : '—'}
                         </td>
                         <td className="px-4 py-2.5 text-neutral-600 font-mono">
                           {ev.user_session_id.slice(0, 8)}…
