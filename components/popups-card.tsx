@@ -78,9 +78,11 @@ export default function PopupsCard({ popup, onEdit, onDelete, onToggle }: Popups
         )}
 
         {/* Click count */}
-        <p className="text-xs text-neutral-500 flex items-center gap-1 mt-auto">
+        <p className="text-xs text-neutral-500 flex items-center gap-1.5 mt-auto">
           <BarChart2 className="w-3.5 h-3.5" />
-          {popup.clicks_7d} cliques (7d)
+          <span>{popup.views_7d} impressões</span>
+          <span className="text-neutral-700">·</span>
+          <span>{popup.clicks_7d} cliques (7d)</span>
         </p>
 
         {/* Actions */}
