@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import {
   Calendar,
+  Clock,
   Video,
   MapPin,
   Users,
@@ -12,6 +13,10 @@ import {
   Loader2,
   X,
   Plus,
+  ArrowRight,
+  Sun,
+  Sunset,
+  Moon,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -30,6 +35,21 @@ const STATUS_OPTIONS: { value: MeetingStatus; label: string; color: string }[] =
   { value: 'reagendado', label: 'Reagendado', color: 'bg-yellow-600' },
   { value: 'cancelado', label: 'Cancelado', color: 'bg-red-600' },
   { value: 'realizado', label: 'Realizado', color: 'bg-green-600' },
+]
+
+// Generate time slots every 15 minutes (07:00 – 22:00)
+const TIME_SLOTS: string[] = []
+for (let h = 7; h <= 22; h++) {
+  for (const m of [0, 15, 30, 45]) {
+    if (h === 22 && m > 0) break
+    TIME_SLOTS.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`)
+  }
+}
+
+const PERIOD_PRESETS = [
+  { label: 'Manhã', Icon: Sun, time: '09:00', color: 'text-amber-400 bg-amber-500/10 border-amber-500/20' },
+  { label: 'Tarde', Icon: Sunset, time: '14:00', color: 'text-orange-400 bg-orange-500/10 border-orange-500/20' },
+  { label: 'Noite', Icon: Moon, time: '19:00', color: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20' },
 ]
 
 const DEFAULT_MEETING: MeetingData = {
@@ -94,16 +114,106 @@ export function CRMMeetingTab({
     }))
   }
 
-  const toDatetimeLocal = (iso: string | null): string => {
+  // ─── Date/Time helpers ────────────────────────────────────────────────────
+  const toDatePart = (iso: string | null): string => {
     if (!iso) return ''
-    // Format for datetime-local input (YYYY-MM-DDTHH:mm)
-    return new Date(iso).toISOString().slice(0, 16)
+    return new Date(iso).toISOString().slice(0, 10)
   }
 
-  const fromDatetimeLocal = (local: string): string | null => {
-    if (!local) return null
-    return new Date(local).toISOString()
+  const toTimePart = (iso: string | null): string => {
+    if (!iso) return ''
+    const d = new Date(iso)
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
   }
+
+  const combineDateAndTime = (dateStr: string, timeStr: string): string | null => {
+    if (!dateStr || !timeStr) return null
+    return new Date(`${dateStr}T${timeStr}:00`).toISOString()
+  }
+
+  const currentDate = toDatePart(meeting.start_at) || toDatePart(meeting.end_at)
+  const currentStartTime = toTimePart(meeting.start_at)
+  const currentEndTime = toTimePart(meeting.end_at)
+
+  const handleDateChange = (dateStr: string) => {
+    const newStart = currentStartTime ? combineDateAndTime(dateStr, currentStartTime) : null
+    const newEnd = currentEndTime ? combineDateAndTime(dateStr, currentEndTime) : null
+    setMeeting(prev => ({ ...prev, start_at: newStart, end_at: newEnd }))
+    setSaveSuccess(false)
+    setSaveError(null)
+  }
+
+  const handleStartTimeChange = (timeStr: string) => {
+    const date = currentDate || new Date().toISOString().slice(0, 10)
+    const newStart = combineDateAndTime(date, timeStr)
+    // Auto-set date if not set
+    if (!currentDate) {
+      const newEnd = currentEndTime ? combineDateAndTime(date, currentEndTime) : null
+      setMeeting(prev => ({ ...prev, start_at: newStart, end_at: newEnd }))
+    } else {
+      update('start_at', newStart)
+    }
+  }
+
+  const handleEndTimeChange = (timeStr: string) => {
+    const date = currentDate || new Date().toISOString().slice(0, 10)
+    const newEnd = combineDateAndTime(date, timeStr)
+    if (!currentDate) {
+      const newStart = currentStartTime ? combineDateAndTime(date, currentStartTime) : null
+      setMeeting(prev => ({ ...prev, start_at: newStart, end_at: newEnd }))
+    } else {
+      update('end_at', newEnd)
+    }
+  }
+
+  const applyDuration = (minutes: number) => {
+    const startTime = currentStartTime || '09:00'
+    const date = currentDate || new Date().toISOString().slice(0, 10)
+    if (!currentStartTime) {
+      // Auto-set start if empty
+      const newStart = combineDateAndTime(date, startTime)
+      setMeeting(prev => ({ ...prev, start_at: newStart }))
+    }
+    const start = new Date(`${date}T${startTime}:00`)
+    const end = new Date(start.getTime() + minutes * 60 * 1000)
+    const endTime = `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`
+    const newEnd = combineDateAndTime(date, endTime)
+    update('end_at', newEnd)
+  }
+
+  const applyPreset = (time: string) => {
+    const date = currentDate || new Date().toISOString().slice(0, 10)
+    const newStart = combineDateAndTime(date, time)
+    const start = new Date(`${date}T${time}:00`)
+    const end = new Date(start.getTime() + 60 * 60 * 1000) // default 1h
+    const endTime = `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`
+    const newEnd = combineDateAndTime(date, endTime)
+    setMeeting(prev => ({
+      ...prev,
+      start_at: newStart,
+      end_at: newEnd,
+    }))
+    setSaveSuccess(false)
+    setSaveError(null)
+  }
+
+  // Calculate duration label
+  const durationLabel = (() => {
+    if (!meeting.start_at || !meeting.end_at) return null
+    const diff = new Date(meeting.end_at).getTime() - new Date(meeting.start_at).getTime()
+    if (diff <= 0) return null
+    const mins = Math.round(diff / 60000)
+    if (mins < 60) return `${mins}min`
+    const h = Math.floor(mins / 60)
+    const m = mins % 60
+    return m > 0 ? `${h}h${m}min` : `${h}h`
+  })()
+
+  // Active duration for highlighting
+  const activeDuration = (() => {
+    if (!meeting.start_at || !meeting.end_at) return 0
+    return Math.round((new Date(meeting.end_at).getTime() - new Date(meeting.start_at).getTime()) / 60000)
+  })()
 
   const handleSave = async () => {
     setSaving(true)
@@ -128,10 +238,6 @@ export function CRMMeetingTab({
       setMeeting(saved)
       setSaveSuccess(true)
 
-      if (data.sync_warning) {
-        setSaveError(`Reunião salva. Aviso Google Calendar: ${data.sync_warning}`)
-      }
-
       onSaved?.(saved)
     } catch {
       setSaveError('Erro de conexão ao salvar reunião')
@@ -140,7 +246,6 @@ export function CRMMeetingTab({
     }
   }
 
-  const needsDetails = meeting.status === 'agendado' || meeting.status === 'reagendado'
   const hasLeadEmail = leadEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(leadEmail)
 
   return (
@@ -191,29 +296,96 @@ export function CRMMeetingTab({
         </div>
       </div>
 
-      {/* Date/Time */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {/* Date & Time - Redesigned */}
+      <div className="bg-neutral-800/50 border border-neutral-700/50 rounded-xl p-3.5 space-y-3">
+        {/* Period presets */}
+        <div className="flex gap-2">
+          {PERIOD_PRESETS.map((preset) => (
+            <button
+              key={preset.label}
+              onClick={() => applyPreset(preset.time)}
+              className={`flex-1 flex items-center justify-center gap-1.5 text-xs px-2 py-2 rounded-lg border font-medium transition-all ${
+                currentStartTime === preset.time
+                  ? preset.color + ' border-current'
+                  : 'bg-neutral-900 border-neutral-700 text-neutral-500 hover:text-neutral-300 hover:border-neutral-600'
+              }`}
+            >
+              <preset.Icon className="w-3.5 h-3.5" />
+              {preset.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Date */}
         <div>
-          <label className="block text-xs font-medium text-neutral-400 mb-2">
-            Início {needsDetails && <span className="text-red-400">*</span>}
+          <label className="flex items-center gap-1.5 text-xs font-medium text-neutral-400 mb-1.5">
+            <Calendar className="w-3.5 h-3.5" />
+            Data
           </label>
           <Input
-            type="datetime-local"
-            value={toDatetimeLocal(meeting.start_at)}
-            onChange={(e) => update('start_at', fromDatetimeLocal(e.target.value))}
-            className="bg-neutral-800 border-neutral-700 text-white text-sm h-11 sm:h-10 px-3.5 [color-scheme:dark]"
+            type="date"
+            value={currentDate}
+            onChange={(e) => handleDateChange(e.target.value)}
+            className="bg-neutral-900 border-neutral-700 text-white text-sm h-11 sm:h-10 px-3.5 [color-scheme:dark] w-full"
           />
         </div>
+
+        {/* Time selects */}
         <div>
-          <label className="block text-xs font-medium text-neutral-400 mb-2">
-            Término {needsDetails && <span className="text-red-400">*</span>}
+          <label className="flex items-center gap-1.5 text-xs font-medium text-neutral-400 mb-1.5">
+            <Clock className="w-3.5 h-3.5" />
+            Horário
           </label>
-          <Input
-            type="datetime-local"
-            value={toDatetimeLocal(meeting.end_at)}
-            onChange={(e) => update('end_at', fromDatetimeLocal(e.target.value))}
-            className="bg-neutral-800 border-neutral-700 text-white text-sm h-11 sm:h-10 px-3.5 [color-scheme:dark]"
-          />
+          <div className="flex items-center gap-2">
+            <select
+              value={currentStartTime}
+              onChange={(e) => handleStartTimeChange(e.target.value)}
+              className="flex-1 bg-neutral-900 border border-neutral-700 text-white text-sm h-11 sm:h-10 px-3 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition-colors"
+            >
+              <option value="" className="text-neutral-500">Início</option>
+              {TIME_SLOTS.map((t) => (
+                <option key={`s-${t}`} value={t}>{t}</option>
+              ))}
+            </select>
+            <ArrowRight className="w-4 h-4 text-neutral-600 flex-shrink-0" />
+            <select
+              value={currentEndTime}
+              onChange={(e) => handleEndTimeChange(e.target.value)}
+              className="flex-1 bg-neutral-900 border border-neutral-700 text-white text-sm h-11 sm:h-10 px-3 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition-colors"
+            >
+              <option value="" className="text-neutral-500">Término</option>
+              {TIME_SLOTS.map((t) => (
+                <option key={`e-${t}`} value={t}>{t}</option>
+              ))}
+            </select>
+            {durationLabel && (
+              <span className="text-xs text-cyan-400 font-medium bg-cyan-500/10 border border-cyan-500/20 rounded-lg px-2.5 py-1.5 flex-shrink-0 whitespace-nowrap">
+                {durationLabel}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Quick duration chips */}
+        <div className="flex flex-wrap gap-1.5">
+          {[
+            { label: '30min', mins: 30 },
+            { label: '1h', mins: 60 },
+            { label: '1h30', mins: 90 },
+            { label: '2h', mins: 120 },
+          ].map((d) => (
+            <button
+              key={d.mins}
+              onClick={() => applyDuration(d.mins)}
+              className={`text-xs px-2.5 py-1 rounded-md font-medium transition-all border ${
+                activeDuration === d.mins
+                  ? 'border-cyan-500/50 bg-cyan-500/10 text-cyan-400'
+                  : 'border-neutral-700 bg-neutral-900 text-neutral-500 hover:border-neutral-600 hover:text-neutral-300'
+              }`}
+            >
+              {d.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -222,7 +394,7 @@ export function CRMMeetingTab({
         <div>
           <label className="block text-xs font-medium text-neutral-400 mb-2">
             <MapPin className="w-3 h-3 inline mr-1" />
-            Endereço {needsDetails && <span className="text-red-400">*</span>}
+            Endereço
           </label>
           <Input
             value={meeting.address || ''}
@@ -237,7 +409,7 @@ export function CRMMeetingTab({
         <div>
           <label className="block text-xs font-medium text-neutral-400 mb-2">
             <Link2 className="w-3 h-3 inline mr-1" />
-            Link da reunião {needsDetails && <span className="text-red-400">*</span>}
+            Link da reunião
           </label>
           <Input
             value={meeting.meeting_url || ''}
@@ -319,33 +491,6 @@ export function CRMMeetingTab({
         {attendeeError && <p className="text-xs text-red-400 mt-1">{attendeeError}</p>}
       </div>
 
-      {/* Google Calendar sync status */}
-      {meeting.google_sync_status && (
-        <div
-          className={`flex items-center gap-2 text-xs px-3 py-2 rounded-lg ${
-            meeting.google_sync_status === 'synced'
-              ? 'bg-green-500/10 text-green-400'
-              : meeting.google_sync_status === 'failed'
-              ? 'bg-red-500/10 text-red-400'
-              : 'bg-neutral-700/50 text-neutral-400'
-          }`}
-        >
-          {meeting.google_sync_status === 'synced' && <Check className="w-3.5 h-3.5 flex-shrink-0" />}
-          {meeting.google_sync_status === 'failed' && (
-            <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
-          )}
-          <span>
-            Google Calendar:{' '}
-            {meeting.google_sync_status === 'synced'
-              ? `Sincronizado${meeting.google_synced_at ? ` em ${new Date(meeting.google_synced_at).toLocaleString('pt-BR')}` : ''}`
-              : meeting.google_sync_status === 'failed'
-              ? 'Falha na sincronização'
-              : meeting.google_sync_status === 'cancelled'
-              ? 'Evento cancelado'
-              : meeting.google_sync_status}
-          </span>
-        </div>
-      )}
 
       {/* Feedback */}
       {saveError && (
@@ -381,11 +526,6 @@ export function CRMMeetingTab({
         )}
       </Button>
 
-      {needsDetails && !meeting.google_event_id && hasLeadEmail && (
-        <p className="text-xs text-neutral-500 text-center">
-          Ao salvar, um convite será enviado via Google Calendar para os participantes.
-        </p>
-      )}
     </div>
   )
 }
