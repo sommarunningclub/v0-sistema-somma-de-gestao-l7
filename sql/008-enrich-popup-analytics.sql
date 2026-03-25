@@ -37,12 +37,12 @@ CREATE INDEX IF NOT EXISTS idx_popup_views_viewed_at ON popup_views(viewed_at);
 ALTER TABLE popup_views ENABLE ROW LEVEL SECURITY;
 
 -- Public insert (SDK tracks views via anon key)
-CREATE POLICY IF NOT EXISTS "Public can insert views"
+CREATE POLICY "Public can insert views"
 ON popup_views FOR INSERT
 WITH CHECK (true);
 
 -- Service role full access (analytics API)
-CREATE POLICY IF NOT EXISTS "Service role can manage views"
+CREATE POLICY "Service role can manage views"
 ON popup_views FOR ALL
 USING (auth.role() = 'service_role')
 WITH CHECK (auth.role() = 'service_role');
@@ -69,12 +69,12 @@ CREATE INDEX IF NOT EXISTS idx_popup_dismissals_dismissed_at ON popup_dismissals
 ALTER TABLE popup_dismissals ENABLE ROW LEVEL SECURITY;
 
 -- Public insert (SDK tracks dismissals via anon key)
-CREATE POLICY IF NOT EXISTS "Public can insert dismissals"
+CREATE POLICY "Public can insert dismissals"
 ON popup_dismissals FOR INSERT
 WITH CHECK (true);
 
 -- Service role full access (analytics API)
-CREATE POLICY IF NOT EXISTS "Service role can manage dismissals"
+CREATE POLICY "Service role can manage dismissals"
 ON popup_dismissals FOR ALL
 USING (auth.role() = 'service_role')
 WITH CHECK (auth.role() = 'service_role');
