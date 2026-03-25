@@ -18,6 +18,7 @@ interface ModulePermissions {
   pagamentos: boolean
   crm: boolean
   tarefas: boolean
+  popups: boolean
   admin: boolean
 }
 
@@ -40,6 +41,7 @@ const DEFAULT_PERMISSIONS: ModulePermissions = {
   pagamentos: false,
   crm: false,
   tarefas: false,
+  popups: false,
   admin: false,
 }
 
@@ -52,6 +54,7 @@ const MODULE_LABELS: Record<keyof ModulePermissions, string> = {
   pagamentos: "Pagamentos",
   crm: "CRM",
   tarefas: "Tarefas",
+  popups: "Pop-ups",
   admin: "Administração",
 }
 
@@ -144,6 +147,8 @@ export default function AdminPage() {
           carteiras: true,
           pagamentos: true,
           crm: true,
+          tarefas: true,
+          popups: true,
           admin: true,
         }
       }
@@ -263,6 +268,8 @@ export default function AdminPage() {
           carteiras: true,
           pagamentos: true,
           crm: true,
+          tarefas: true,
+          popups: true,
           admin: true,
         }
       }
