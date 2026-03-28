@@ -22,22 +22,21 @@ export async function GET() {
 
     if (error) throw new Error(error.message)
 
-    // Get check-in counts per event
-    const eventIds = (data || []).map(e => e.id)
+    // Get check-in counts per event (one query per event to avoid Supabase 1000-row limit)
     const countsMap: Record<string, number> = {}
 
-    if (eventIds.length > 0) {
-      const { data: counts } = await supabase
-        .from('checkins')
-        .select('evento_id')
-        .in('evento_id', eventIds)
+    if (data && data.length > 0) {
+      const countPromises = data.map(async (e) => {
+        const { count } = await supabase
+          .from('checkins')
+          .select('*', { count: 'exact', head: true })
+          .eq('evento_id', e.id)
+        return { id: e.id, count: count || 0 }
+      })
 
-      if (counts) {
-        for (const c of counts) {
-          if (c.evento_id) {
-            countsMap[c.evento_id] = (countsMap[c.evento_id] || 0) + 1
-          }
-        }
+      const results = await Promise.all(countPromises)
+      for (const r of results) {
+        countsMap[r.id] = r.count
       }
     }
 
