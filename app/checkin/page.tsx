@@ -212,6 +212,13 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
   // Sort: asc = primeiro inscrito (mais antigo), desc = mais recente
   const sorted = sortOrder === 'asc' ? [...filtered].reverse() : filtered
 
+  // Inscription number map: based on original chronological order (oldest = #1)
+  // checkInData comes from API sorted by data_hora_checkin DESC, so last = oldest = #1
+  const inscriptionMap = new Map<string, number>()
+  checkInData.forEach((item, i) => {
+    if (item.id) inscriptionMap.set(item.id, checkInData.length - i)
+  })
+
   const handleExport = () => {
     // Build filter label for filename
     const filterParts: string[] = []
@@ -223,8 +230,8 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
 
     const rows = [
       ["#", "Pelotão", "Nome", "Sexo", "Telefone", "Email", "CPF", "Data/Hora", "Evento", "Validado"],
-      ...sorted.map((item, idx) => [
-        String(idx + 1),
+      ...sorted.map((item) => [
+        String(item.id ? inscriptionMap.get(item.id) || '' : ''),
         item.pelotao || "",
         item.nome || "",
         item.sexo || "",
@@ -525,7 +532,7 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
                     >
                       {/* Number + Avatar */}
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-neutral-600 font-mono w-5 text-right flex-shrink-0">#{idx + 1}</span>
+                        <span className="text-[10px] text-neutral-600 font-mono w-7 text-right flex-shrink-0">#{item.id ? inscriptionMap.get(item.id) || idx + 1 : idx + 1}</span>
                         <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold ${badge.bg} ${badge.text}`}>
                           {getInitials(item.nome)}
                         </div>
@@ -766,7 +773,7 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
                     <tbody className="divide-y divide-neutral-800">
                       {sorted.map((item, idx) => (
                         <tr key={item.id || idx} className="hover:bg-neutral-800/40 transition-colors">
-                          <td className="py-3 px-4 text-neutral-500 font-mono text-xs">{idx + 1}</td>
+                          <td className="py-3 px-4 text-neutral-500 font-mono text-xs">{item.id ? inscriptionMap.get(item.id) || idx + 1 : idx + 1}</td>
                           <td className="py-3 px-4">
                             {item.pelotao ? <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30 font-mono text-xs font-semibold">{item.pelotao}</Badge> : <span className="text-neutral-600 text-xs">—</span>}
                           </td>
