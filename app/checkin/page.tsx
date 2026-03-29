@@ -43,6 +43,7 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
   const [activeFilter, setActiveFilter] = useState<"all" | "validated" | "not_validated">("all")
   const [selectedSexo, setSelectedSexo] = useState<string | null>(null)
   const [selectedPelotao, setSelectedPelotao] = useState<string | null>(null)
+  const [selectedDia, setSelectedDia] = useState<string | null>(null)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<CheckInData | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -61,7 +62,18 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
   const [mobileHeaderExpanded, setMobileHeaderExpanded] = useState(true)
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc') // desc = mais recente, asc = primeiro inscrito
   const uniquePelotoes = Array.from(new Set(checkInData.map(c => c.pelotao).filter(Boolean))) as string[]
-  const activeFilterCount = [selectedSexo !== null, selectedPelotao !== null, activeFilter !== 'all'].filter(Boolean).length
+
+  // Extract day (DD/MM/YYYY) from the "DD/MM/YYYY, HH:MM" format
+  const extractDay = (data: string): string => data ? data.split(',')[0].trim() : ''
+  const uniqueDias = Array.from(new Set(checkInData.map(c => extractDay(c.data)).filter(Boolean))).sort((a, b) => {
+    // Sort chronologically: parse DD/MM/YYYY
+    const [da, ma, ya] = a.split('/').map(Number)
+    const [db, mb, yb] = b.split('/').map(Number)
+    return new Date(ya, ma - 1, da).getTime() - new Date(yb, mb - 1, db).getTime()
+  })
+  const statsByDia = (dia: string) => checkInData.filter(c => extractDay(c.data) === dia).length
+
+  const activeFilterCount = [selectedSexo !== null, selectedPelotao !== null, selectedDia !== null, activeFilter !== 'all'].filter(Boolean).length
 
   const pelotaoBadge = (pelotao?: string): { bg: string; text: string } => {
     const map: Record<string, { bg: string; text: string }> = {
@@ -206,7 +218,8 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
       (activeFilter === "not_validated" && !item.validated)
     const matchesSexo = !selectedSexo || item.sexo === selectedSexo
     const matchesPelotao = !selectedPelotao || item.pelotao === selectedPelotao
-    return matchesSearch && matchesFilter && matchesSexo && matchesPelotao
+    const matchesDia = !selectedDia || extractDay(item.data) === selectedDia
+    return matchesSearch && matchesFilter && matchesSexo && matchesPelotao && matchesDia
   })
 
   // Sort: asc = primeiro inscrito (mais antigo), desc = mais recente
@@ -222,6 +235,7 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
   const handleExport = () => {
     // Build filter label for filename
     const filterParts: string[] = []
+    if (selectedDia) filterParts.push(selectedDia.replace(/\//g, '-'))
     if (selectedPelotao) filterParts.push(selectedPelotao)
     if (selectedSexo) filterParts.push(selectedSexo)
     if (activeFilter === 'validated') filterParts.push('validados')
@@ -304,6 +318,7 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
                     setActiveFilter("all")
                     setSelectedSexo(null)
                     setSelectedPelotao(null)
+                    setSelectedDia(null)
                   }}
                   className={`w-full text-left px-4 py-3 flex items-center justify-between gap-3 transition-colors border-l-2 ${isSel ? 'bg-orange-500/10 border-orange-500' : 'hover:bg-neutral-800 border-transparent'}`}
                 >
@@ -358,6 +373,7 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
                   {activeFilterCount > 0 && (
                     <span className="px-1.5 py-0.5 bg-orange-500 text-white text-[9px] font-bold rounded-full leading-none">{activeFilterCount}</span>
                   )}
+                  {selectedDia && <span className="px-1.5 py-0.5 bg-cyan-500/20 text-cyan-400 text-[9px] font-medium rounded">{selectedDia}</span>}
                   {selectedSexo && <span className="px-1.5 py-0.5 bg-blue-500/20 text-blue-400 text-[9px] font-medium rounded capitalize">{selectedSexo}</span>}
                   {selectedPelotao && <span className="px-1.5 py-0.5 bg-purple-500/20 text-purple-400 text-[9px] font-medium rounded">{selectedPelotao}</span>}
                 </div>
@@ -464,12 +480,25 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
 
                 {/* Pelotão filter */}
                 {uniquePelotoes.length > 0 && (
-                  <div className="pb-1">
+                  <div>
                     <p className="text-[10px] text-neutral-500 uppercase tracking-wider font-semibold mb-1.5">Pelotão</p>
                     <div className="flex flex-wrap gap-1.5">
                       <button onClick={() => setSelectedPelotao(null)} className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${selectedPelotao === null ? 'bg-orange-500 text-white' : 'bg-neutral-800 text-neutral-400 border border-neutral-700'}`}>Todos</button>
                       {uniquePelotoes.map(p => (
                         <button key={p} onClick={() => setSelectedPelotao(p)} className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${selectedPelotao === p ? 'bg-purple-500 text-white' : 'bg-neutral-800 text-neutral-400 border border-neutral-700'}`}>{p} ({statsByPelotao(p)})</button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Dia filter */}
+                {uniqueDias.length > 1 && (
+                  <div className="pb-1">
+                    <p className="text-[10px] text-neutral-500 uppercase tracking-wider font-semibold mb-1.5">Dia</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      <button onClick={() => setSelectedDia(null)} className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${selectedDia === null ? 'bg-orange-500 text-white' : 'bg-neutral-800 text-neutral-400 border border-neutral-700'}`}>Todos</button>
+                      {uniqueDias.map(d => (
+                        <button key={d} onClick={() => setSelectedDia(d)} className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${selectedDia === d ? 'bg-cyan-500 text-white' : 'bg-neutral-800 text-neutral-400 border border-neutral-700'}`}>{d} ({statsByDia(d)})</button>
                       ))}
                     </div>
                   </div>
@@ -498,7 +527,7 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
                   <FilterX className="w-8 h-8 text-neutral-700 mb-3" />
                   <p className="text-neutral-400 text-sm font-medium mb-4">Nenhum resultado</p>
                   <button
-                    onClick={() => { setSearchTerm(""); setActiveFilter("all"); setSelectedSexo(null); setSelectedPelotao(null) }}
+                    onClick={() => { setSearchTerm(""); setActiveFilter("all"); setSelectedSexo(null); setSelectedPelotao(null); setSelectedDia(null) }}
                     className="px-4 py-2 bg-neutral-800 border border-neutral-700 rounded-lg text-xs text-neutral-300 hover:bg-neutral-700 transition-colors"
                   >
                     Limpar filtros
@@ -652,6 +681,17 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
                 ))}
               </div>
             </div>
+            {uniqueDias.length > 1 && (
+              <div>
+                <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2.5">Dia de Inscrição</p>
+                <div className="flex flex-wrap gap-2">
+                  <button onClick={() => setSelectedDia(null)} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${selectedDia === null ? 'bg-orange-500 text-white' : 'bg-neutral-800 text-neutral-300 border border-neutral-700'}`}>Todos ({checkInData.length})</button>
+                  {uniqueDias.map(d => (
+                    <button key={d} onClick={() => setSelectedDia(d)} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${selectedDia === d ? 'bg-cyan-500 text-white' : 'bg-neutral-800 text-neutral-300 border border-neutral-700'}`}>{d} ({statsByDia(d)})</button>
+                  ))}
+                </div>
+              </div>
+            )}
             <div>
               <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2.5">Status</p>
               <div className="flex flex-wrap gap-2">
@@ -662,7 +702,7 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
             </div>
             <div className="flex gap-3">
               <button
-                onClick={() => { setSelectedSexo(null); setSelectedPelotao(null); setActiveFilter('all'); setSortOrder('desc') }}
+                onClick={() => { setSelectedSexo(null); setSelectedPelotao(null); setSelectedDia(null); setActiveFilter('all'); setSortOrder('desc') }}
                 className="flex-1 py-3 bg-neutral-800 text-neutral-300 text-sm font-bold rounded-xl transition-colors"
               >
                 Limpar
@@ -718,7 +758,7 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
             {searchTerm && <button onClick={() => setSearchTerm("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white"><X className="w-3.5 h-3.5" /></button>}
           </div>
 
-          {(uniqueSexos.length > 0 || uniquePelotoes.length > 0) && (
+          {(uniqueSexos.length > 0 || uniquePelotoes.length > 0 || uniqueDias.length > 1) && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {uniqueSexos.length > 0 && (
                 <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
@@ -735,6 +775,15 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
                   <div className="flex flex-wrap gap-2">
                     <button onClick={() => setSelectedPelotao(null)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${selectedPelotao === null ? "bg-orange-500 text-white" : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"}`}>Todos ({checkInData.length})</button>
                     {uniquePelotoes.map(p => <button key={p} onClick={() => setSelectedPelotao(p)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${selectedPelotao === p ? "bg-purple-500 text-white" : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"}`}>{p} ({statsByPelotao(p)})</button>)}
+                  </div>
+                </div>
+              )}
+              {uniqueDias.length > 1 && (
+                <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 lg:col-span-2">
+                  <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-3">Por Dia de Inscrição</h3>
+                  <div className="flex flex-wrap gap-2">
+                    <button onClick={() => setSelectedDia(null)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${selectedDia === null ? "bg-orange-500 text-white" : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"}`}>Todos ({checkInData.length})</button>
+                    {uniqueDias.map(d => <button key={d} onClick={() => setSelectedDia(d)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${selectedDia === d ? "bg-cyan-500 text-white" : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"}`}>{d} ({statsByDia(d)})</button>)}
                   </div>
                 </div>
               )}
