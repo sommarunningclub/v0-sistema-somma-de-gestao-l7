@@ -58,6 +58,7 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
 
   // Mobile filters
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
+  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc') // desc = mais recente, asc = primeiro inscrito
   const uniquePelotoes = Array.from(new Set(checkInData.map(c => c.pelotao).filter(Boolean))) as string[]
   const activeFilterCount = [selectedSexo !== null, selectedPelotao !== null, activeFilter !== 'all'].filter(Boolean).length
 
@@ -207,12 +208,25 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
     return matchesSearch && matchesFilter && matchesSexo && matchesPelotao
   })
 
+  // Sort: asc = primeiro inscrito (mais antigo), desc = mais recente
+  const sorted = sortOrder === 'asc' ? [...filtered].reverse() : filtered
+
   const handleExport = () => {
+    // Build filter label for filename
+    const filterParts: string[] = []
+    if (selectedPelotao) filterParts.push(selectedPelotao)
+    if (selectedSexo) filterParts.push(selectedSexo)
+    if (activeFilter === 'validated') filterParts.push('validados')
+    if (activeFilter === 'not_validated') filterParts.push('pendentes')
+    const filterSuffix = filterParts.length > 0 ? `_${filterParts.join('_')}` : ''
+
     const rows = [
-      ["Pelotão", "Nome", "Telefone", "Email", "CPF", "Data/Hora", "Evento", "Validado"],
-      ...filtered.map(item => [
+      ["#", "Pelotão", "Nome", "Sexo", "Telefone", "Email", "CPF", "Data/Hora", "Evento", "Validado"],
+      ...sorted.map((item, idx) => [
+        String(idx + 1),
         item.pelotao || "",
         item.nome || "",
+        item.sexo || "",
         item.telefone || "",
         item.email || "",
         formatCPF(item.cpf),
@@ -226,7 +240,7 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
     )
     const a = document.createElement("a")
     a.href = csv
-    a.download = `checkin_${selectedEventoData?.titulo?.replace(/[^a-zA-Z0-9]/g, '_') || 'export'}_${new Date().toLocaleDateString("pt-BR").replace(/\//g, "-")}.csv`
+    a.download = `checkin_${selectedEventoData?.titulo?.replace(/[^a-zA-Z0-9]/g, '_') || 'export'}${filterSuffix}_${new Date().toLocaleDateString("pt-BR").replace(/\//g, "-")}.csv`
     a.click()
   }
 
@@ -347,7 +361,7 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
               </button>
               <button
                 onClick={handleExport}
-                disabled={filtered.length === 0}
+                disabled={sorted.length === 0}
                 className="p-2 rounded-lg bg-neutral-900 border border-neutral-800 text-neutral-400 hover:text-white transition-colors disabled:opacity-40"
               >
                 <Download className="w-3.5 h-3.5" />
@@ -396,6 +410,46 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
               )}
             </div>
           </div>
+
+          {/* Row 5: Inline filters (sexo + pelotão + sort) */}
+          <div className="px-4 py-2 border-t border-neutral-800/60 space-y-2">
+            {/* Sort toggle */}
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] text-neutral-500 uppercase tracking-wider font-semibold">Ordenar</p>
+              <button
+                onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
+                className="flex items-center gap-1 px-2 py-1 rounded-lg bg-neutral-900 border border-neutral-800 text-neutral-400 text-[10px] font-medium"
+              >
+                {sortOrder === 'desc' ? '↓ Mais recente' : '↑ Primeiro inscrito'}
+              </button>
+            </div>
+
+            {/* Sexo filter */}
+            {uniqueSexos.length > 0 && (
+              <div>
+                <p className="text-[10px] text-neutral-500 uppercase tracking-wider font-semibold mb-1.5">Sexo</p>
+                <div className="flex flex-wrap gap-1.5">
+                  <button onClick={() => setSelectedSexo(null)} className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${selectedSexo === null ? 'bg-orange-500 text-white' : 'bg-neutral-800 text-neutral-400 border border-neutral-700'}`}>Todos</button>
+                  {uniqueSexos.map(s => (
+                    <button key={s} onClick={() => setSelectedSexo(s)} className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors capitalize ${selectedSexo === s ? 'bg-blue-500 text-white' : 'bg-neutral-800 text-neutral-400 border border-neutral-700'}`}>{s} ({statsBySexo(s)})</button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Pelotão filter */}
+            {uniquePelotoes.length > 0 && (
+              <div>
+                <p className="text-[10px] text-neutral-500 uppercase tracking-wider font-semibold mb-1.5">Pelotão</p>
+                <div className="flex flex-wrap gap-1.5">
+                  <button onClick={() => setSelectedPelotao(null)} className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${selectedPelotao === null ? 'bg-orange-500 text-white' : 'bg-neutral-800 text-neutral-400 border border-neutral-700'}`}>Todos</button>
+                  {uniquePelotoes.map(p => (
+                    <button key={p} onClick={() => setSelectedPelotao(p)} className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors ${selectedPelotao === p ? 'bg-purple-500 text-white' : 'bg-neutral-800 text-neutral-400 border border-neutral-700'}`}>{p} ({statsByPelotao(p)})</button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* ── List ── */}
@@ -410,7 +464,7 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
           )}
 
           {/* Empty */}
-          {!loading && filtered.length === 0 && (
+          {!loading && sorted.length === 0 && (
             <div className="flex flex-col items-center justify-center py-20 text-center px-6">
               {activeFilterCount > 0 || searchTerm ? (
                 <>
@@ -433,9 +487,9 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
           )}
 
           {/* Check-in cards */}
-          {!loading && filtered.length > 0 && (
+          {!loading && sorted.length > 0 && (
             <div className="divide-y divide-neutral-800/60">
-              {filtered.map((item, idx) => {
+              {sorted.map((item, idx) => {
                 const isUpdating = updatingId === item.id
                 const isExpanded = expandedId === (item.id || String(idx))
                 const badge = pelotaoBadge(item.pelotao)
@@ -449,9 +503,12 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
                       className="flex items-center gap-3 px-4 py-3.5 active:bg-neutral-900/50"
                       onClick={() => setExpandedId(isExpanded ? null : (item.id || String(idx)))}
                     >
-                      {/* Avatar */}
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold ${badge.bg} ${badge.text}`}>
-                        {getInitials(item.nome)}
+                      {/* Number + Avatar */}
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-neutral-600 font-mono w-5 text-right flex-shrink-0">#{idx + 1}</span>
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-bold ${badge.bg} ${badge.text}`}>
+                          {getInitials(item.nome)}
+                        </div>
                       </div>
 
                       {/* Info */}
@@ -551,11 +608,20 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
         <MobileBottomSheet isOpen={mobileFiltersOpen} onClose={() => setMobileFiltersOpen(false)} title="Filtrar" height="auto">
           <div className="space-y-5 pb-2">
             <div>
+              <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2.5">Sexo</p>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => setSelectedSexo(null)} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${selectedSexo === null ? 'bg-orange-500 text-white' : 'bg-neutral-800 text-neutral-300 border border-neutral-700'}`}>Todos ({checkInData.length})</button>
+                {uniqueSexos.map(s => (
+                  <button key={s} onClick={() => setSelectedSexo(s)} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors capitalize ${selectedSexo === s ? 'bg-blue-500 text-white' : 'bg-neutral-800 text-neutral-300 border border-neutral-700'}`}>{s} ({statsBySexo(s)})</button>
+                ))}
+              </div>
+            </div>
+            <div>
               <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2.5">Pelotão</p>
               <div className="flex flex-wrap gap-2">
-                <button onClick={() => setSelectedPelotao(null)} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${selectedPelotao === null ? 'bg-orange-500 text-white' : 'bg-neutral-800 text-neutral-300 border border-neutral-700'}`}>Todos</button>
+                <button onClick={() => setSelectedPelotao(null)} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${selectedPelotao === null ? 'bg-orange-500 text-white' : 'bg-neutral-800 text-neutral-300 border border-neutral-700'}`}>Todos ({checkInData.length})</button>
                 {uniquePelotoes.map(p => (
-                  <button key={p} onClick={() => setSelectedPelotao(p)} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${selectedPelotao === p ? 'bg-orange-500 text-white' : 'bg-neutral-800 text-neutral-300 border border-neutral-700'}`}>{p}</button>
+                  <button key={p} onClick={() => setSelectedPelotao(p)} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${selectedPelotao === p ? 'bg-purple-500 text-white' : 'bg-neutral-800 text-neutral-300 border border-neutral-700'}`}>{p} ({statsByPelotao(p)})</button>
                 ))}
               </div>
             </div>
@@ -567,9 +633,17 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
                 ))}
               </div>
             </div>
-            <button onClick={() => setMobileFiltersOpen(false)} className="w-full py-3 bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold rounded-xl transition-colors">
-              Aplicar
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setSelectedSexo(null); setSelectedPelotao(null); setActiveFilter('all'); setSortOrder('desc') }}
+                className="flex-1 py-3 bg-neutral-800 text-neutral-300 text-sm font-bold rounded-xl transition-colors"
+              >
+                Limpar
+              </button>
+              <button onClick={() => setMobileFiltersOpen(false)} className="flex-1 py-3 bg-orange-500 hover:bg-orange-600 text-white text-sm font-bold rounded-xl transition-colors">
+                Aplicar
+              </button>
+            </div>
           </div>
         </MobileBottomSheet>
       </div>
@@ -589,7 +663,7 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
                 <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
                 <span className="hidden sm:inline">Atualizar</span>
               </button>
-              <button onClick={handleExport} disabled={filtered.length === 0} className="flex items-center gap-1.5 px-3 py-2 bg-neutral-900 border border-neutral-700 rounded-lg text-sm text-neutral-300 hover:bg-neutral-800 transition-colors disabled:opacity-50">
+              <button onClick={handleExport} disabled={sorted.length === 0} className="flex items-center gap-1.5 px-3 py-2 bg-neutral-900 border border-neutral-700 rounded-lg text-sm text-neutral-300 hover:bg-neutral-800 transition-colors disabled:opacity-50">
                 <Download className="w-4 h-4" />
                 <span className="hidden sm:inline">Exportar CSV</span>
               </button>
@@ -644,21 +718,35 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
           {!loading && error && <div className="bg-red-900/20 border border-red-800/50 rounded-xl p-4 text-red-400 text-sm flex gap-3 items-start"><AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" /><div><p className="font-medium">Erro ao carregar dados</p><p className="text-red-500 text-xs mt-0.5">{error}</p></div></div>}
           {!loading && !error && filtered.length === 0 && <div className="text-center py-16"><Users className="w-10 h-10 text-neutral-700 mx-auto mb-3" /><p className="text-neutral-400 text-sm">{searchTerm ? `Nenhum resultado para "${searchTerm}"` : "Nenhum check-in neste evento"}</p></div>}
 
+          {/* Sort toggle desktop */}
           {!loading && !error && filtered.length > 0 && (
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-neutral-500">{sorted.length} registro(s)</p>
+              <button
+                onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-900 border border-neutral-800 text-neutral-400 hover:text-white text-xs font-medium transition-colors"
+              >
+                {sortOrder === 'desc' ? '↓ Mais recente' : '↑ Primeiro inscrito'}
+              </button>
+            </div>
+          )}
+
+          {!loading && !error && sorted.length > 0 && (
             <div>
               <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-neutral-800 bg-neutral-800/50">
-                        {["Pelotão","Nome","Telefone","CPF","Data/Hora","Validação","Ações"].map((h, i) => (
-                          <th key={h} className={`py-3 px-4 text-xs font-semibold text-neutral-400 uppercase tracking-wider ${i === 6 ? 'text-center' : 'text-left'}`}>{h}</th>
+                        {["#","Pelotão","Nome","Telefone","CPF","Data/Hora","Validação","Ações"].map((h, i) => (
+                          <th key={h} className={`py-3 px-4 text-xs font-semibold text-neutral-400 uppercase tracking-wider ${i === 7 ? 'text-center' : 'text-left'}`}>{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-neutral-800">
-                      {filtered.map((item, idx) => (
+                      {sorted.map((item, idx) => (
                         <tr key={item.id || idx} className="hover:bg-neutral-800/40 transition-colors">
+                          <td className="py-3 px-4 text-neutral-500 font-mono text-xs">{idx + 1}</td>
                           <td className="py-3 px-4">
                             {item.pelotao ? <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30 font-mono text-xs font-semibold">{item.pelotao}</Badge> : <span className="text-neutral-600 text-xs">—</span>}
                           </td>
@@ -683,7 +771,7 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
                   </table>
                 </div>
               </div>
-              <p className="text-xs text-neutral-600 mt-2 text-right">{filtered.length} registro(s)</p>
+              <p className="text-xs text-neutral-600 mt-2 text-right">{sorted.length} registro(s){selectedSexo || selectedPelotao || activeFilter !== 'all' ? ' (filtrado)' : ''}</p>
             </div>
           )}
         </div>
