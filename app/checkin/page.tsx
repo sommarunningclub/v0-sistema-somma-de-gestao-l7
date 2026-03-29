@@ -335,7 +335,7 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
       <div className="md:hidden">
 
         {/* ── Sticky header ── */}
-        <div className="sticky top-14 z-20 bg-neutral-950 border-b border-neutral-800/60">
+        <div className="sticky top-0 z-20 bg-neutral-950 border-b border-neutral-800/60">
 
           {/* Row 1: Title + actions + collapse toggle */}
           <div className="flex items-center justify-between gap-2 px-4 pt-3 pb-2">
