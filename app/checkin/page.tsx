@@ -33,6 +33,7 @@ interface EventoOption {
   data_evento: string
   checkin_status: string
   checkin_count: number
+  tipo?: string
 }
 
 export default function CheckInPage({ initialEventoId }: { initialEventoId?: string | null }) {
@@ -488,7 +489,7 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
                   )}
 
                   {/* Pelotão */}
-                  {uniquePelotoes.length > 0 && (
+                  {selectedEventoData?.tipo !== 'personalizado' && uniquePelotoes.length > 0 && (
                     <div>
                       <p className="text-[10px] text-neutral-500 uppercase tracking-wider font-semibold mb-1.5">Pelotão</p>
                       <div className="relative">
@@ -703,6 +704,7 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500 pointer-events-none" />
               </div>
             </div>
+            {selectedEventoData?.tipo !== 'personalizado' && (
             <div>
               <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2.5">Pelotão</p>
               <div className="relative">
@@ -719,6 +721,7 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
                 <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500 pointer-events-none" />
               </div>
             </div>
+            )}
             {uniqueDias.length > 1 && (
               <div>
                 <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2.5">Dia de Inscrição</p>
@@ -823,7 +826,7 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
                   </div>
                 </div>
               )}
-              {uniquePelotoes.length > 0 && (
+              {selectedEventoData?.tipo !== 'personalizado' && uniquePelotoes.length > 0 && (
                 <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4">
                   <h3 className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-3">Por Pelotão</h3>
                   <div className="relative max-w-xs">
