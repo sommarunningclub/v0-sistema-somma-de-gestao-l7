@@ -38,6 +38,8 @@ const DEFAULT_FORM = {
   data_evento: '',
   horario_inicio: '07:00',
   local: 'Parque da Cidade — Brasília, DF',
+  local_url: '',
+  tipo: 'corrida' as 'corrida' | 'personalizado',
   checkin_abertura: '',
   checkin_fechamento: '',
   checkin_status: 'bloqueado' as 'aberto' | 'bloqueado' | 'encerrado',
@@ -118,6 +120,8 @@ export default function EventosSommaPage({ onViewCheckins }: { onViewCheckins?: 
       data_evento: evento.data_evento,
       horario_inicio: evento.horario_inicio || '07:00',
       local: evento.local || '',
+      local_url: evento.local_url || '',
+      tipo: evento.tipo || 'corrida',
       checkin_abertura: toDatetimeLocal(evento.checkin_abertura),
       checkin_fechamento: toDatetimeLocal(evento.checkin_fechamento),
       checkin_status: evento.checkin_status,
@@ -148,6 +152,8 @@ export default function EventosSommaPage({ onViewCheckins }: { onViewCheckins?: 
       data_evento: nextDateStr,
       horario_inicio: evento.horario_inicio || '07:00',
       local: evento.local || '',
+      local_url: evento.local_url || '',
+      tipo: evento.tipo || 'corrida',
       checkin_abertura: '',
       checkin_fechamento: '',
       checkin_status: 'bloqueado',
@@ -172,10 +178,12 @@ export default function EventosSommaPage({ onViewCheckins }: { onViewCheckins?: 
         data_evento: form.data_evento,
         horario_inicio: form.horario_inicio || '07:00',
         local: form.local || 'Parque da Cidade — Brasília, DF',
+        local_url: form.local_url || undefined,
+        tipo: form.tipo,
         checkin_abertura: form.checkin_abertura ? new Date(form.checkin_abertura).toISOString() : undefined,
         checkin_fechamento: form.checkin_fechamento ? new Date(form.checkin_fechamento).toISOString() : undefined,
         checkin_status: form.checkin_status,
-        pelotoes: form.pelotoes,
+        pelotoes: form.tipo === 'personalizado' ? [] : form.pelotoes,
       }
 
       const url = editingId ? `/api/insider/eventos/${editingId}` : '/api/insider/eventos'
@@ -576,6 +584,31 @@ export default function EventosSommaPage({ onViewCheckins }: { onViewCheckins?: 
 
             {/* Form */}
             <div className="p-5 space-y-4">
+              {/* Tipo de Evento */}
+              <div>
+                <label className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-1.5 block">Tipo de Evento</label>
+                <div className="flex gap-2">
+                  {(['corrida', 'personalizado'] as const).map(tipo => (
+                    <button
+                      key={tipo}
+                      type="button"
+                      onClick={() => setForm(f => ({
+                        ...f,
+                        tipo,
+                        pelotoes: tipo === 'personalizado' ? [] : (f.pelotoes.length === 0 ? ['4km', '6km', '8km'] : f.pelotoes),
+                      }))}
+                      className={`flex-1 py-2.5 rounded-lg border text-xs font-medium transition-colors ${
+                        form.tipo === tipo
+                          ? 'border-orange-500 bg-orange-500/15 text-orange-400'
+                          : 'border-neutral-700 bg-neutral-800 text-neutral-400 hover:border-neutral-600'
+                      }`}
+                    >
+                      {tipo === 'corrida' ? '🏃 Corrida' : '📋 Personalizado'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Título */}
               <div>
                 <label className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-1.5 block">Título *</label>
@@ -621,6 +654,18 @@ export default function EventosSommaPage({ onViewCheckins }: { onViewCheckins?: 
                 />
               </div>
 
+              {/* Link do endereço */}
+              <div>
+                <label className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-1.5 block">Link do endereço</label>
+                <input
+                  type="url"
+                  value={form.local_url}
+                  onChange={e => setForm(f => ({ ...f, local_url: e.target.value }))}
+                  placeholder="https://maps.app.goo.gl/..."
+                  className="w-full px-3 py-2.5 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-orange-500/50"
+                />
+              </div>
+
               {/* Descrição */}
               <div>
                 <label className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-1.5 block">Descrição</label>
@@ -634,6 +679,7 @@ export default function EventosSommaPage({ onViewCheckins }: { onViewCheckins?: 
               </div>
 
               {/* Pelotões */}
+              {form.tipo === 'corrida' && (
               <div>
                 <label className="text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-1.5 block">Pelotões</label>
                 <div className="flex flex-wrap gap-2 mb-2">
@@ -660,6 +706,7 @@ export default function EventosSommaPage({ onViewCheckins }: { onViewCheckins?: 
                   </button>
                 </div>
               </div>
+              )}
 
               {/* Divider */}
               <div className="border-t border-neutral-800 pt-4">
