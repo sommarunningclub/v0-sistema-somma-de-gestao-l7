@@ -5,6 +5,8 @@ export interface Evento {
   data_evento: string
   horario_inicio: string
   local: string
+  local_url: string | null
+  tipo: 'corrida' | 'personalizado'
   checkin_abertura: string | null
   checkin_fechamento: string | null
   checkin_status: 'aberto' | 'bloqueado' | 'encerrado'
@@ -20,6 +22,8 @@ export interface EventoCreate {
   data_evento: string
   horario_inicio?: string
   local?: string
+  local_url?: string
+  tipo?: 'corrida' | 'personalizado'
   checkin_abertura?: string
   checkin_fechamento?: string
   checkin_status?: 'aberto' | 'bloqueado' | 'encerrado'

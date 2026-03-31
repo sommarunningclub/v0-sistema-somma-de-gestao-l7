@@ -39,6 +39,8 @@ export async function PUT(
     if (body.checkin_fechamento !== undefined) updateObj.checkin_fechamento = body.checkin_fechamento || null
     if (body.checkin_status !== undefined) updateObj.checkin_status = body.checkin_status
     if (body.pelotoes !== undefined) updateObj.pelotoes = body.pelotoes
+    if (body.tipo !== undefined) updateObj.tipo = body.tipo
+    if (body.local_url !== undefined) updateObj.local_url = body.local_url || null
 
     const { data, error } = await supabase
       .from('eventos')

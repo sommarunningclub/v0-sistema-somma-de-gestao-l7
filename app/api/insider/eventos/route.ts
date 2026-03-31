@@ -84,10 +84,12 @@ export async function POST(request: NextRequest) {
         data_evento: body.data_evento,
         horario_inicio: body.horario_inicio || '07:00',
         local: body.local || 'Parque da Cidade — Brasília, DF',
+        local_url: body.local_url || null,
+        tipo: body.tipo || 'corrida',
         checkin_abertura: body.checkin_abertura || null,
         checkin_fechamento: body.checkin_fechamento || null,
         checkin_status: body.checkin_status || 'bloqueado',
-        pelotoes: body.pelotoes || ['4km', '6km', '8km'],
+        pelotoes: body.tipo === 'personalizado' ? [] : (body.pelotoes || ['4km', '6km', '8km']),
       })
       .select()
       .single()
