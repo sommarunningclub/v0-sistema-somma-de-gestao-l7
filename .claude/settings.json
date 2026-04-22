@@ -1,7 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "Read(//Users/alexrodriguesdossantos/Projetos/**)"
+      "Read(//Users/alexrodriguesdossantos/Projetos/**)",
+      "Bash(vercel ls:*)",
+      "Bash(vercel projects:*)",
+      "Bash(vercel project:*)",
+      "Bash(vercel link:*)"
     ]
   }
 }

@@ -40,6 +40,60 @@ export async function DELETE(
 }
 
 /**
+ * PUT /api/checkin/[id]
+ * Updates editable fields of a check-in record
+ */
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+
+    if (!id) {
+      return NextResponse.json({ error: 'ID é obrigatório' }, { status: 400 })
+    }
+
+    const body = await request.json()
+    const { nome_completo, telefone, email, cpf, pelotao, sexo } = body
+
+    const updateData: Record<string, string> = {}
+    if (nome_completo !== undefined) updateData.nome_completo = nome_completo
+    if (telefone !== undefined) updateData.telefone = telefone
+    if (email !== undefined) updateData.email = email
+    if (cpf !== undefined) updateData.cpf = cpf
+    if (pelotao !== undefined) updateData.pelotao = pelotao
+    if (sexo !== undefined) updateData.sexo = sexo
+
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json({ error: 'Nenhum campo para atualizar' }, { status: 400 })
+    }
+
+    const supabase = createClient()
+
+    const { data, error } = await supabase
+      .from('checkins')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('[v0] Error updating check-in fields:', error)
+      return NextResponse.json({ error: `Erro ao atualizar: ${error.message}` }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true, data })
+  } catch (error) {
+    console.error('[v0] Error in PUT /api/checkin/[id]:', error)
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Erro interno' },
+      { status: 500 }
+    )
+  }
+}
+
+/**
  * PATCH /api/checkin/[id]
  * Updates validation status of a check-in record
  */

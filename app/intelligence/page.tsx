@@ -233,7 +233,7 @@ export default function CarteirasPage() {
     }
     
     fetchProfessors(session)
-    fetchProfessorClients(session)
+    fetchProfessorClients()
     fetchCommissionConfig()
     if (isAdmin) {
       fetchRepasseSettings()
@@ -270,35 +270,30 @@ export default function CarteirasPage() {
 
   const fetchProfessorClients = async () => {
     try {
-      const session = await getSession()
-      let query = supabase.from("professor_clients").select("*").eq("status", "active")
-      
-      // Se não for admin, filtra apenas os clientes do professor do usuário logado
+      const session = getSession()
+      let url = '/api/professores/clientes'
+
+      // Se não for admin, filtra apenas os clientes do professor logado
       if (session && session.role !== 'admin') {
-        // Primeiro, encontra o professor com o email do usuário
         const { data: professorData } = await supabase
           .from("professors")
           .select("id")
           .eq("email", session.email)
           .single()
-        
+
         if (professorData) {
-          query = query.eq("professor_id", professorData.id)
+          url += `?professor_id=${professorData.id}`
         } else {
-          // Se não encontrar professor, retorna lista vazia
           setProfessorClients([])
           return
         }
       }
-      
-      const { data, error } = await query
 
-      if (error) {
-        console.error("[v0] Error fetching professor clients:", error)
-      } else {
-        console.log("[v0] Fetched professor clients, count:", data?.length || 0)
-        setProfessorClients(data || [])
-      }
+      const res = await fetch(url, { cache: 'no-store' })
+      if (!res.ok) throw new Error(`Erro ${res.status}`)
+      const json = await res.json()
+      console.log("[v0] Fetched professor clients, count:", json.data?.length || 0)
+      setProfessorClients(json.data || [])
     } catch (err) {
       console.error("[v0] Error in fetchProfessorClients:", err)
     }
@@ -357,7 +352,7 @@ export default function CarteirasPage() {
         status: "active",
         client_type: "cliente_somma",
       })
-      fetchProfessors()
+      fetchProfessors(getSession())
     }
   }
 
@@ -385,7 +380,7 @@ export default function CarteirasPage() {
       alert("Professor atualizado com sucesso!")
       setShowEditProfessorModal(false)
       setEditingProfessor(null)
-      fetchProfessors()
+      fetchProfessors(getSession())
     }
   }
 
@@ -417,26 +412,28 @@ export default function CarteirasPage() {
       }
 
       // Usar CPF como identificador único (mais seguro que ID autoincrement)
-      const { error } = await supabase
-        .from("professor_clients")
-        .insert([{
+      const res = await fetch('/api/professores/clientes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           professor_id: selectedProfessor.id,
           asaas_customer_id: `insider_cpf_${insiderData.cpf}`,
           customer_name: insiderData.nome,
           customer_cpf_cnpj: insiderData.cpf,
-          customer_email: "", // Insiders podem não ter email registrado
-          status: "active",
+          customer_email: '',
+          status: 'active',
           tag: finalTag,
           linked_at: new Date().toISOString(),
-        }])
+        }),
+      })
+      const json = await res.json()
 
-      if (error) {
-        console.error("[v0] Error linking insider:", error)
-        // Erro de constraint UNIQUE: insider já vinculado
-        if (error.code === "23505") {
+      if (!res.ok) {
+        console.error("[v0] Error linking insider:", json.error)
+        if (json.code === "23505") {
           alert("Este insider já está vinculado a este professor")
         } else {
-          alert(`Erro ao vincular: ${error.message}`)
+          alert(`Erro ao vincular: ${json.error}`)
         }
         return
       }
@@ -464,26 +461,28 @@ export default function CarteirasPage() {
       return
     }
 
-    const { error } = await supabase
-      .from("professor_clients")
-      .insert([{
+    const res = await fetch('/api/professores/clientes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         professor_id: selectedProfessor.id,
         asaas_customer_id: selectedCustomer.id,
         customer_name: selectedCustomer.name,
         customer_cpf_cnpj: selectedCustomer.cpfCnpj,
         customer_email: selectedCustomer.email,
-        status: "active",
+        status: 'active',
         tag: finalTag,
         linked_at: new Date().toISOString(),
-      }])
-      .select()
+      }),
+    })
+    const json = await res.json()
 
-    if (error) {
-      console.error("[v0] Error linking client:", error)
-      if (error.code === "23505") {
+    if (!res.ok) {
+      console.error("[v0] Error linking client:", json.error)
+      if (json.code === "23505") {
         alert("Este cliente já está vinculado a este professor")
       } else {
-        alert(`Erro ao vincular: ${error.message}`)
+        alert(`Erro ao vincular: ${json.error}`)
       }
     } else {
       console.log("[v0] Client linked successfully:", selectedCustomer.id)
@@ -510,20 +509,18 @@ export default function CarteirasPage() {
       alert("Erro ao deletar professor")
     } else {
       alert("Professor deletado com sucesso!")
-      fetchProfessors()
+      fetchProfessors(getSession())
     }
   }
 
   const handleUnlinkClient = async (linkId: string) => {
     if (!confirm("Tem certeza que deseja desvincular este cliente?")) return
 
-    const { error } = await supabase
-      .from("professor_clients")
-      .update({ status: "inactive", unlinked_at: new Date().toISOString() })
-      .eq("id", linkId)
+    const res = await fetch(`/api/professores/clientes/${linkId}`, { method: 'PATCH' })
 
-    if (error) {
-      console.error("[v0] Error unlinking client:", error)
+    if (!res.ok) {
+      const json = await res.json()
+      console.error("[v0] Error unlinking client:", json.error)
       alert("Erro ao desvincular cliente")
     } else {
       alert("Cliente desvinculado com sucesso!")
@@ -1329,7 +1326,7 @@ export default function CarteirasPage() {
               ) : (
                 <div className="space-y-2 max-h-96 overflow-y-auto">
                   {asaasCustomers.map((customer) => {
-                    const isLinked = professorClients.some(pc => pc.asaas_customer_id === customer.id)
+                    const isLinked = professorClients.some(pc => pc.asaas_customer_id === customer.id && pc.professor_id === selectedProfessor.id)
                     const isSelected = selectedCustomer?.id === customer.id
 
                     return (

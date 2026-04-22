@@ -5,7 +5,7 @@ import {
   Search, RefreshCw, Download, CheckCircle2, XCircle,
   Users, Trash2, AlertTriangle, X, Shield,
   CheckCircle, FilterX, Loader2, SlidersHorizontal,
-  Calendar, ChevronDown, Eye,
+  Calendar, ChevronDown, Eye, Pencil, Save,
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -49,6 +49,9 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
   const [confirmDelete, setConfirmDelete] = useState<CheckInData | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [editingItem, setEditingItem] = useState<CheckInData | null>(null)
+  const [editForm, setEditForm] = useState<Partial<CheckInData>>({})
+  const [savingEdit, setSavingEdit] = useState(false)
 
   // Eventos integration
   const [eventos, setEventos] = useState<EventoOption[]>([])
@@ -191,6 +194,46 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
       alert("Erro ao deletar check-in")
     } finally {
       setDeletingId(null)
+    }
+  }
+
+  const openEdit = (item: CheckInData) => {
+    setEditingItem(item)
+    setEditForm({
+      nome: item.nome || '',
+      telefone: item.telefone || '',
+      email: item.email || '',
+      cpf: item.cpf || '',
+      pelotao: item.pelotao || '',
+      sexo: item.sexo || '',
+    })
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editingItem?.id) return
+    setSavingEdit(true)
+    try {
+      const res = await fetch(`/api/checkin/${editingItem.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nome_completo: editForm.nome,
+          telefone: editForm.telefone,
+          email: editForm.email,
+          cpf: editForm.cpf,
+          pelotao: editForm.pelotao,
+          sexo: editForm.sexo,
+        }),
+      })
+      if (!res.ok) throw new Error('Falha ao salvar')
+      setCheckInData(prev =>
+        prev.map(c => c.id === editingItem.id ? { ...c, ...editForm } : c)
+      )
+      setEditingItem(null)
+    } catch {
+      alert('Erro ao salvar alterações')
+    } finally {
+      setSavingEdit(false)
     }
   }
 
@@ -667,6 +710,12 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
                             {item.validated ? 'Desfazer validação' : 'Confirmar presença'}
                           </button>
                           <button
+                            onClick={() => openEdit(item)}
+                            className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold bg-orange-500/10 text-orange-400 border border-orange-500/20 transition-colors hover:bg-orange-500/20"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
                             onClick={() => setConfirmDelete(item)}
                             className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold bg-red-500/10 text-red-400 border border-red-500/20 transition-colors hover:bg-red-500/20"
                           >
@@ -914,7 +963,10 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
                             </button>
                           </td>
                           <td className="py-3 px-4 text-center">
-                            <button onClick={() => setConfirmDelete(item)} className="p-1.5 rounded-lg text-neutral-600 hover:text-red-400 hover:bg-red-500/10 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                            <div className="flex items-center justify-center gap-1">
+                              <button onClick={() => openEdit(item)} className="p-1.5 rounded-lg text-neutral-600 hover:text-orange-400 hover:bg-orange-500/10 transition-colors"><Pencil className="w-4 h-4" /></button>
+                              <button onClick={() => setConfirmDelete(item)} className="p-1.5 rounded-lg text-neutral-600 hover:text-red-400 hover:bg-red-500/10 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -927,6 +979,111 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
           )}
         </div>
       </div>
+
+      {/* ── Edit modal ── */}
+      {editingItem && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-4">
+          <div className="bg-neutral-900 border border-neutral-700 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-orange-500/20 flex items-center justify-center flex-shrink-0">
+                  <Pencil className="w-4 h-4 text-orange-400" />
+                </div>
+                <div>
+                  <h3 className="text-white font-semibold text-sm">Editar check-in</h3>
+                  <p className="text-neutral-500 text-[11px]">As alterações são salvas no banco em tempo real.</p>
+                </div>
+              </div>
+              <button onClick={() => setEditingItem(null)} className="p-1.5 rounded-lg text-neutral-500 hover:text-white hover:bg-neutral-800 transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-[10px] text-neutral-500 uppercase tracking-wider font-semibold">Nome completo</label>
+                <input
+                  type="text"
+                  value={editForm.nome || ''}
+                  onChange={e => setEditForm(prev => ({ ...prev, nome: e.target.value }))}
+                  className="mt-1 w-full bg-neutral-800 border border-neutral-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-orange-500/50 transition-colors"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] text-neutral-500 uppercase tracking-wider font-semibold">Telefone</label>
+                  <input
+                    type="text"
+                    value={editForm.telefone || ''}
+                    onChange={e => setEditForm(prev => ({ ...prev, telefone: e.target.value }))}
+                    className="mt-1 w-full bg-neutral-800 border border-neutral-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-orange-500/50 transition-colors font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-neutral-500 uppercase tracking-wider font-semibold">CPF</label>
+                  <input
+                    type="text"
+                    value={editForm.cpf || ''}
+                    onChange={e => setEditForm(prev => ({ ...prev, cpf: e.target.value }))}
+                    className="mt-1 w-full bg-neutral-800 border border-neutral-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-orange-500/50 transition-colors font-mono"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-[10px] text-neutral-500 uppercase tracking-wider font-semibold">Email</label>
+                <input
+                  type="email"
+                  value={editForm.email || ''}
+                  onChange={e => setEditForm(prev => ({ ...prev, email: e.target.value }))}
+                  className="mt-1 w-full bg-neutral-800 border border-neutral-700 text-white rounded-lg px-3 py-2 text-sm outline-none focus:border-orange-500/50 transition-colors"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {selectedEventoData?.tipo !== 'personalizado' && (
+                  <div>
+                    <label className="text-[10px] text-neutral-500 uppercase tracking-wider font-semibold">Pelotão</label>
+                    <div className="relative mt-1">
+                      <select
+                        value={editForm.pelotao || ''}
+                        onChange={e => setEditForm(prev => ({ ...prev, pelotao: e.target.value }))}
+                        className="w-full appearance-none bg-neutral-800 border border-neutral-700 text-white rounded-lg px-3 py-2 pr-8 text-sm outline-none focus:border-orange-500/50 transition-colors cursor-pointer"
+                      >
+                        <option value="">— Sem pelotão —</option>
+                        {['4km','6km','8km','Alfa','Bravo','Charlie','Delta'].map(p => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-500 pointer-events-none" />
+                    </div>
+                  </div>
+                )}
+                <div>
+                  <label className="text-[10px] text-neutral-500 uppercase tracking-wider font-semibold">Sexo</label>
+                  <div className="relative mt-1">
+                    <select
+                      value={editForm.sexo || ''}
+                      onChange={e => setEditForm(prev => ({ ...prev, sexo: e.target.value }))}
+                      className="w-full appearance-none bg-neutral-800 border border-neutral-700 text-white rounded-lg px-3 py-2 pr-8 text-sm outline-none focus:border-orange-500/50 transition-colors cursor-pointer"
+                    >
+                      <option value="">— Não informado —</option>
+                      <option value="M">Masculino</option>
+                      <option value="F">Feminino</option>
+                    </select>
+                    <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-500 pointer-events-none" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-5">
+              <button onClick={() => setEditingItem(null)} disabled={savingEdit} className="flex-1 py-2.5 rounded-xl bg-neutral-800 text-neutral-300 hover:bg-neutral-700 text-sm font-medium transition-colors disabled:opacity-50">Cancelar</button>
+              <button onClick={handleSaveEdit} disabled={savingEdit} className="flex-1 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold transition-colors disabled:opacity-60 flex items-center justify-center gap-2">
+                {savingEdit ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4" /> Salvar</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Delete confirmation modal ── */}
       {confirmDelete && (
