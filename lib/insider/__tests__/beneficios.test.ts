@@ -39,6 +39,20 @@ describe('montarBeneficios — não vaza anotação interna', () => {
       expect(saida).not.toContain(termo)
     }
   })
+
+  it('evolve só pode produzir Ativo ou Inativo, seja qual for o texto', () => {
+    const entradas = [
+      'Ativo - POSSUI SALDO DEVEDOR , SENDO NECESSÁRIO O CANCELAMENTO NA UNIDADE',
+      'Ativo - qualquer observação interna que ninguém previu',
+      'Inativo desde 2024 — pendência financeira',
+      '',
+      'ativo',
+    ]
+    for (const entrada of entradas) {
+      const b = montarBeneficios({ ...linhaReal, evolve: entrada }).find((x) => x.chave === 'evolve')!
+      expect(['Ativo', 'Inativo']).toContain(b.valor)
+    }
+  })
 })
 
 describe('montarBeneficios — Dopamina', () => {
@@ -50,9 +64,25 @@ describe('montarBeneficios — Dopamina', () => {
     expect(buscar({ ...linhaReal, dopahmina: '0.15' }, 'dopahmina').valor).toBe('15% de desconto')
   })
 
+  it('aceita vírgula decimal brasileira (0,1)', () => {
+    expect(buscar({ ...linhaReal, dopahmina: '0,1' }, 'dopahmina').valor).toBe('10% de desconto')
+  })
+
+  it('aceita 1 como 100% de desconto', () => {
+    expect(buscar({ ...linhaReal, dopahmina: '1' }, 'dopahmina').valor).toBe('100% de desconto')
+  })
+
   it('fica indisponível quando não é número', () => {
     expect(buscar({ ...linhaReal, dopahmina: 'abc' }, 'dopahmina').disponivel).toBe(false)
     expect(buscar({ ...linhaReal, dopahmina: '' }, 'dopahmina').disponivel).toBe(false)
+  })
+
+  it('fica indisponível para valores fora da faixa (0, 1]', () => {
+    expect(buscar({ ...linhaReal, dopahmina: '0' }, 'dopahmina').disponivel).toBe(false)
+    expect(buscar({ ...linhaReal, dopahmina: '-0.1' }, 'dopahmina').disponivel).toBe(false)
+    expect(buscar({ ...linhaReal, dopahmina: '1.5' }, 'dopahmina').disponivel).toBe(false)
+    expect(buscar({ ...linhaReal, dopahmina: '10' }, 'dopahmina').disponivel).toBe(false)
+    expect(buscar({ ...linhaReal, dopahmina: ' ' }, 'dopahmina').disponivel).toBe(false)
   })
 })
 
@@ -84,10 +114,18 @@ describe('montarBeneficios — Assessoria Somma', () => {
     expect(buscar(linhaReal, 'assessoria_somma').valor).toBe('Ativo')
   })
 
+  it('aceita variações de Sim com pontuação e espaço', () => {
+    expect(buscar({ ...linhaReal, assessoria_somma: 'Sim.' }, 'assessoria_somma').valor).toBe('Ativo')
+  })
+
   it('mostra Não incluído quando vazio, e segue disponível para exibição', () => {
     const b = buscar({ ...linhaReal, assessoria_somma: '' }, 'assessoria_somma')
     expect(b.valor).toBe('Não incluído')
     expect(b.disponivel).toBe(true)
+  })
+
+  it('mostra Não incluído para valores que não começam com Sim', () => {
+    expect(buscar({ ...linhaReal, assessoria_somma: 'Não' }, 'assessoria_somma').valor).toBe('Não incluído')
   })
 })
 

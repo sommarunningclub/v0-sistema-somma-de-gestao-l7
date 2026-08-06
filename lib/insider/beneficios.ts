@@ -28,8 +28,13 @@ function statusEvolve(valor: unknown): string {
 
 function percentual(valor: unknown): { valor: string; disponivel: boolean } {
   const bruto = texto(valor)
-  const numero = Number.parseFloat(bruto)
-  if (!bruto || Number.isNaN(numero)) return { valor: '', disponivel: false }
+  // Normalize Brazilian decimal comma to dot
+  const normalizado = bruto.replace(',', '.')
+  const numero = Number.parseFloat(normalizado)
+  // Only accept values in the range (0, 1] — a fraction between 0% and 100%
+  if (!bruto || Number.isNaN(numero) || numero <= 0 || numero > 1) {
+    return { valor: '', disponivel: false }
+  }
   const pct = Math.round(numero * 100)
   return { valor: `${pct}% de desconto`, disponivel: true }
 }
@@ -86,7 +91,7 @@ export function montarBeneficios(row: Record<string, unknown>): Beneficio[] {
       chave: 'assessoria_somma',
       rotulo: 'Assessoria Somma',
       tipo: 'status',
-      valor: texto(row.assessoria_somma).toLowerCase() === 'sim' ? 'Ativo' : 'Não incluído',
+      valor: texto(row.assessoria_somma).toLowerCase().startsWith('sim') ? 'Ativo' : 'Não incluído',
       disponivel: true,
     },
     {
