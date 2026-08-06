@@ -160,6 +160,22 @@ Unitários (jest):
 
 Verificação manual contra o banco real, ao fim de cada fatia, no mesmo formato da bateria de `/insider`: login correto, senha errada, CPF inexistente (mesma mensagem), rate limit, benefícios corretos por pessoa, e ausência da anotação interna.
 
+## Achados da Fatia 1 que a Fatia 2 precisa resolver
+
+Levantados na revisão final da Fatia 1 (2026-08-06). Nenhum bloqueou aquele merge; todos passam a importar quando a Fatia 2 adicionar escrita.
+
+1. **CSRF em `POST /api/insiders/entrar`.** A rota usa `req.json()`, que aceita qualquer `Content-Type`. Um formulário cross-origin com `enctype="text/plain"` consegue forjar um corpo com formato JSON, e `SameSite=Lax` não impede a *resposta* de gravar o cookie. Hoje o dano é baixo (a vítima entra na conta do atacante e vê os cupons dele). Vira grave assim que existir `PUT /api/insiders/eu`, porque passa a ser primitiva de escrita. Corrigir com uma checagem de `Content-Type` ou de `Origin` **antes** de expor as rotas de escrita.
+
+2. **Sem revogação de sessão.** O token dura 30 dias e não carrega versão de senha. A troca de senha da Fatia 2 **não** invalidará sessões já emitidas — exatamente o cenário do celular emprestado que motivou a correção do botão Sair. Acrescentar um claim `pwd_v` ao payload e compará-lo com um contador em `insider_credentials`.
+
+3. **Rate limit é por instância, não por deploy.** `lib/insider/rate-limit.ts` é um `Map` em processo; na Vercel isso significa 5/min por lambda quente, não por IP global. Não é superfície econômica de força bruta contra bcrypt cost 12, mas a spec não deve descrever como "5/min por IP" sem a ressalva. Migrar para armazenamento compartilhado e somar um contador por CPF.
+
+4. **Dívida de refatoração.** `components/insider/insider-cadastro-form.tsx` chegou a ~740 linhas e ganhou o modo de login. A quebra em blocos de campos, prevista nesta spec, ficou mais difícil por ter sido adiada. Fazer **antes** de acrescentar as seções de dados e senha.
+
+## Configuração de produção pendente
+
+`SESSION_SECRET` não está definido explicitamente na Vercel; a derivação cai no fallback `SUPABASE_SERVICE_ROLE_KEY`. Rotacionar a chave de serviço desconectaria todos os membros de uma vez. Definir a variável antes que a base de sessões cresça.
+
 ## Fora de escopo
 
 - Recuperação de senha por e-mail ou WhatsApp. Quem esquecer fala com a equipe.
