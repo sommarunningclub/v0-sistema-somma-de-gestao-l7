@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+import { getAdminClient } from '@/lib/auth/api-auth'
 import { estadoDoDia, resumirPelotoes } from '@/lib/escala-rules'
 import { META_POR_PELOTAO } from '@/lib/escala-constants'
 import type {
@@ -9,13 +9,6 @@ import type {
   EscalaInsiderInput,
   InsiderOption,
 } from '@/lib/types/escala'
-
-function getSupabase() {
-  return createClient(
-    process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-  )
-}
 
 const SELECT_ESCALACAO = `
   id, evento_id, insider_id, status, pelotao, motivo, observacao,
@@ -43,7 +36,7 @@ function mapEscalacao(row: any): EscalaInsider {
 // ---------- Catálogo de atividades ----------
 
 export async function getAtividades(incluirInativas = false): Promise<EscalaAtividade[]> {
-  let query = getSupabase().from('escala_atividades').select('*').order('nome')
+  let query = getAdminClient().from('escala_atividades').select('*').order('nome')
   if (!incluirInativas) query = query.eq('ativo', true)
 
   const { data, error } = await query
@@ -57,7 +50,7 @@ export async function getAtividades(incluirInativas = false): Promise<EscalaAtiv
 export async function createAtividade(
   input: { nome: string; descricao: string | null; cor: string }
 ): Promise<EscalaAtividade | null> {
-  const { data, error } = await getSupabase()
+  const { data, error } = await getAdminClient()
     .from('escala_atividades')
     .insert(input)
     .select('*')
@@ -74,7 +67,7 @@ export async function updateAtividade(
   id: string,
   updates: Partial<Pick<EscalaAtividade, 'nome' | 'descricao' | 'cor' | 'ativo'>>
 ): Promise<EscalaAtividade | null> {
-  const { data, error } = await getSupabase()
+  const { data, error } = await getAdminClient()
     .from('escala_atividades')
     .update(updates)
     .eq('id', id)
@@ -90,7 +83,7 @@ export async function updateAtividade(
 
 /** Remove de vez se nunca foi usada; senão apenas inativa (a FK é ON DELETE RESTRICT). */
 export async function removeAtividade(id: string): Promise<'removida' | 'inativada' | 'erro'> {
-  const supabase = getSupabase()
+  const supabase = getAdminClient()
 
   const { count } = await supabase
     .from('escala_insider_atividades')
@@ -130,7 +123,7 @@ export async function removeAtividade(id: string): Promise<'removida' | 'inativa
 // ---------- Escala ----------
 
 export async function getPelotoesDoEvento(eventoId: string): Promise<string[] | null> {
-  const { data, error } = await getSupabase()
+  const { data, error } = await getAdminClient()
     .from('eventos')
     .select('pelotoes')
     .eq('id', eventoId)
@@ -142,7 +135,7 @@ export async function getPelotoesDoEvento(eventoId: string): Promise<string[] | 
 
 /** `mes` no formato 'YYYY-MM'. Retorna um resumo por evento do mês. */
 export async function getEscalaDoMes(mes: string): Promise<EscalaDiaResumo[]> {
-  const supabase = getSupabase()
+  const supabase = getAdminClient()
   const [ano, m] = mes.split('-').map(Number)
   const primeiroDia = `${mes}-01`
   const ultimoDia = `${mes}-${String(new Date(ano, m, 0).getDate()).padStart(2, '0')}`
@@ -173,6 +166,7 @@ export async function getEscalaDoMes(mes: string): Promise<EscalaDiaResumo[]> {
     const doEvento = (escalacoes ?? []).filter((e) => e.evento_id === evento.id)
     const pelotoes: string[] = evento.pelotoes ?? []
     const pelotoes_resumo = resumirPelotoes(pelotoes, doEvento)
+    const apoio = doEvento.filter((e) => e.status === 'apoio').length
 
     return {
       evento_id: evento.id,
@@ -184,15 +178,15 @@ export async function getEscalaDoMes(mes: string): Promise<EscalaDiaResumo[]> {
       pelotoes_resumo,
       corredores: pelotoes_resumo.reduce((soma, p) => soma + p.escalados, 0),
       meta_total: pelotoes.length * META_POR_PELOTAO,
-      apoio: doEvento.filter((e) => e.status === 'apoio').length,
+      apoio,
       nao_vai: doEvento.filter((e) => e.status === 'nao_vai').length,
-      estado: estadoDoDia(pelotoes_resumo),
+      estado: estadoDoDia(pelotoes_resumo, apoio),
     }
   })
 }
 
 export async function getEscalaDoEvento(eventoId: string): Promise<EscalaDia | null> {
-  const supabase = getSupabase()
+  const supabase = getAdminClient()
 
   const { data: evento, error: erroEvento } = await supabase
     .from('eventos')
@@ -215,6 +209,7 @@ export async function getEscalaDoEvento(eventoId: string): Promise<EscalaDia | n
   const insiders = (rows ?? []).map(mapEscalacao)
   const pelotoes: string[] = evento.pelotoes ?? []
   const pelotoes_resumo = resumirPelotoes(pelotoes, insiders)
+  const apoio = insiders.filter((i) => i.status === 'apoio').length
 
   return {
     evento_id: evento.id,
@@ -226,9 +221,9 @@ export async function getEscalaDoEvento(eventoId: string): Promise<EscalaDia | n
     pelotoes_resumo,
     corredores: pelotoes_resumo.reduce((soma, p) => soma + p.escalados, 0),
     meta_total: pelotoes.length * META_POR_PELOTAO,
-    apoio: insiders.filter((i) => i.status === 'apoio').length,
+    apoio,
     nao_vai: insiders.filter((i) => i.status === 'nao_vai').length,
-    estado: estadoDoDia(pelotoes_resumo),
+    estado: estadoDoDia(pelotoes_resumo, apoio),
     insiders: insiders.sort((a, b) => a.insider_nome.localeCompare(b.insider_nome, 'pt-BR')),
   }
 }
@@ -238,7 +233,7 @@ export async function upsertEscalacao(
   eventoId: string,
   input: EscalaInsiderInput
 ): Promise<EscalaInsider | null> {
-  const supabase = getSupabase()
+  const supabase = getAdminClient()
 
   const registro = {
     evento_id: eventoId,
@@ -300,7 +295,7 @@ export async function upsertEscalacao(
 }
 
 export async function removeEscalacao(id: string): Promise<boolean> {
-  const { error } = await getSupabase().from('escala_insiders').delete().eq('id', id)
+  const { error } = await getAdminClient().from('escala_insiders').delete().eq('id', id)
   if (error) {
     console.error('[escala] removeEscalacao:', error)
     return false
@@ -309,7 +304,7 @@ export async function removeEscalacao(id: string): Promise<boolean> {
 }
 
 export async function listInsiders(): Promise<InsiderOption[]> {
-  const { data, error } = await getSupabase()
+  const { data, error } = await getAdminClient()
     .from('dados_insiders')
     .select('id, nome')
     .order('nome')
