@@ -3,8 +3,9 @@ import { updateAtividade, removeAtividade } from '@/lib/services/escala'
 
 export const dynamic = 'force-dynamic'
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params
     const body = await req.json()
     const updates: Record<string, unknown> = {}
 
@@ -25,7 +26,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       return NextResponse.json({ error: 'Nada para atualizar' }, { status: 400 })
     }
 
-    const atividade = await updateAtividade(params.id, updates)
+    const atividade = await updateAtividade(id, updates)
     if (!atividade) {
       return NextResponse.json({ error: 'Atividade não encontrada' }, { status: 404 })
     }
@@ -36,9 +37,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const resultado = await removeAtividade(params.id)
+    const { id } = await params
+    const resultado = await removeAtividade(id)
     if (resultado === 'erro') {
       return NextResponse.json({ error: 'Erro ao remover atividade' }, { status: 500 })
     }
