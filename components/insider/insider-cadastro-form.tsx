@@ -86,8 +86,9 @@ export function InsiderCadastroForm() {
    * Zera tudo que não faz parte de FormState/FORM_VAZIO e que, por isso,
    * não é limpo automaticamente por `setForm({ ...FORM_VAZIO, cpf })`:
    * consentimentos e a foto escolhida (com revogação da object URL).
-   * Chamada nos dois ramos do efeito de busca de CPF (reset e encontrado)
-   * para que nenhum estado fora de FormState sobreviva a uma troca de CPF.
+   * Chamada nos três ramos do efeito de busca de CPF (reset, encontrado e
+   * não encontrado) para que nenhum estado fora de FormState — nem uma
+   * mensagem de erro de um CPF anterior — sobreviva a uma troca de CPF.
    */
   function limparConsentEFoto() {
     setConsentLgpd(false)
@@ -99,6 +100,7 @@ export function InsiderCadastroForm() {
     })
     setSenhaLogin('')
     setModoEdicao(false)
+    setErro(null)
   }
 
   // --- Busca do CPF ---
