@@ -2677,7 +2677,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 })
     }
 
-    const campaign = await createCampaign({ ...parsed.data, created_by: auth.sub })
+    const campaign = await createCampaign({ ...parsed.data, created_by: auth.session.sub })
     if (!campaign) return NextResponse.json({ error: 'Erro ao criar campanha' }, { status: 500 })
 
     return NextResponse.json(campaign, { status: 201 })
@@ -2688,7 +2688,13 @@ export async function POST(req: NextRequest) {
 }
 ```
 
-> Conferir a forma de retorno de `requirePermission` em `lib/auth/api-auth.ts` antes de usar `auth.sub`. Se ele devolver a sessão sob outra propriedade, ajustar aqui e nas demais rotas.
+> Assinatura já verificada em `lib/auth/api-auth.ts:43`:
+> `requirePermission(req, permission): Promise<{ session: SessionPayload } | NextResponse>`.
+> O guard é `if (auth instanceof NextResponse) return auth`, e o id do usuário é
+> **`auth.session.sub`** — não `auth.sub`.
+>
+> `apiFetch` (`lib/api-client.ts:5`) devolve o `Response` cru, sem parsear JSON:
+> `apiFetch(input, init?): Promise<Response>`. Nas páginas, chamar `.json()` no resultado.
 
 - [ ] **Step 2: Detalhe, edição e exclusão**
 
