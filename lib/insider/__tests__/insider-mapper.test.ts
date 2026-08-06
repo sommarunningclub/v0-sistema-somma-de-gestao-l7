@@ -39,6 +39,13 @@ describe('INSIDER_PUBLIC_COLUMNS', () => {
     expect(INSIDER_PUBLIC_COLUMNS).toContain('foto_url')
     expect(INSIDER_PUBLIC_COLUMNS).toContain('data_nascimento')
   })
+
+  it('nunca expõe cpf nem colunas de senha (limite de segurança da feature)', () => {
+    const colunas = INSIDER_PUBLIC_COLUMNS.split(',').map((c) => c.trim())
+    for (const proibida of ['cpf', 'senha', 'senha_hash']) {
+      expect(colunas).not.toContain(proibida)
+    }
+  })
 })
 
 describe('toInsiderPublic', () => {

@@ -50,13 +50,20 @@ export async function POST(req: NextRequest) {
       .eq('insider_id', (row as { id: string }).id)
       .maybeSingle()
 
+    // Falha fechado: um erro real de consulta nunca pode virar "sem senha" —
+    // isso destravaria o campo senha_atual escondido e o usuário levaria um
+    // 401 sem conseguir corrigir (ver register/route.ts para o espelho disso).
+    let temSenha: boolean
     if (credError) {
       console.error('[insiders/lookup] credential error:', credError)
+      temSenha = true
+    } else {
+      temSenha = Boolean(credencial)
     }
 
     return NextResponse.json({
       found: true,
-      insider: toInsiderPublic(row as Record<string, unknown>, Boolean(credencial)),
+      insider: toInsiderPublic(row as Record<string, unknown>, temSenha),
     })
   } catch (err) {
     console.error('[insiders/lookup] unexpected error:', err)

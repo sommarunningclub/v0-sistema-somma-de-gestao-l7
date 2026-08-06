@@ -147,6 +147,7 @@ export function validateSenha(
     return obrigatoria ? 'Crie uma senha de acesso.' : null
   }
   if (senha.length < 8) return 'A senha deve ter ao menos 8 caracteres.'
+  if (senha.length > 72) return 'A senha deve ter no máximo 72 caracteres.'
   if (senha !== confirmacao) return 'As senhas não conferem.'
   return null
 }

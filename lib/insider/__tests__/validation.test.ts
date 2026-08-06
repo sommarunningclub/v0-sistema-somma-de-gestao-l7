@@ -184,4 +184,11 @@ describe('validateSenha', () => {
     expect(validateSenha('senha12345', 'senha12345', true)).toBeNull()
     expect(validateSenha('senha12345', 'senha12345', false)).toBeNull()
   })
+
+  it('rejeita senha com mais de 72 caracteres (bcrypt trunca)', () => {
+    const senhaLonga = 'a'.repeat(73)
+    expect(validateSenha(senhaLonga, senhaLonga, true)).toBe(
+      'A senha deve ter no máximo 72 caracteres.'
+    )
+  })
 })

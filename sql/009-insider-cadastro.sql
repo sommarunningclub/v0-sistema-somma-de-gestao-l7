@@ -2,6 +2,8 @@
 -- Página pública /insider: cadastro e atualização de Insiders.
 -- Aditiva: não remove nem renomeia nada existente.
 
+BEGIN;
+
 -- 1. Novas colunas de cadastro em dados_insiders
 ALTER TABLE dados_insiders ADD COLUMN IF NOT EXISTS email           text;
 ALTER TABLE dados_insiders ADD COLUMN IF NOT EXISTS telefone        text;
@@ -22,13 +24,34 @@ ALTER TABLE dados_insiders ADD COLUMN IF NOT EXISTS atualizado_em   timestamptz 
 
 -- 2. Colunas de benefício ganham DEFAULT '' para que INSERTs que não as
 --    mencionam funcionem mesmo se forem NOT NULL. Não altera linhas existentes.
-ALTER TABLE dados_insiders ALTER COLUMN evolve            SET DEFAULT '';
-ALTER TABLE dados_insiders ALTER COLUMN dopahmina         SET DEFAULT '';
-ALTER TABLE dados_insiders ALTER COLUMN tex_barbearia     SET DEFAULT '';
-ALTER TABLE dados_insiders ALTER COLUMN cupom_loja_somma  SET DEFAULT '';
-ALTER TABLE dados_insiders ALTER COLUMN big_box           SET DEFAULT '';
-ALTER TABLE dados_insiders ALTER COLUMN assessoria_somma  SET DEFAULT '';
-ALTER TABLE dados_insiders ALTER COLUMN estamina_recovery SET DEFAULT '';
+--    Defensivo: só aplica o DEFAULT em colunas que existem e são de tipo texto,
+--    para que a migration inteira (dentro de BEGIN/COMMIT) não falhe se alguma
+--    dessas colunas estiver ausente ou com outro tipo.
+DO $$
+DECLARE
+  col text;
+BEGIN
+  FOREACH col IN ARRAY ARRAY[
+    'evolve',
+    'dopahmina',
+    'tex_barbearia',
+    'cupom_loja_somma',
+    'big_box',
+    'assessoria_somma',
+    'estamina_recovery'
+  ]
+  LOOP
+    IF EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_name = 'dados_insiders'
+        AND column_name = col
+        AND data_type IN ('text', 'character varying', 'character')
+    ) THEN
+      EXECUTE format('ALTER TABLE dados_insiders ALTER COLUMN %I SET DEFAULT %L', col, '');
+    END IF;
+  END LOOP;
+END $$;
 
 -- 3. Índice para busca por CPF (a API busca com e sem máscara)
 CREATE INDEX IF NOT EXISTS idx_dados_insiders_cpf ON dados_insiders(cpf);
@@ -74,3 +97,5 @@ DROP POLICY IF EXISTS "Service role delete insider fotos" ON storage.objects;
 CREATE POLICY "Service role delete insider fotos"
 ON storage.objects FOR DELETE
 USING (bucket_id = 'insider-fotos' AND auth.role() = 'service_role');
+
+COMMIT;

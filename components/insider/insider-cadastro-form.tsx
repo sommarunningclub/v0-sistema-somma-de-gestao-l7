@@ -190,7 +190,11 @@ export function InsiderCadastroForm() {
 
     ultimoCepBuscado.current = digits
     const endereco = await cep.buscar(digits)
-    if (!endereco) return
+    if (!endereco) {
+      // Falhou: limpa a ref para que retypar o mesmo CEP dispare nova busca.
+      ultimoCepBuscado.current = ''
+      return
+    }
 
     setForm((f) => ({
       ...f,
@@ -201,7 +205,18 @@ export function InsiderCadastroForm() {
     }))
   }
 
+  const MAX_FOTO_SIZE = 5 * 1024 * 1024 // 5MB
+
   function handleFoto(file: File | null) {
+    if (file && file.size > MAX_FOTO_SIZE) {
+      setErro('A foto deve ter no máximo 5MB.')
+      setFoto(null)
+      setFotoPreview((anterior) => {
+        if (anterior) URL.revokeObjectURL(anterior)
+        return ''
+      })
+      return
+    }
     setFoto(file)
     setFotoPreview((anterior) => {
       if (anterior) URL.revokeObjectURL(anterior)
@@ -249,6 +264,7 @@ export function InsiderCadastroForm() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (enviando) return
     setErro(null)
 
     if (temSenha && !form.senha_atual) {
@@ -271,9 +287,31 @@ export function InsiderCadastroForm() {
     setEnviando(true)
     try {
       const res = await fetch('/api/insiders/register', { method: 'POST', body: payload })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data?.error || 'Erro ao salvar o cadastro.')
-      setConcluido(data.atualizado ? 'atualizado' : 'novo')
+      const data = await res.json().catch(() => null)
+
+      if (!res.ok) {
+        if (res.status === 401) {
+          setTemSenha(true)
+          setErro('Este CPF já tem senha cadastrada. Informe sua senha atual para continuar.')
+          return
+        }
+        if (data?.error) {
+          setErro(data.error)
+          return
+        }
+        if (res.status === 413) {
+          setErro('A foto é muito grande. Escolha uma imagem menor.')
+          return
+        }
+        if (res.status === 429) {
+          setErro('Muitas tentativas. Aguarde um instante e tente novamente.')
+          return
+        }
+        setErro('Erro ao salvar o cadastro. Tente novamente.')
+        return
+      }
+
+      setConcluido(data?.atualizado ? 'atualizado' : 'novo')
     } catch (err) {
       setErro(err instanceof Error ? err.message : 'Erro ao salvar o cadastro.')
     } finally {
@@ -626,7 +664,11 @@ export function InsiderCadastroForm() {
         </button>
       </Reveal>
 
-      {erro && <p className="mt-4 text-sm font-medium text-[#EF4444]">{erro}</p>}
+      {erro && (
+        <p role="alert" className="mt-4 text-sm font-medium text-[#EF4444]">
+          {erro}
+        </p>
+      )}
     </form>
   )
 }
