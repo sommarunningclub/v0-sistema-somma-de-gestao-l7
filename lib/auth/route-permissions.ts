@@ -8,6 +8,9 @@ export const PUBLIC_API_ROUTES: Array<{ method?: string; pattern: RegExp }> = [
   { pattern: /^\/api\/checkout\/validate-coupon/ },
   { pattern: /^\/api\/cron\// },
   { pattern: /^\/api\/eventos\/ativos$/ },
+  // Página pública /insider (auto-cadastro do Insider)
+  { method: 'POST', pattern: /^\/api\/insiders\/lookup$/ },
+  { method: 'POST', pattern: /^\/api\/insiders\/register$/ },
 ]
 
 export function isPublicApiRoute(pathname: string, method: string): boolean {
