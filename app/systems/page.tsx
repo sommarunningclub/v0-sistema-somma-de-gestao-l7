@@ -1,6 +1,7 @@
 "use client"
 
 import React from "react"
+import { apiFetch } from '@/lib/api-client'
 
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -8,13 +9,15 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Plus, Trash2, Edit, Search, Check, X, Shield, Loader2, CheckCircle, AlertCircle } from "lucide-react"
+import { matchesTextSearch } from "@/lib/search-utils"
+import { ErrorBanner } from '@/components/ui/error-banner'
+import { PageLoading } from '@/components/ui/page-loading'
 
 interface ModulePermissions {
   dashboard: boolean
   checkin: boolean
   membros: boolean
   parceiro: boolean
-  carteiras: boolean
   pagamentos: boolean
   crm: boolean
   tarefas: boolean
@@ -37,7 +40,6 @@ const DEFAULT_PERMISSIONS: ModulePermissions = {
   checkin: false,
   membros: false,
   parceiro: false,
-  carteiras: false,
   pagamentos: false,
   crm: false,
   tarefas: false,
@@ -50,8 +52,7 @@ const MODULE_LABELS: Record<keyof ModulePermissions, string> = {
   checkin: "Check-in",
   membros: "Membros",
   parceiro: "Parceiro Somma",
-  carteiras: "Carteiras",
-  pagamentos: "Pagamentos",
+  pagamentos: "Insiders",
   crm: "CRM",
   tarefas: "Tarefas",
   popups: "Pop-ups",
@@ -88,7 +89,7 @@ export default function AdminPage() {
   const fetchUsers = async () => {
     try {
       setLoading(true)
-      const res = await fetch("/api/admin/users")
+      const res = await apiFetch("/api/admin/users")
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
         console.error("[v0] Error fetching users:", body)
@@ -97,22 +98,13 @@ export default function AdminPage() {
       }
       const data = await res.json()
       setUsers(data || [])
+      setError(null)
     } catch (err) {
       console.error("[v0] Fetch users error:", err)
       setError("Erro ao conectar com o banco de dados")
     } finally {
       setLoading(false)
     }
-  }
-
-  // Funcao para gerar hash de senha usando Web Crypto API
-  const hashPassword = async (password: string): Promise<string> => {
-    const encoder = new TextEncoder()
-    const data = encoder.encode(password)
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data)
-    const hashArray = Array.from(new Uint8Array(hashBuffer))
-    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
-    return hashHex
   }
 
   const handleAddUser = async (e: React.FormEvent) => {
@@ -132,9 +124,6 @@ export default function AdminPage() {
     }
 
     try {
-      // Gerar hash da senha
-      const password_hash = await hashPassword(formData.password)
-
       // Determine permissions based on role
       let permissions = formData.permissions
       if (formData.role === "admin") {
@@ -144,7 +133,6 @@ export default function AdminPage() {
           checkin: true,
           membros: true,
           parceiro: true,
-          carteiras: true,
           pagamentos: true,
           crm: true,
           tarefas: true,
@@ -154,7 +142,7 @@ export default function AdminPage() {
       }
 
       // Create user record via API
-      const res = await fetch("/api/admin/users", {
+      const res = await apiFetch("/api/admin/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -162,7 +150,7 @@ export default function AdminPage() {
           full_name: formData.full_name,
           role: formData.role,
           permissions,
-          password_hash,
+          password: formData.password,
         }),
       })
 
@@ -189,7 +177,7 @@ export default function AdminPage() {
   const handleUpdatePermissions = async (userId: string, permissions: ModulePermissions) => {
     setSaving(true)
     try {
-      const res = await fetch(`/api/admin/users/${userId}`, {
+      const res = await apiFetch(`/api/admin/users/${userId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ permissions }),
@@ -239,7 +227,7 @@ export default function AdminPage() {
     if (!confirm("Tem certeza que deseja deletar este usuario?")) return
 
     try {
-      const res = await fetch(`/api/admin/users/${userId}`, { method: "DELETE" })
+      const res = await apiFetch(`/api/admin/users/${userId}`, { method: "DELETE" })
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
@@ -265,7 +253,6 @@ export default function AdminPage() {
           checkin: true,
           membros: true,
           parceiro: true,
-          carteiras: true,
           pagamentos: true,
           crm: true,
           tarefas: true,
@@ -274,7 +261,7 @@ export default function AdminPage() {
         }
       }
 
-      const res = await fetch(`/api/admin/users/${userId}`, {
+      const res = await apiFetch(`/api/admin/users/${userId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updateData),
@@ -297,7 +284,7 @@ export default function AdminPage() {
 
   const handleToggleActive = async (userId: string, isActive: boolean) => {
     try {
-      const res = await fetch(`/api/admin/users/${userId}`, {
+      const res = await apiFetch(`/api/admin/users/${userId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ is_active: !isActive }),
@@ -323,10 +310,8 @@ export default function AdminPage() {
     return Object.values(permissions).filter(Boolean).length
   }
 
-  const filteredUsers = users.filter(
-    (user) =>
-      user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.full_name.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredUsers = users.filter((user) =>
+    matchesTextSearch(searchTerm, [user.email, user.full_name])
   )
 
   const getRoleColor = (role: string) => {
@@ -340,6 +325,10 @@ export default function AdminPage() {
       default:
         return "bg-neutral-500/20 text-neutral-300"
     }
+  }
+
+  if (loading) {
+    return <PageLoading label="Carregando usuários..." />
   }
 
   return (
@@ -365,9 +354,7 @@ export default function AdminPage() {
 
       {/* Messages */}
       {error && (
-        <div className="p-4 bg-red-500/20 border border-red-500/30 rounded text-red-400 text-sm">
-          {error}
-        </div>
+        <ErrorBanner message={error} onRetry={fetchUsers} />
       )}
       {success && (
         <div className="p-4 bg-green-500/20 border border-green-500/30 rounded text-green-400 text-sm">
