@@ -16,6 +16,7 @@ import { PageLoading } from '@/components/ui/page-loading'
 interface ModulePermissions {
   dashboard: boolean
   checkin: boolean
+  escala: boolean
   membros: boolean
   parceiro: boolean
   pagamentos: boolean
@@ -38,6 +39,7 @@ interface User {
 const DEFAULT_PERMISSIONS: ModulePermissions = {
   dashboard: true,
   checkin: false,
+  escala: false,
   membros: false,
   parceiro: false,
   pagamentos: false,
@@ -50,6 +52,7 @@ const DEFAULT_PERMISSIONS: ModulePermissions = {
 const MODULE_LABELS: Record<keyof ModulePermissions, string> = {
   dashboard: "Dashboard",
   checkin: "Check-in",
+  escala: "Escala",
   membros: "Membros",
   parceiro: "Parceiro Somma",
   pagamentos: "Insiders",
@@ -131,6 +134,7 @@ export default function AdminPage() {
         permissions = {
           dashboard: true,
           checkin: true,
+          escala: true,
           membros: true,
           parceiro: true,
           pagamentos: true,
@@ -251,6 +255,7 @@ export default function AdminPage() {
         updateData.permissions = {
           dashboard: true,
           checkin: true,
+          escala: true,
           membros: true,
           parceiro: true,
           pagamentos: true,
