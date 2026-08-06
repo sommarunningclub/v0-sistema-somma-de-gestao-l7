@@ -10,6 +10,11 @@ import {
 import { cpfCandidates, buildInsiderRow } from '@/lib/insider/insider-mapper'
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const EXT_BY_MIME: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+}
 const MAX_SIZE = 5 * 1024 * 1024 // 5MB
 const BUCKET = 'insider-fotos'
 
@@ -88,7 +93,7 @@ export async function POST(req: NextRequest) {
         )
       }
 
-      const ext = foto.name.split('.').pop()?.toLowerCase() || 'jpg'
+      const ext = EXT_BY_MIME[foto.type] || 'jpg'
       const path = `${onlyDigits(parsed.data.cpf)}/${Date.now()}.${ext}`
       const { error: uploadError } = await supabase.storage
         .from(BUCKET)
