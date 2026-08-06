@@ -64,6 +64,15 @@ describe('estadoDoDia', () => {
   it('é vazio quando o evento não tem pelotões', () => {
     expect(estadoDoDia([])).toBe('vazio')
   })
+
+  it('é completo quando não há pelotões mas há gente no apoio', () => {
+    expect(estadoDoDia([], 3)).toBe('completo')
+  })
+
+  it('é vazio quando não há pelotões e ninguém no apoio', () => {
+    expect(estadoDoDia([], 0)).toBe('vazio')
+    expect(estadoDoDia([])).toBe('vazio')
+  })
 })
 
 describe('validarEscalacao', () => {

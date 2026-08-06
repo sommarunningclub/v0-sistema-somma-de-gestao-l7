@@ -26,8 +26,8 @@ export function resumirPelotoes(
 }
 
 /** Completo só quando todos os pelotões batem a meta; vazio quando ninguém corre. */
-export function estadoDoDia(resumos: PelotaoResumo[]): EstadoPreenchimento {
-  if (resumos.length === 0) return 'vazio'
+export function estadoDoDia(resumos: PelotaoResumo[], apoio: number = 0): EstadoPreenchimento {
+  if (resumos.length === 0) return apoio > 0 ? 'completo' : 'vazio'
   if (resumos.every((r) => r.estado === 'completo')) return 'completo'
   if (resumos.every((r) => r.escalados === 0)) return 'vazio'
   return 'parcial'
