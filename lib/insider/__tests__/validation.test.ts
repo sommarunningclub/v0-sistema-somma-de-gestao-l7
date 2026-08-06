@@ -28,6 +28,7 @@ const validForm = {
   bairro: 'Asa Norte',
   cidade: 'Brasília',
   estado: 'DF',
+  tamanho_camisa: 'M',
   consent_lgpd: true,
   consent_imagem: true,
 }
@@ -158,6 +159,19 @@ describe('insiderFormSchema', () => {
   it('aceita complemento vazio', () => {
     const result = insiderFormSchema.safeParse({ ...validForm, complemento: '' })
     expect(result.success).toBe(true)
+  })
+
+  it('rejeita tamanho de camiseta fora das opções', () => {
+    const result = insiderFormSchema.safeParse({ ...validForm, tamanho_camisa: 'GGG' })
+    expect(result.success).toBe(false)
+    if (!result.success) expect(firstZodError(result.error)).toBe('Selecione o tamanho da camiseta.')
+  })
+
+  it('aceita todos os tamanhos de camiseta válidos', () => {
+    for (const tamanho of ['PP', 'P', 'M', 'G', 'GG']) {
+      const result = insiderFormSchema.safeParse({ ...validForm, tamanho_camisa: tamanho })
+      expect(result.success).toBe(true)
+    }
   })
 })
 

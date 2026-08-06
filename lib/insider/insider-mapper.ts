@@ -10,7 +10,7 @@ import {
 
 /** Colunas devolvidas ao browser. Nunca inclui senha nem benefícios. */
 export const INSIDER_PUBLIC_COLUMNS =
-  'id, nome, email, telefone, data_nascimento, sexo, cep, logradouro, numero, complemento, bairro, cidade, estado, foto_url'
+  'id, nome, email, telefone, data_nascimento, sexo, cep, logradouro, numero, complemento, bairro, cidade, estado, tamanho_camisa, foto_url'
 
 export type InsiderPublic = {
   id: string
@@ -26,6 +26,7 @@ export type InsiderPublic = {
   bairro: string
   cidade: string
   estado: string
+  tamanho_camisa: string
   foto_url: string
   tem_senha: boolean
 }
@@ -62,6 +63,7 @@ export function toInsiderPublic(
     bairro: text(row.bairro),
     cidade: text(row.cidade),
     estado: text(row.estado),
+    tamanho_camisa: text(row.tamanho_camisa),
     foto_url: text(row.foto_url),
     tem_senha: temSenha,
   }
@@ -90,6 +92,7 @@ export function buildInsiderRow(input: InsiderFormInput): Record<string, unknown
     bairro: input.bairro.trim(),
     cidade: input.cidade.trim(),
     estado: input.estado.trim().toUpperCase(),
+    tamanho_camisa: input.tamanho_camisa.trim().toUpperCase(),
     consent_lgpd: input.consent_lgpd,
     consent_imagem: input.consent_imagem,
   }

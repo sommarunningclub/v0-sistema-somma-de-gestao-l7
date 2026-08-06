@@ -9,11 +9,13 @@ import { Input } from "@/components/ui/input"
 import { matchesTextSearch } from "@/lib/search-utils"
 import { ErrorBanner } from '@/components/ui/error-banner'
 import { PageLoading } from '@/components/ui/page-loading'
+import { TAMANHOS_CAMISA } from '@/lib/insider/validation'
 
 interface Insider {
   id: string
   nome: string
   cpf: string
+  tamanho_camisa: string
   evolve: string
   dopahmina: string
   tex_barbearia: string
@@ -34,6 +36,7 @@ export default function InsidersPage() {
   const [formData, setFormData] = useState<Partial<Insider>>({
     nome: "",
     cpf: "",
+    tamanho_camisa: "",
     evolve: "",
     dopahmina: "",
     tex_barbearia: "",
@@ -120,6 +123,7 @@ export default function InsidersPage() {
         setFormData({
           nome: "",
           cpf: "",
+          tamanho_camisa: "",
           evolve: "",
           dopahmina: "",
           tex_barbearia: "",
@@ -142,10 +146,11 @@ export default function InsidersPage() {
   )
 
   const exportToCSV = () => {
-    const headers = ["Nome", "CPF", "Evolve", "Dopamina", "Tex Barbearia", "Big Box", "Cupom Somma", "Assessoria Somma"]
+    const headers = ["Nome", "CPF", "Tamanho Camiseta", "Evolve", "Dopamina", "Tex Barbearia", "Big Box", "Cupom Somma", "Assessoria Somma"]
     const data = filteredInsiders.map((i) => [
       i.nome,
       i.cpf,
+      i.tamanho_camisa || "—",
       i.evolve || "—",
       i.dopahmina || "—",
       i.tex_barbearia || "—",
@@ -263,7 +268,10 @@ export default function InsidersPage() {
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex-1 min-w-0">
                     <h3 className="text-sm font-bold text-white truncate">{insider.nome.toUpperCase()}</h3>
-                    <p className="text-xs text-neutral-400 mt-0.5">{insider.cpf}</p>
+                    <p className="text-xs text-neutral-400 mt-0.5">
+                      {insider.cpf}
+                      {insider.tamanho_camisa ? ` · Camiseta ${insider.tamanho_camisa}` : ''}
+                    </p>
                   </div>
                   <button
                     onClick={() => {
@@ -361,6 +369,10 @@ export default function InsidersPage() {
                   <div className="text-white font-mono">{selectedInsider.cpf}</div>
                 </div>
                 <div>
+                  <label className="text-neutral-400 text-xs block mb-1 tracking-wide">TAMANHO DA CAMISETA</label>
+                  <div className="text-white">{selectedInsider.tamanho_camisa || "—"}</div>
+                </div>
+                <div>
                   <label className="text-neutral-400 text-xs block mb-1 tracking-wide">EVOLVE</label>
                   <div className="text-white">{selectedInsider.evolve || "—"}</div>
                 </div>
@@ -446,6 +458,23 @@ export default function InsidersPage() {
                     onChange={(e) => setFormData({ ...formData, cpf: e.target.value })}
                     className="bg-neutral-700 border-neutral-600 text-white placeholder-neutral-500"
                   />
+                </div>
+
+                {/* Tamanho da camiseta */}
+                <div className="sm:col-span-2">
+                  <label className="text-neutral-400 text-xs block mb-2 tracking-wide font-medium">TAMANHO DA CAMISETA</label>
+                  <select
+                    value={formData.tamanho_camisa || ""}
+                    onChange={(e) => setFormData({ ...formData, tamanho_camisa: e.target.value })}
+                    className="flex h-10 w-full rounded-md border border-neutral-600 bg-neutral-700 px-3 py-2 text-sm text-white placeholder-neutral-500"
+                  >
+                    <option value="">Selecione uma opção</option>
+                    {TAMANHOS_CAMISA.map((tamanho) => (
+                      <option key={tamanho} value={tamanho}>
+                        {tamanho}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 {/* Evolve */}

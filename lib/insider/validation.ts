@@ -86,6 +86,9 @@ export function maskUf(value: string): string {
 
 // ---------- Schema ----------
 
+export const TAMANHOS_CAMISA = ['PP', 'P', 'M', 'G', 'GG'] as const
+export type TamanhoCamisa = (typeof TAMANHOS_CAMISA)[number]
+
 export const insiderFormSchema = z.object({
   cpf: z.string().trim().refine((v) => isValidCpf(v), 'CPF inválido.'),
   nome: z
@@ -119,6 +122,10 @@ export const insiderFormSchema = z.object({
     .string()
     .trim()
     .refine((v) => /^[A-Za-z]{2}$/.test(v), 'UF inválida.'),
+  tamanho_camisa: z
+    .string()
+    .trim()
+    .refine((v) => (TAMANHOS_CAMISA as readonly string[]).includes(v), 'Selecione o tamanho da camiseta.'),
   consent_lgpd: z
     .boolean()
     .refine((v) => v === true, 'É preciso aceitar o Termo de Consentimento de Dados (LGPD).'),

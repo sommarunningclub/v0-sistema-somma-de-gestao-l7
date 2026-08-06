@@ -14,6 +14,7 @@ import {
   maskPhone,
   maskUf,
   onlyDigits,
+  TAMANHOS_CAMISA,
   validateSenha,
 } from '@/lib/insider/validation'
 import type { InsiderPublic } from '@/lib/insider/insider-mapper'
@@ -32,6 +33,7 @@ type FormState = {
   bairro: string
   cidade: string
   estado: string
+  tamanho_camisa: string
   senha_atual: string
   senha: string
   senha_confirmacao: string
@@ -50,6 +52,7 @@ const FORM_VAZIO: Omit<FormState, 'cpf'> = {
   bairro: '',
   cidade: '',
   estado: '',
+  tamanho_camisa: '',
   senha_atual: '',
   senha: '',
   senha_confirmacao: '',
@@ -145,6 +148,7 @@ export function InsiderCadastroForm() {
             bairro: i.bairro,
             cidade: i.cidade,
             estado: i.estado,
+            tamanho_camisa: i.tamanho_camisa,
             senha_atual: '',
             senha: '',
             senha_confirmacao: '',
@@ -251,6 +255,7 @@ export function InsiderCadastroForm() {
     form.estado.trim().length === 2
   const telefoneOk = onlyDigits(form.telefone).length >= 10
   const sexoOk = form.sexo === 'masculino' || form.sexo === 'feminino'
+  const tamanhoCamisaOk = (TAMANHOS_CAMISA as readonly string[]).includes(form.tamanho_camisa)
   const senhaOk = validateSenha(form.senha, form.senha_confirmacao, !temSenha) === null
 
   const showNome = iniciado
@@ -259,7 +264,8 @@ export function InsiderCadastroForm() {
   const showEndereco = showNascCep && (revelarTudo || (nascOk && cepOk))
   const showTelefone = showEndereco && (revelarTudo || enderecoOk)
   const showSexo = showTelefone && (revelarTudo || telefoneOk)
-  const showFotoSenha = showSexo && (revelarTudo || sexoOk)
+  const showTamanhoCamisa = showSexo && (revelarTudo || sexoOk)
+  const showFotoSenha = showTamanhoCamisa && (revelarTudo || tamanhoCamisaOk)
   const showFinal = showFotoSenha && (revelarTudo || senhaOk)
 
   async function handleSubmit(e: React.FormEvent) {
@@ -534,6 +540,24 @@ export function InsiderCadastroForm() {
             <option value="">Selecione uma opção</option>
             <option value="masculino">Masculino</option>
             <option value="feminino">Feminino</option>
+          </select>
+        </InsiderField>
+      </Reveal>
+
+      <Reveal show={showTamanhoCamisa}>
+        <InsiderField id="tamanho_camisa" label="Tamanho da camiseta">
+          <select
+            id="tamanho_camisa"
+            value={form.tamanho_camisa}
+            onChange={(e) => set('tamanho_camisa', e.target.value)}
+            className={`${INPUT_CLS} bg-white`}
+          >
+            <option value="">Selecione uma opção</option>
+            {TAMANHOS_CAMISA.map((tamanho) => (
+              <option key={tamanho} value={tamanho}>
+                {tamanho}
+              </option>
+            ))}
           </select>
         </InsiderField>
       </Reveal>

@@ -47,6 +47,7 @@ export async function POST(req: NextRequest) {
       bairro: campo('bairro'),
       cidade: campo('cidade'),
       estado: campo('estado'),
+      tamanho_camisa: campo('tamanho_camisa'),
       consent_lgpd: campo('consent_lgpd') === 'true',
       consent_imagem: campo('consent_imagem') === 'true',
     })

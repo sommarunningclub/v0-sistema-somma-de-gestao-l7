@@ -42,6 +42,7 @@ const CHARGE_COLUMNS = [
 const INSIDER_COLUMNS = [
   'nome',
   'cpf',
+  'tamanho_camisa',
   'evolve',
   'dopahmina',
   'tex_barbearia',

@@ -63,6 +63,7 @@ describe('toInsiderPublic', () => {
     bairro: 'Asa Norte',
     cidade: 'Brasília',
     estado: 'DF',
+    tamanho_camisa: 'M',
     foto_url: 'https://exemplo.com/foto.jpg',
   }
 
@@ -104,6 +105,7 @@ describe('buildInsiderRow', () => {
     bairro: 'Asa Norte',
     cidade: 'Brasília',
     estado: 'df',
+    tamanho_camisa: 'm',
     consent_lgpd: true,
     consent_imagem: true,
   }
@@ -115,6 +117,7 @@ describe('buildInsiderRow', () => {
     expect(row.estado).toBe('DF')
     expect(row.data_nascimento).toBe('1990-03-15')
     expect(row.nome).toBe('João Silva')
+    expect(row.tamanho_camisa).toBe('M')
   })
 
   it('não inclui cpf nem foto_url (a rota decide)', () => {
