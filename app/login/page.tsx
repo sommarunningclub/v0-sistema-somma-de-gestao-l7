@@ -1,81 +1,90 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { Suspense } from 'react'
 import { LoginForm } from '@/components/login-form'
+import { apiFetch } from '@/lib/api-client'
+import { PageLoading } from '@/components/ui/page-loading'
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const checkAuth = () => {
-      // Verificar se estamos no cliente
-      if (typeof window === 'undefined') {
-        setLoading(false)
-        return
-      }
-
+    const checkAuth = async () => {
       try {
-        // Verificar sessao no localStorage
-        const session = localStorage.getItem('somma_session')
-        if (session) {
-          router.push('/')
+        const res = await apiFetch('/api/auth/me')
+        if (res.ok) {
+          const from = searchParams.get('from')
+          router.replace(from && from.startsWith('/') ? from : '/')
+          return
         }
-      } catch (err) {
-        console.error('[v0] Error checking auth:', err)
+      } catch {
+        // Sem sessão — exibe login
       }
       setLoading(false)
     }
     checkAuth()
-  }, [router])
+  }, [router, searchParams])
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen w-screen" style={{ backgroundColor: '#fb4c00' }}>
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-white tracking-wider mb-4">SOMMA</h1>
-          <p className="text-neutral-400 text-sm">Carregando...</p>
+      <div className="h-screen w-screen" style={{ backgroundColor: '#fb4c00' }}>
+        <div className="text-center pt-[40vh]">
+          <h1 className="text-2xl font-bold text-white tracking-wider mb-6">SOMMA</h1>
         </div>
+        <PageLoading
+          label="Verificando sessão..."
+          fullScreen
+          className="text-white [&_span]:text-white/80 h-auto min-h-0"
+        />
       </div>
     )
   }
 
   return (
     <div className="flex h-screen w-screen overflow-hidden" style={{ backgroundColor: '#fb4c00' }}>
-      {/* Mobile/Tablet - Full Screen */}
       <div className="flex-1 lg:hidden flex flex-col justify-between p-4 sm:p-6">
-        {/* Top Spacer */}
         <div className="flex-1 flex items-center justify-center">
-          <LoginForm />
+          <LoginForm redirectTo={searchParams.get('from') || '/'} />
         </div>
-
-        {/* Footer Info - Safe area for home indicator */}
         <div className="pb-4 text-center">
-          <p className="text-xs text-neutral-500">
-            © 2025 Somma Assessoria
-          </p>
+          <p className="text-xs text-neutral-500">© 2025 Somma Assessoria</p>
         </div>
       </div>
 
-      {/* Desktop - Two Column */}
       <div className="hidden lg:grid lg:grid-cols-2 w-full">
-        {/* Left Column - Login Form */}
         <div className="flex flex-col justify-start items-center pt-12 p-10" style={{ backgroundColor: '#fb4c00' }}>
           <div className="w-full max-w-sm">
-            <LoginForm />
+            <LoginForm redirectTo={searchParams.get('from') || '/'} />
           </div>
         </div>
-
-        {/* Right Column - Hero Image */}
         <div className="relative flex items-center justify-center bg-gradient-to-b from-neutral-900 to-black border-l border-neutral-800 overflow-hidden">
-          <img 
-            src="https://cdn.shopify.com/s/files/1/0788/1932/8253/files/PDCSK21FEV-1910.jpg?v=1771862994" 
-            alt="Somma Assessoria de Corrida" 
+          <img
+            src="https://cdn.shopify.com/s/files/1/0788/1932/8253/files/PDCSK21FEV-1910.jpg?v=1771862994"
+            alt="Somma Assessoria de Corrida"
             className="w-full h-full object-cover"
           />
         </div>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="h-screen w-screen" style={{ backgroundColor: '#fb4c00' }}>
+        <PageLoading
+          label="Carregando..."
+          fullScreen
+          className="text-white [&_span]:text-white/80"
+        />
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
   )
 }

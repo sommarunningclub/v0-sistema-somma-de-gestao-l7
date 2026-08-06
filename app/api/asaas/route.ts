@@ -1,166 +1,103 @@
 import { NextRequest, NextResponse } from 'next/server'
+import {
+  areAsaasQueryParamsAllowed,
+  isAsaasEndpointAllowed,
+  normalizeAsaasEndpoint,
+} from '@/lib/asaas/proxy-policy'
+import { asaasRequest, getAsaasConfig } from '@/lib/asaas/request'
 
-// Force dynamic rendering to always read fresh environment variables
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-// =====================================================
-// API Asaas - AMBIENTE DE PRODUÇÃO
-// URL fixa: https://api.asaas.com/v3
-// NUNCA usar sandbox neste sistema
-// =====================================================
-const ASAAS_BASE_URL = 'https://api.asaas.com/v3'
-
-// Helper function to get fresh env vars on each request
-function getAsaasConfig() {
-  const apiKey = process.env.ASAAS_API_KEY || ''
-  const walletId = process.env.ASAAS_WALLET_ID || ''
-  
-  // Debug log - apenas em caso de erro
-  if (!apiKey && process.env.NODE_ENV === 'production') {
-    console.error('[v0] ASAAS_API_KEY is not configured in production!')
-  }
-  
-  return {
-    apiKey: apiKey.trim(),
-    walletId: walletId.trim(),
-    baseUrl: 'https://api.asaas.com/v3'
-  }
-}
-
-async function asaasRequest(
-  method: string,
-  path: string,
-  body?: Record<string, unknown>,
-  params?: Record<string, string>
-) {
-  const config = getAsaasConfig()
-
-  if (!config.apiKey) {
-    console.error('[v0] ASAAS_API_KEY not available in request')
-    throw new Error('ASAAS_API_KEY not configured')
-  }
-
-  // Garantir que o path comece com / e não tenha duplicação
-  const cleanPath = path.startsWith('/') ? path : `/${path}`
-  const url = new URL(`${config.baseUrl}${cleanPath}`)
-  if (params) {
-    Object.entries(params).forEach(([key, value]) => {
-      url.searchParams.append(key, value)
-    })
-  }
-
-  console.log('[v0] Making Asaas request:', method, cleanPath, 'API Key length:', config.apiKey.length)
-
-  const response = await fetch(url.toString(), {
-    method,
-    headers: {
-      'access_token': config.apiKey,
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  })
-
-  const data = await response.json().catch(() => null)
-
-  return {
-    ok: response.ok,
-    status: response.status,
-    data,
-  }
-}
-
-export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url)
-  const endpoint = searchParams.get('endpoint')
-  const config = getAsaasConfig()
-
-  console.log('[v0] GET /api/asaas called, endpoint:', endpoint, 'API Key configured:', !!config.apiKey)
-
-  if (!endpoint) {
-    return NextResponse.json({ error: 'Endpoint required' }, { status: 400 })
-  }
-
-  if (!config.apiKey) {
-    return NextResponse.json({ 
+function missingApiKeyResponse() {
+  return NextResponse.json(
+    {
       error: 'ASAAS_API_KEY not configured',
-      message: 'A chave API do Asaas não está configurada. Configure a variável de ambiente ASAAS_API_KEY com o valor da sua chave.',
-      hint: 'Adicione ASAAS_API_KEY nas variáveis de ambiente do projeto.'
-    }, { status: 500 })
-  }
+      message:
+        'A chave API do Asaas não está configurada. Configure a variável de ambiente ASAAS_API_KEY com o valor da sua chave.',
+      hint: 'Adicione ASAAS_API_KEY nas variáveis de ambiente do projeto.',
+    },
+    { status: 500 }
+  )
+}
 
-  // Converter searchParams para objeto, excluindo 'endpoint'
+function forbiddenEndpointResponse(method: string, endpoint: string) {
+  return NextResponse.json(
+    {
+      error: 'Endpoint não permitido',
+      message: `A operação ${method} ${normalizeAsaasEndpoint(endpoint)} não está autorizada neste proxy.`,
+    },
+    { status: 403 }
+  )
+}
+
+function extractQueryParams(searchParams: URLSearchParams): Record<string, string> {
   const params: Record<string, string> = {}
   searchParams.forEach((value, key) => {
     if (key !== 'endpoint') {
       params[key] = value
     }
   })
+  return params
+}
 
-  const result = await asaasRequest('GET', endpoint, undefined, Object.keys(params).length > 0 ? params : undefined)
+async function handleAsaasProxy(
+  request: NextRequest,
+  method: string
+): Promise<NextResponse> {
+  const { searchParams } = new URL(request.url)
+  const endpoint = searchParams.get('endpoint')
+  const config = getAsaasConfig()
+
+  if (!endpoint) {
+    return NextResponse.json({ error: 'Endpoint required' }, { status: 400 })
+  }
+
+  if (!config.apiKey) {
+    return missingApiKeyResponse()
+  }
+
+  if (!isAsaasEndpointAllowed(method, endpoint)) {
+    return forbiddenEndpointResponse(method, endpoint)
+  }
+
+  const params = extractQueryParams(searchParams)
+  if (method === 'GET' && Object.keys(params).length > 0 && !areAsaasQueryParamsAllowed(params)) {
+    return NextResponse.json({ error: 'Parâmetros de consulta não permitidos' }, { status: 403 })
+  }
+
+  const path = normalizeAsaasEndpoint(endpoint)
+  const body =
+    method === 'POST' || method === 'PUT'
+      ? await request.json().catch(() => ({}))
+      : undefined
+
+  const result = await asaasRequest(
+    method,
+    path,
+    body as Record<string, unknown> | undefined,
+    method === 'GET' && Object.keys(params).length > 0 ? params : undefined
+  )
 
   if (!result.ok) {
     return NextResponse.json({ error: result.data }, { status: result.status })
   }
 
   return NextResponse.json(result.data)
+}
+
+export async function GET(request: NextRequest) {
+  return handleAsaasProxy(request, 'GET')
 }
 
 export async function POST(request: NextRequest) {
-  const { searchParams } = new URL(request.url)
-  const endpoint = searchParams.get('endpoint')
-  const config = getAsaasConfig()
+  return handleAsaasProxy(request, 'POST')
+}
 
-  console.log('[v0] POST /api/asaas called, endpoint:', endpoint, 'API Key configured:', !!config.apiKey)
-
-  if (!endpoint) {
-    return NextResponse.json({ error: 'Endpoint required' }, { status: 400 })
-  }
-
-  if (!config.apiKey) {
-    return NextResponse.json({ 
-      error: 'ASAAS_API_KEY not configured',
-      message: 'A chave API do Asaas não está configurada. Configure a variável de ambiente ASAAS_API_KEY com o valor da sua chave.',
-      hint: 'Adicione ASAAS_API_KEY nas variáveis de ambiente do projeto.'
-    }, { status: 500 })
-  }
-
-  const body = await request.json().catch(() => ({}))
-
-  const result = await asaasRequest('POST', endpoint, body)
-
-  if (!result.ok) {
-    return NextResponse.json({ error: result.data }, { status: result.status })
-  }
-
-  return NextResponse.json(result.data)
+export async function PUT(request: NextRequest) {
+  return handleAsaasProxy(request, 'PUT')
 }
 
 export async function DELETE(request: NextRequest) {
-  const { searchParams } = new URL(request.url)
-  const endpoint = searchParams.get('endpoint')
-  const config = getAsaasConfig()
-
-  console.log('[v0] DELETE /api/asaas called, endpoint:', endpoint, 'API Key configured:', !!config.apiKey)
-
-  if (!endpoint) {
-    return NextResponse.json({ error: 'Endpoint required' }, { status: 400 })
-  }
-
-  if (!config.apiKey) {
-    return NextResponse.json({ 
-      error: 'ASAAS_API_KEY not configured',
-      message: 'A chave API do Asaas não está configurada. Configure a variável de ambiente ASAAS_API_KEY com o valor da sua chave.',
-      hint: 'Adicione ASAAS_API_KEY nas variáveis de ambiente do projeto.'
-    }, { status: 500 })
-  }
-
-  const result = await asaasRequest('DELETE', endpoint)
-
-  if (!result.ok) {
-    return NextResponse.json({ error: result.data }, { status: result.status })
-  }
-
-  return NextResponse.json(result.data)
+  return handleAsaasProxy(request, 'DELETE')
 }

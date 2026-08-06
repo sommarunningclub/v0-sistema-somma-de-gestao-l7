@@ -6,6 +6,9 @@ import { ArrowLeft, BarChart2, MousePointer, Smartphone, Eye, TrendingUp, X } fr
 import { useRouter, useParams } from 'next/navigation'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import type { Popup } from '@/lib/services/popups'
+import { apiFetch } from '@/lib/api-client'
+import { ErrorBanner } from '@/components/ui/error-banner'
+import { PageLoading } from '@/components/ui/page-loading'
 
 interface Stats {
   total_clicks: number
@@ -55,8 +58,8 @@ export default function PopupAnalyticsPage() {
     const load = async () => {
       try {
         const [popupRes, statsRes] = await Promise.all([
-          fetch(`/api/popups/${id}`),
-          fetch(`/api/popups/${id}/stats`),
+          apiFetch(`/api/popups/${id}`),
+          apiFetch(`/api/popups/${id}/stats`),
         ])
         if (!popupRes.ok || !statsRes.ok) throw new Error('Erro ao carregar')
         const [popupData, statsData] = await Promise.all([popupRes.json(), statsRes.json()])
@@ -87,8 +90,9 @@ export default function PopupAnalyticsPage() {
       {/* Header */}
       <div className="flex items-center gap-3 px-4 pt-4 pb-3 border-b border-neutral-800">
         <button
-          onClick={() => router.push('/popups')}
+          onClick={() => router.push('/?section=popups')}
           className="p-1.5 text-neutral-500 hover:text-white transition-colors rounded"
+          aria-label="Voltar para Pop-ups"
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
@@ -112,20 +116,31 @@ export default function PopupAnalyticsPage() {
       </div>
 
       {error && (
-        <div className="mx-4 mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400">
-          {error}
+        <div className="mx-4 mt-4">
+          <ErrorBanner
+            message={error}
+            onRetry={() => {
+              setLoading(true)
+              setError(null)
+              void Promise.all([
+                apiFetch(`/api/popups/${id}`),
+                apiFetch(`/api/popups/${id}/stats`),
+              ])
+                .then(async ([popupRes, statsRes]) => {
+                  if (!popupRes.ok || !statsRes.ok) throw new Error('Erro ao carregar')
+                  const [popupData, statsData] = await Promise.all([popupRes.json(), statsRes.json()])
+                  setPopup(popupData)
+                  setStats(statsData)
+                })
+                .catch(() => setError('Erro ao carregar analytics'))
+                .finally(() => setLoading(false))
+            }}
+          />
         </div>
       )}
 
       {loading ? (
-        <div className="p-4 space-y-4">
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <div key={i} className="h-20 bg-neutral-900 rounded-xl animate-pulse" />
-            ))}
-          </div>
-          <div className="h-48 bg-neutral-900 rounded-xl animate-pulse" />
-        </div>
+        <PageLoading label="Carregando analytics..." />
       ) : stats ? (
         <div className="p-4 space-y-5">
           {/* Metric cards */}

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { ProfileModal } from "@/components/profile-modal"
 import { getSession, logout } from "@/components/protected-route"
-import { supabase } from "@/lib/supabase-client"
+import { apiFetch } from "@/lib/api-client"
 
 interface UserData {
   id: string
@@ -32,14 +32,12 @@ export function UserProfile() {
       const session = getSession()
       
       if (session) {
-        // Buscar dados atualizados do usuario no banco
-        const { data: userData, error: dbError } = await supabase
-          .from("users")
-          .select("id, email, full_name, role, created_at")
-          .eq("id", session.id)
-          .maybeSingle()
+        // Dados atualizados vêm de /api/auth/me — a tabela `users` não é
+        // legível pelo browser (e não deve ser: ela guarda password_hash).
+        const res = await apiFetch("/api/auth/me")
+        const userData = res.ok ? await res.json().catch(() => null) : null
 
-        if (userData) {
+        if (userData?.id) {
           setUser(userData)
         } else {
           // Usar dados da sessao se nao encontrar no banco

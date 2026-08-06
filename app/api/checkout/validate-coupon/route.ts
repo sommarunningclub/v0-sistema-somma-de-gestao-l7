@@ -137,6 +137,17 @@ export async function GET(request: NextRequest) {
 // POST - Aplicar cupom e registrar uso (apos pagamento confirmado)
 // Body: { code: string, value: number, customerId?: string, paymentId?: string }
 export async function POST(request: NextRequest) {
+  const checkoutSecret = process.env.CHECKOUT_API_SECRET
+  if (checkoutSecret) {
+    const auth = request.headers.get('authorization')
+    if (auth !== `Bearer ${checkoutSecret}`) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401, headers: corsHeaders }
+      )
+    }
+  }
+
   const supabase = getSupabase()
   try {
     const body = await request.json()

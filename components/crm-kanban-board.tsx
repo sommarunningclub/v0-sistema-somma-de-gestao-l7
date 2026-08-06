@@ -55,6 +55,14 @@ export function CRMKanbanBoard({ leads, onCardClick, onMoveCard, onNewLead }: CR
     onMoveCard(lead.id, stage)
   }
 
+  if (leads.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-full min-h-[200px]">
+        <p className="text-sm text-neutral-500">Nenhum lead encontrado</p>
+      </div>
+    )
+  }
+
   return (
     <div className="relative h-full">
       <div className="flex gap-3 overflow-x-auto pb-4 h-full px-1">

@@ -3,13 +3,15 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { supabase } from "@/lib/supabase-client"
-import { 
-  Users, 
-  DollarSign, 
-  TrendingUp, 
-  CreditCard, 
-  UserCheck, 
+import { apiFetch } from '@/lib/api-client'
+import { ErrorBanner } from '@/components/ui/error-banner'
+import { PageLoading } from '@/components/ui/page-loading'
+import {
+  Users,
+  DollarSign,
+  TrendingUp,
+  CreditCard,
+  UserCheck,
   AlertCircle,
   Award,
   Briefcase
@@ -44,6 +46,7 @@ export default function CommandCenterPage() {
     recentActivity: []
   })
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchDashboardMetrics()
@@ -55,7 +58,7 @@ export default function CommandCenterPage() {
 
     try {
       // Buscar total de clientes do Asaas
-      const customersRes = await fetch("/api/asaas?endpoint=/customers&limit=100")
+      const customersRes = await apiFetch("/api/asaas?endpoint=/customers&limit=100")
       let totalCustomers = 0
       if (customersRes.ok) {
         const customersData = await customersRes.json()
@@ -63,7 +66,7 @@ export default function CommandCenterPage() {
       }
 
       // Buscar assinaturas ativas do Asaas
-      const subscriptionsRes = await fetch("/api/asaas?endpoint=/subscriptions&limit=100")
+      const subscriptionsRes = await apiFetch("/api/asaas?endpoint=/subscriptions&limit=100")
       let activeSubscriptions = 0
       let totalRevenue = 0
       if (subscriptionsRes.ok) {
@@ -73,86 +76,47 @@ export default function CommandCenterPage() {
         totalRevenue = activeSubs.reduce((sum: number, s: any) => sum + (s.value || 0), 0)
       }
 
-      // Buscar professores do Supabase
-      const { data: professorsData } = await supabase
-        .from("professors")
-        .select("*")
-        .eq("status", "active")
-
-      const totalProfessors = professorsData?.length || 0
-
-      // Buscar clientes vinculados
-      const { data: linkedData } = await supabase
-        .from("professor_clients")
-        .select("*")
-        .eq("status", "active")
-
-      const linkedClients = linkedData?.length || 0
-
-      // Buscar pagamentos pendentes
-      const { data: pendingData } = await supabase
-        .from("payments")
-        .select("*")
-        .eq("status", "PENDING")
-
-      const pendingPayments = pendingData?.length || 0
-      const pendingPaymentsValue = pendingData?.reduce((sum, p) => sum + (p.value || 0), 0) || 0
-
-      // Buscar pagamentos vencidos (status OVERDUE)
-      const { data: overdueData } = await supabase
-        .from("payments")
-        .select("*")
-        .eq("status", "OVERDUE")
-
-      const overduePayments = overdueData?.length || 0
-
-      // Buscar atividades recentes (últimas transações, novos membros, etc)
-      const { data: recentTransactions } = await supabase
-        .from("financial_transactions")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(5)
-
-      const recentActivity = (recentTransactions || []).map(t => ({
-        type: t.transaction_type || "transaction",
-        description: t.description || "Transação financeira",
-        timestamp: new Date(t.created_at).toLocaleString("pt-BR")
-      }))
+      // Métricas do Supabase vêm do servidor: essas tabelas têm RLS e são
+      // invisíveis para a chave anon usada no browser.
+      const supabaseRes = await apiFetch("/api/command-center/metrics")
+      if (!supabaseRes.ok) {
+        const body = await supabaseRes.json().catch(() => ({}))
+        throw new Error(body?.error || `Falha ao carregar métricas (HTTP ${supabaseRes.status})`)
+      }
+      const db = await supabaseRes.json()
 
       setMetrics({
         totalCustomers,
         activeSubscriptions,
-        totalProfessors,
-        linkedClients,
-        pendingPayments,
-        pendingPaymentsValue,
+        totalProfessors: db.totalProfessors,
+        linkedClients: db.linkedClients,
+        pendingPayments: db.pendingPayments,
+        pendingPaymentsValue: db.pendingPaymentsValue,
         totalRevenue,
-        overduePayments,
-        recentActivity
+        overduePayments: db.overduePayments,
+        recentActivity: (db.recentActivity || []).map((a: any) => ({
+          ...a,
+          timestamp: new Date(a.timestamp).toLocaleString("pt-BR"),
+        }))
       })
 
-      console.log("[v0] Dashboard metrics loaded:", {
-        totalCustomers,
-        activeSubscriptions,
-        totalProfessors,
-        linkedClients
-      })
-    } catch (error) {
-      console.error("[v0] Error fetching dashboard metrics:", error)
+      setError(null)
+    } catch (err) {
+      console.error("[v0] Error fetching dashboard metrics:", err)
+      setError('Erro ao carregar métricas do dashboard')
     } finally {
       setLoading(false)
     }
   }
 
   if (loading) {
+    return <PageLoading label="Carregando dashboard..." />
+  }
+
+  if (error) {
     return (
-      <div className="w-full h-full flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-orange-500/20 mb-4">
-            <div className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
-          </div>
-          <p className="text-sm text-neutral-400">Carregando...</p>
-        </div>
+      <div className="p-4 sm:p-6">
+        <ErrorBanner message={error} onRetry={fetchDashboardMetrics} />
       </div>
     )
   }

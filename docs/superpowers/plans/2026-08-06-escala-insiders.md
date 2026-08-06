@@ -21,6 +21,13 @@
 - Nome exato da permissão nova: `escala`.
 - Rodar testes com `npx jest <caminho>`; typecheck com `npx tsc --noEmit`.
 - Commits em português, prefixo convencional (`feat:`, `test:`, `chore:`).
+- **A árvore de trabalho contém dezenas de alterações não commitadas alheias a este plano.** Sempre
+  commite com paths explícitos (`git add caminho/do/arquivo`). Nunca use `git add -A` nem `git add .`.
+- Branch de trabalho: `feat/modulo-escala`.
+- **Next.js 15.5**: em rotas de API com segmento dinâmico, `params` é uma `Promise` — assinatura
+  `{ params }: { params: Promise<{ id: string }> }` com `const { id } = await params`. Rotas mais
+  recentes do repo (`app/api/crm/[id]/route.ts`, `app/api/insiders/[id]/route.ts`) já seguem esse
+  padrão; a assinatura síncrona antiga quebra em runtime nesta versão.
 
 ---
 
@@ -775,7 +782,9 @@ Todo o acesso ao Supabase do módulo, em um arquivo só, no padrão de `lib/serv
   - `getAtividades(incluirInativas?: boolean): Promise<EscalaAtividade[]>`
   - `createAtividade(input: { nome: string; descricao: string | null; cor: string }): Promise<EscalaAtividade | null>`
   - `updateAtividade(id: string, updates: Partial<Pick<EscalaAtividade,'nome'|'descricao'|'cor'|'ativo'>>): Promise<EscalaAtividade | null>`
-  - `removeAtividade(id: string): Promise<'removida' | 'inativada'>`
+  - `removeAtividade(id: string): Promise<'removida' | 'inativada' | 'erro'>` — `'erro'` quando a
+    operação no banco falha; `'inativada'` também cobre o caso em que o `delete` bate na FK
+    `ON DELETE RESTRICT` por uma inserção concorrente
   - `getEscalaDoMes(mes: string): Promise<EscalaDiaResumo[]>`
   - `getEscalaDoEvento(eventoId: string): Promise<EscalaDia | null>`
   - `upsertEscalacao(eventoId: string, input: EscalaInsiderInput): Promise<EscalaInsider | null>`
@@ -1095,7 +1104,8 @@ git commit -m "feat(escala): camada de serviço com queries de atividades e esca
   - `GET /api/escala/atividades?incluir_inativas=1` → `EscalaAtividade[]`
   - `POST /api/escala/atividades` body `{ nome, descricao?, cor? }` → `EscalaAtividade` (201)
   - `PATCH /api/escala/atividades/[id]` body `{ nome?, descricao?, cor?, ativo? }` → `EscalaAtividade`
-  - `DELETE /api/escala/atividades/[id]` → `{ resultado: 'removida' | 'inativada' }`
+  - `DELETE /api/escala/atividades/[id]` → `{ resultado: 'removida' | 'inativada' }`, ou 500 com
+    `{ error }` quando o serviço devolve `'erro'`
 
 O middleware já exige a permissão `escala` para tudo em `/api/escala` (Task 2), então as rotas não repetem a checagem — mesmo padrão de `app/api/tarefas/tasks/route.ts`.
 
@@ -1150,8 +1160,9 @@ import { updateAtividade, removeAtividade } from '@/lib/services/escala'
 
 export const dynamic = 'force-dynamic'
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params
     const body = await req.json()
     const updates: Record<string, unknown> = {}
 
@@ -1172,7 +1183,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       return NextResponse.json({ error: 'Nada para atualizar' }, { status: 400 })
     }
 
-    const atividade = await updateAtividade(params.id, updates)
+    const atividade = await updateAtividade(id, updates)
     if (!atividade) {
       return NextResponse.json({ error: 'Atividade não encontrada' }, { status: 404 })
     }
@@ -1183,9 +1194,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const resultado = await removeAtividade(params.id)
+    const { id } = await params
+    const resultado = await removeAtividade(id)
+    if (resultado === 'erro') {
+      return NextResponse.json({ error: 'Erro ao remover atividade' }, { status: 500 })
+    }
     return NextResponse.json({ resultado })
   } catch (err) {
     console.error('[escala] atividades DELETE:', err)
@@ -1273,16 +1288,18 @@ import type { EscalaInsiderInput } from '@/lib/types/escala'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(_req: NextRequest, { params }: { params: { eventoId: string } }) {
-  const escala = await getEscalaDoEvento(params.eventoId)
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ eventoId: string }> }) {
+  const { eventoId } = await params
+  const escala = await getEscalaDoEvento(eventoId)
   if (!escala) {
     return NextResponse.json({ error: 'Evento não encontrado' }, { status: 404 })
   }
   return NextResponse.json(escala)
 }
 
-export async function POST(req: NextRequest, { params }: { params: { eventoId: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ eventoId: string }> }) {
   try {
+    const { eventoId } = await params
     const body = await req.json()
 
     const input: EscalaInsiderInput = {
@@ -1294,7 +1311,7 @@ export async function POST(req: NextRequest, { params }: { params: { eventoId: s
       atividade_ids: Array.isArray(body.atividade_ids) ? body.atividade_ids : [],
     }
 
-    const pelotoes = await getPelotoesDoEvento(params.eventoId)
+    const pelotoes = await getPelotoesDoEvento(eventoId)
     if (pelotoes === null) {
       return NextResponse.json({ error: 'Evento não encontrado' }, { status: 404 })
     }
@@ -1302,7 +1319,7 @@ export async function POST(req: NextRequest, { params }: { params: { eventoId: s
     const erro = validarEscalacao(input, pelotoes)
     if (erro) return NextResponse.json({ error: erro }, { status: 400 })
 
-    const escalacao = await upsertEscalacao(params.eventoId, input)
+    const escalacao = await upsertEscalacao(eventoId, input)
     if (!escalacao) {
       return NextResponse.json({ error: 'Erro ao salvar a escalação' }, { status: 500 })
     }
@@ -1322,8 +1339,9 @@ import { removeEscalacao } from '@/lib/services/escala'
 
 export const dynamic = 'force-dynamic'
 
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
-  const ok = await removeEscalacao(params.id)
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const ok = await removeEscalacao(id)
   if (!ok) {
     return NextResponse.json({ error: 'Erro ao remover a escalação' }, { status: 500 })
   }
@@ -2384,8 +2402,11 @@ Expected: **ESCALA** aparece esmaecido e desabilitado na sidebar; acessar `/esca
 
 - [ ] **Step 5: Commit final se houve ajuste**
 
+A árvore de trabalho tem dezenas de alterações não commitadas alheias a este plano. **Nunca** use
+`git add -A` / `git add .` — adicione somente os arquivos que você mesmo alterou:
+
 ```bash
-git add -A
+git add <apenas os arquivos do módulo Escala que você tocou>
 git commit -m "chore(escala): ajustes da verificação final"
 ```
 

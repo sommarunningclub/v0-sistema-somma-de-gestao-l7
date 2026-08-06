@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback } from 'react'
 import { X, Upload, Loader2, ImageIcon } from 'lucide-react'
 import type { Popup, PopupWithStats, CreatePopupInput, PopupFrequency } from '@/lib/services/popups'
+import { apiFetch } from '@/lib/api-client'
 
 const SITE_PAGES = [
   { value: '/', label: 'Página inicial' },
@@ -48,7 +49,7 @@ export default function PopupsModal({ popup, onClose, onSave }: PopupsModalProps
     try {
       const fd = new FormData()
       fd.append('file', file)
-      const res = await fetch('/api/popups/upload', { method: 'POST', body: fd })
+      const res = await apiFetch('/api/popups/upload', { method: 'POST', body: fd })
       const json = await res.json()
       if (!res.ok) {
         setUploadError(json.error || 'Erro ao fazer upload')
@@ -93,7 +94,7 @@ export default function PopupsModal({ popup, onClose, onSave }: PopupsModalProps
     // Clean up orphaned image (uploaded in this session but popup not saved/updated)
     // Applies to both create AND edit flows — imagePath is only set when a new file was uploaded
     if (imagePath) {
-      await fetch(`/api/popups/upload?path=${encodeURIComponent(imagePath)}`, { method: 'DELETE' })
+      await apiFetch(`/api/popups/upload?path=${encodeURIComponent(imagePath)}`, { method: 'DELETE' })
     }
     onClose()
   }

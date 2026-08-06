@@ -40,7 +40,7 @@ export function OfflineBanner() {
     <div className="fixed top-14 left-0 right-0 bg-red-600 text-white px-4 py-2 flex items-center justify-center text-sm font-medium z-40 lg:top-16">
       <div className="flex items-center gap-2">
         <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
-        Você está offline - Some funcionalidades podem estar limitadas
+        Você está offline — algumas funcionalidades podem estar limitadas
       </div>
     </div>
   )

@@ -2,7 +2,9 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { RefreshCw, Settings, Plus, KanbanSquare, Filter, CalendarDays, CalendarRange, ChevronDown, X } from 'lucide-react'
+import { RefreshCw, Settings, Plus, KanbanSquare, Filter, CalendarDays, CalendarRange, ChevronDown, X, Search } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { matchesTextSearch } from '@/lib/search-utils'
 import { TarefasKanbanBoard } from '@/components/tarefas-kanban-board'
 import { TarefasTaskModal } from '@/components/tarefas-task-modal'
 import { TarefasBoardModal } from '@/components/tarefas-board-modal'
@@ -12,6 +14,9 @@ import { useTarefasFilters } from '@/lib/context/tarefas-filters-context'
 import type { TarefasBoard, TarefasColumn, TarefasTask, TarefasUser } from '@/lib/services/tarefas'
 import { getSession } from '@/components/protected-route'
 import { TAREFAS_PRIORIDADES } from '@/lib/tarefas-constants'
+import { apiFetch } from '@/lib/api-client'
+import { ErrorBanner } from '@/components/ui/error-banner'
+import { PageLoading } from '@/components/ui/page-loading'
 
 // Priority lookup map (used in mobile card list)
 const TAREFAS_PRIORIDADES_MAP = Object.fromEntries(TAREFAS_PRIORIDADES.map(p => [p.id, p]))
@@ -29,10 +34,12 @@ export default function TarefasPage() {
 
   // UI state
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [mobileActiveColumnId, setMobileActiveColumnId] = useState<string | null>(null)
   const [view, setView] = useState<'kanban' | 'calendar-month' | 'calendar-week'>('kanban')
   const [filtersBarOpen, setFiltersBarOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
 
   // Filters
   const { filters, setFilters, clearFilters, applyFilters, hasActiveFilters } = useTarefasFilters()
@@ -79,7 +86,7 @@ export default function TarefasPage() {
   // ── Fetch ──────────────────────────────────────────────────────────────────
 
   const fetchBoards = useCallback(async () => {
-    const res = await fetch('/api/tarefas/boards')
+    const res = await apiFetch('/api/tarefas/boards')
     if (res.ok) {
       const data: TarefasBoard[] = await res.json()
       setBoards(data)
@@ -93,8 +100,8 @@ export default function TarefasPage() {
 
   const fetchBoardData = useCallback(async (boardId: string) => {
     const [colRes, taskRes] = await Promise.all([
-      fetch(`/api/tarefas/columns?board_id=${boardId}`),
-      fetch(`/api/tarefas/tasks?board_id=${boardId}`),
+      apiFetch(`/api/tarefas/columns?board_id=${boardId}`),
+      apiFetch(`/api/tarefas/tasks?board_id=${boardId}`),
     ])
     if (colRes.ok) {
       const cols: TarefasColumn[] = await colRes.json()
@@ -105,7 +112,7 @@ export default function TarefasPage() {
   }, [mobileActiveColumnId])
 
   const fetchUsers = useCallback(async () => {
-    const res = await fetch('/api/tarefas/users')
+    const res = await apiFetch('/api/tarefas/users')
     if (res.ok) setUsers(await res.json())
   }, [])
 
@@ -117,8 +124,21 @@ export default function TarefasPage() {
   useEffect(() => {
     const init = async () => {
       setLoading(true)
-      const [boardData] = await Promise.all([fetchBoards(), fetchUsers()])
-      setLoading(false)
+      setError(null)
+      try {
+        const boardsRes = await apiFetch('/api/tarefas/boards')
+        if (!boardsRes.ok) throw new Error('Erro ao carregar quadros')
+        const boardData: TarefasBoard[] = await boardsRes.json()
+        setBoards(boardData)
+        if (!selectedBoardId && boardData.length > 0) {
+          setSelectedBoardId(boardData[0].id)
+        }
+        await fetchUsers()
+      } catch {
+        setError('Erro ao carregar tarefas')
+      } finally {
+        setLoading(false)
+      }
     }
     init()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -141,7 +161,7 @@ export default function TarefasPage() {
   const handleSaveBoard = async (boardData: Partial<TarefasBoard>) => {
     const session = getSession()
     if (boardData.id) {
-      const res = await fetch(`/api/tarefas/boards/${boardData.id}`, {
+      const res = await apiFetch(`/api/tarefas/boards/${boardData.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nome: boardData.nome, descricao: boardData.descricao }),
@@ -151,7 +171,7 @@ export default function TarefasPage() {
         setBoards(prev => prev.map(b => b.id === updated.id ? updated : b))
       }
     } else {
-      const res = await fetch('/api/tarefas/boards', {
+      const res = await apiFetch('/api/tarefas/boards', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...boardData, criado_por: session?.id }),
@@ -165,7 +185,7 @@ export default function TarefasPage() {
   }
 
   const handleDeleteBoard = async (id: string) => {
-    const res = await fetch(`/api/tarefas/boards/${id}`, { method: 'DELETE' })
+    const res = await apiFetch(`/api/tarefas/boards/${id}`, { method: 'DELETE' })
     if (res.ok) {
       const remaining = boards.filter(b => b.id !== id)
       setBoards(remaining)
@@ -179,7 +199,7 @@ export default function TarefasPage() {
     if (!selectedBoardId) return
     const session = getSession()
     const nextPos = columns.length
-    const res = await fetch('/api/tarefas/columns', {
+    const res = await apiFetch('/api/tarefas/columns', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ board_id: selectedBoardId, nome: 'Nova Coluna', cor: '#6b7280', posicao: nextPos, criado_por: session?.id }),
@@ -191,7 +211,7 @@ export default function TarefasPage() {
   }
 
   const handleRenameColumn = async (id: string, nome: string, cor: string) => {
-    const res = await fetch(`/api/tarefas/columns/${id}`, {
+    const res = await apiFetch(`/api/tarefas/columns/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ nome, cor }),
@@ -207,7 +227,7 @@ export default function TarefasPage() {
     if (taskCount > 0) {
       setColumnDeleteConfirm({ column, taskCount })
     } else {
-      const res = await fetch(`/api/tarefas/columns/${column.id}`, { method: 'DELETE' })
+      const res = await apiFetch(`/api/tarefas/columns/${column.id}`, { method: 'DELETE' })
       if (res.ok) setColumns(prev => prev.filter(c => c.id !== column.id))
     }
   }
@@ -222,7 +242,7 @@ export default function TarefasPage() {
     setColumns(newColumns.map((c, i) => ({ ...c, posicao: i })))
     // Persist
     await Promise.all(newColumns.map((c, i) =>
-      fetch(`/api/tarefas/columns/${c.id}`, {
+      apiFetch(`/api/tarefas/columns/${c.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ posicao: i }),
@@ -242,7 +262,7 @@ export default function TarefasPage() {
 
   const handleSaveTask = async (taskData: Partial<TarefasTask>) => {
     if (taskData.id) {
-      const res = await fetch(`/api/tarefas/tasks/${taskData.id}`, {
+      const res = await apiFetch(`/api/tarefas/tasks/${taskData.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(taskData),
@@ -252,7 +272,7 @@ export default function TarefasPage() {
         setTasks(prev => prev.map(t => t.id === updated.id ? updated : t))
       }
     } else {
-      const res = await fetch('/api/tarefas/tasks', {
+      const res = await apiFetch('/api/tarefas/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(taskData),
@@ -265,14 +285,14 @@ export default function TarefasPage() {
   }
 
   const handleDeleteTask = async (id: string) => {
-    const res = await fetch(`/api/tarefas/tasks/${id}`, { method: 'DELETE' })
+    const res = await apiFetch(`/api/tarefas/tasks/${id}`, { method: 'DELETE' })
     if (res.ok) setTasks(prev => prev.filter(t => t.id !== id))
   }
 
   const handleMoveTask = async (taskId: string, newColumnId: string) => {
     // Optimistic update
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, column_id: newColumnId } : t))
-    const res = await fetch(`/api/tarefas/tasks/${taskId}`, {
+    const res = await apiFetch(`/api/tarefas/tasks/${taskId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ column_id: newColumnId, board_id: selectedBoardId }),
@@ -285,18 +305,28 @@ export default function TarefasPage() {
 
   const selectedBoard = boards.find(b => b.id === selectedBoardId)
   const activeColumn = columns.find(c => c.id === mobileActiveColumnId)
-  const filteredTasks = applyFilters(tasks)
+  const filteredTasks = applyFilters(tasks).filter((task) =>
+    matchesTextSearch(searchQuery, [task.titulo, task.descricao, task.responsavel_nome])
+  )
   const mobileTasks = filteredTasks.filter(t => t.column_id === mobileActiveColumnId).sort((a, b) => a.posicao - b.posicao)
 
   // ── Loading ────────────────────────────────────────────────────────────────
 
   if (loading) {
+    return <PageLoading label="Carregando tarefas..." />
+  }
+
+  if (error) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center">
-          <RefreshCw className="w-8 h-8 text-orange-500 animate-spin mx-auto mb-3" />
-          <p className="text-neutral-400 text-sm">Carregando Tarefas...</p>
-        </div>
+      <div className="p-4">
+        <ErrorBanner
+          message={error}
+          onRetry={() => {
+            setLoading(true)
+            setError(null)
+            void Promise.all([fetchBoards(), fetchUsers()]).finally(() => setLoading(false))
+          }}
+        />
       </div>
     )
   }
@@ -425,6 +455,15 @@ export default function TarefasPage() {
               <Plus className="w-3 h-3" /> Quadro
             </button>
           )}
+          <div className="relative flex-shrink-0 min-w-[140px]">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-500 pointer-events-none" />
+            <Input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Buscar tarefas..."
+              className="pl-8 h-8 text-xs bg-neutral-800 border-neutral-700 text-white w-[140px] sm:w-[180px]"
+            />
+          </div>
           {/* Filter toggle button */}
           <button
             onClick={() => setFiltersBarOpen(v => !v)}
@@ -558,7 +597,7 @@ export default function TarefasPage() {
         {/* Row 4 (mobile only): column tabs - only in kanban view */}
         <div className={`md:hidden flex gap-2 overflow-x-auto pb-0.5 ${view !== 'kanban' ? 'hidden' : ''}`}>
           {columns.map(col => {
-            const count = tasks.filter(t => t.column_id === col.id).length
+            const count = filteredTasks.filter(t => t.column_id === col.id).length
             return (
               <button
                 key={col.id}

@@ -15,7 +15,6 @@ export async function GET() {
   console.log('[v0] Timestamp:', new Date().toISOString())
   console.log('[v0] ASAAS_API_KEY exists:', !!apiKey)
   console.log('[v0] ASAAS_API_KEY length:', apiKey.length)
-  console.log('[v0] ASAAS_API_KEY first 20 chars:', apiKey.substring(0, 20) + '...')
   console.log('[v0] ASAAS_WALLET_ID exists:', !!walletId)
   console.log('[v0] ASAAS_WALLET_ID:', walletId)
   console.log('[v0] ASAAS_BASE_URL:', baseUrl)

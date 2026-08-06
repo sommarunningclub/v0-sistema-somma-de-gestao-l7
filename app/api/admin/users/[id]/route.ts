@@ -1,32 +1,50 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
+import {
+  getAdminClient,
+  hashPassword,
+  requireAdmin,
+} from "@/lib/auth/api-auth"
 
-function getAdminClient() {
-  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !serviceKey) {
-    throw new Error("Supabase admin credentials not configured")
-  }
-  return createClient(url, serviceKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  })
-}
+const ALLOWED_PATCH_FIELDS = new Set([
+  "full_name",
+  "role",
+  "is_active",
+  "permissions",
+  "password",
+])
 
-// PATCH /api/admin/users/[id] — update user fields (permissions, role, is_active)
+// PATCH /api/admin/users/[id] — update user fields
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireAdmin(req)
+  if (auth instanceof NextResponse) return auth
+
   try {
     const body = await req.json()
-    const { id } = params
+    const { id } = await params
 
     if (!id) {
       return NextResponse.json({ error: "ID do usuário ausente" }, { status: 400 })
     }
 
+    const updates: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(body)) {
+      if (!ALLOWED_PATCH_FIELDS.has(key)) continue
+      if (key === "password") {
+        updates.password_hash = await hashPassword(String(value))
+      } else {
+        updates[key] = value
+      }
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({ error: "Nenhum campo válido para atualizar" }, { status: 400 })
+    }
+
     const supabase = getAdminClient()
-    const { error } = await supabase.from("users").update(body).eq("id", id)
+    const { error } = await supabase.from("users").update(updates).eq("id", id)
 
     if (error) {
       console.error("[admin/users/[id]] PATCH error:", error)
@@ -43,13 +61,20 @@ export async function PATCH(
 // DELETE /api/admin/users/[id] — delete user
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireAdmin(req)
+  if (auth instanceof NextResponse) return auth
+
   try {
-    const { id } = params
+    const { id } = await params
 
     if (!id) {
       return NextResponse.json({ error: "ID do usuário ausente" }, { status: 400 })
+    }
+
+    if (id === auth.session.sub) {
+      return NextResponse.json({ error: "Não é possível deletar o próprio usuário" }, { status: 400 })
     }
 
     const supabase = getAdminClient()

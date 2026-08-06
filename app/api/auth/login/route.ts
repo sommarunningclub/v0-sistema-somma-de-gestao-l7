@@ -1,23 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
-import { createClient } from "@supabase/supabase-js"
-
-function getAdminClient() {
-  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !serviceKey) throw new Error("Supabase admin credentials not configured")
-  return createClient(url, serviceKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  })
-}
-
-async function hashPassword(password: string): Promise<string> {
-  const encoder = new TextEncoder()
-  const data = encoder.encode(password)
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data)
-  return Array.from(new Uint8Array(hashBuffer))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("")
-}
+import {
+  getAdminClient,
+  hashPassword,
+  verifyPassword,
+} from "@/lib/auth/api-auth"
+import {
+  createSessionToken,
+  attachSessionCookie,
+} from "@/lib/auth/session"
 
 // POST /api/auth/login
 export async function POST(req: NextRequest) {
@@ -30,7 +20,6 @@ export async function POST(req: NextRequest) {
 
     const supabase = getAdminClient()
 
-    // Buscar usuário pelo email (server-side, bypassa RLS)
     const { data: user, error } = await supabase
       .from("users")
       .select("id, email, full_name, role, is_active, permissions, password_hash")
@@ -45,20 +34,33 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Usuário desativado. Contate o administrador." }, { status: 403 })
     }
 
-    // Verificar senha server-side (password_hash nunca sai do servidor)
-    const inputHash = await hashPassword(password)
-    if (user.password_hash !== inputHash) {
+    const { valid, needsRehash } = await verifyPassword(password, user.password_hash)
+    if (!valid) {
       return NextResponse.json({ error: "Credenciais inválidas" }, { status: 401 })
     }
 
-    // Retornar apenas dados de sessão (sem password_hash)
-    return NextResponse.json({
+    if (needsRehash) {
+      const newHash = await hashPassword(password)
+      await supabase.from("users").update({ password_hash: newHash }).eq("id", user.id)
+    }
+
+    const token = await createSessionToken({
       id: user.id,
       email: user.email,
       full_name: user.full_name,
       role: user.role,
       permissions: user.permissions,
     })
+
+    const response = NextResponse.json({
+      id: user.id,
+      email: user.email,
+      full_name: user.full_name,
+      role: user.role,
+      permissions: user.permissions,
+    })
+
+    return attachSessionCookie(response, token)
   } catch (err) {
     console.error("[auth/login] Error:", err)
     return NextResponse.json({ error: "Erro interno ao autenticar" }, { status: 500 })
