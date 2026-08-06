@@ -58,17 +58,31 @@ export function EscalaAtividadesManager({ onFechar }: { onFechar: () => void }) 
   }
 
   const alternarAtivo = async (atividade: EscalaAtividade) => {
-    await apiFetch(`/api/escala/atividades/${atividade.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ativo: !atividade.ativo }),
-    })
-    await carregar()
+    setErro(null)
+    try {
+      const res = await apiFetch(`/api/escala/atividades/${atividade.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ativo: !atividade.ativo }),
+      })
+      if (!res.ok) {
+        setErro('Erro ao atualizar a atividade')
+        return
+      }
+      await carregar()
+    } catch (err) {
+      setErro(err instanceof Error ? err.message : 'Erro ao atualizar a atividade')
+    }
   }
 
   const remover = async (id: string) => {
+    setErro(null)
     const res = await apiFetch(`/api/escala/atividades/${id}`, { method: 'DELETE' })
     const body = await res.json()
+    if (!res.ok) {
+      setErro(body.error || 'Erro ao remover atividade')
+      return
+    }
     if (body.resultado === 'inativada') {
       setErro('A atividade já foi usada na escala, então foi apenas inativada.')
     }
