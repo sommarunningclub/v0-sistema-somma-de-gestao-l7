@@ -75,11 +75,19 @@ export async function POST(req: NextRequest) {
     let temSenha = false
     let senhaHashAtual: string | null = null
     if (existente) {
-      const { data: credencial } = await supabase
+      const { data: credencial, error: credencialError } = await supabase
         .from('insider_credentials')
         .select('insider_id, senha_hash')
         .eq('insider_id', existente.id)
         .maybeSingle()
+
+      // Falha fechado: um erro real de consulta nunca pode ser tratado como
+      // "sem credencial" — isso pularia a exigência de senha_atual abaixo.
+      if (credencialError) {
+        console.error('[insiders/register] credencial lookup error:', credencialError)
+        return NextResponse.json({ error: 'Erro ao validar o cadastro.' }, { status: 500 })
+      }
+
       temSenha = Boolean(credencial)
       senhaHashAtual = credencial?.senha_hash ?? null
     }
@@ -93,6 +101,14 @@ export async function POST(req: NextRequest) {
       if (!valido) {
         return NextResponse.json({ error: 'Senha atual incorreta.' }, { status: 401 })
       }
+    } else {
+      // Dummy de custo equivalente: sem isso, a ausência de credencial
+      // retornaria quase instantaneamente enquanto o caminho com credencial
+      // paga o custo do bcrypt.compare, vazando por timing se o CPF tem senha.
+      await verifyPassword(
+        'dummy-timing-equalizer',
+        '$2b$12$wlJXRTwSoU2ce5S6KmoHeOLcsJYIAnzo2.K.eccnhrsQ4Soi7neG6'
+      )
     }
 
     const senha = String(formData.get('senha') ?? '')
