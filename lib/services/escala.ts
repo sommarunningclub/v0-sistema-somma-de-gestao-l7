@@ -89,7 +89,7 @@ export async function updateAtividade(
 }
 
 /** Remove de vez se nunca foi usada; senão apenas inativa (a FK é ON DELETE RESTRICT). */
-export async function removeAtividade(id: string): Promise<'removida' | 'inativada'> {
+export async function removeAtividade(id: string): Promise<'removida' | 'inativada' | 'erro'> {
   const supabase = getSupabase()
 
   const { count } = await supabase
@@ -98,11 +98,32 @@ export async function removeAtividade(id: string): Promise<'removida' | 'inativa
     .eq('atividade_id', id)
 
   if ((count ?? 0) > 0) {
-    await supabase.from('escala_atividades').update({ ativo: false }).eq('id', id)
+    const { error } = await supabase.from('escala_atividades').update({ ativo: false }).eq('id', id)
+    if (error) {
+      console.error('[escala] removeAtividade:', error)
+      return 'erro'
+    }
     return 'inativada'
   }
 
-  await supabase.from('escala_atividades').delete().eq('id', id)
+  const { error } = await supabase.from('escala_atividades').delete().eq('id', id)
+  if (error) {
+    // Corrida: um vínculo novo pode ter sido inserido entre o `count` e o `delete`,
+    // violando a FK ON DELETE RESTRICT. Nesse caso, inativar é o comportamento correto.
+    if (error.code === '23503') {
+      const { error: erroInativar } = await supabase
+        .from('escala_atividades')
+        .update({ ativo: false })
+        .eq('id', id)
+      if (erroInativar) {
+        console.error('[escala] removeAtividade:', erroInativar)
+        return 'erro'
+      }
+      return 'inativada'
+    }
+    console.error('[escala] removeAtividade:', error)
+    return 'erro'
+  }
   return 'removida'
 }
 
@@ -139,10 +160,14 @@ export async function getEscalaDoMes(mes: string): Promise<EscalaDiaResumo[]> {
   }
   if (eventos.length === 0) return []
 
-  const { data: escalacoes } = await supabase
+  const { data: escalacoes, error: erroEscalacoes } = await supabase
     .from('escala_insiders')
     .select('evento_id, status, pelotao')
     .in('evento_id', eventos.map((e) => e.id))
+
+  if (erroEscalacoes) {
+    console.error('[escala] getEscalaDoMes escalações:', erroEscalacoes)
+  }
 
   return eventos.map((evento) => {
     const doEvento = (escalacoes ?? []).filter((e) => e.evento_id === evento.id)
@@ -237,7 +262,17 @@ export async function upsertEscalacao(
 
   const atividadeIds = input.status === 'nao_vai' ? [] : input.atividade_ids ?? []
 
-  await supabase.from('escala_insider_atividades').delete().eq('escala_insider_id', salvo.id)
+  const { error: erroLimparVinculos } = await supabase
+    .from('escala_insider_atividades')
+    .delete()
+    .eq('escala_insider_id', salvo.id)
+
+  if (erroLimparVinculos) {
+    console.error('[escala] limpar vínculos de atividades:', erroLimparVinculos)
+    // A linha de escala_insiders já foi salva; retornar null aqui é seguro porque
+    // um novo retry desta mesma chamada re-sincroniza os vínculos (operação idempotente).
+    return null
+  }
 
   if (atividadeIds.length > 0) {
     const { error: erroVinculo } = await supabase.from('escala_insider_atividades').insert(
@@ -246,7 +281,13 @@ export async function upsertEscalacao(
         atividade_id,
       }))
     )
-    if (erroVinculo) console.error('[escala] vincular atividades:', erroVinculo)
+    if (erroVinculo) {
+      console.error('[escala] vincular atividades:', erroVinculo)
+      // A linha de escala_insiders já foi salva (upsert efetivado) e os vínculos antigos
+      // já foram removidos; retornar null aqui é seguro porque um retry da mesma chamada
+      // re-sincroniza os vínculos do zero (operação idempotente).
+      return null
+    }
   }
 
   const { data: completo } = await supabase
