@@ -40,6 +40,7 @@ function TacticalDashboard() {
       const permObj: Record<string, boolean> = {
         dashboard: hasPermission('dashboard'),
         checkin: hasPermission('checkin'),
+        escala: hasPermission('escala'),
         membros: hasPermission('membros'),
         parceiro: hasPermission('parceiro'),
         crm: hasPermission('crm'),
