@@ -40,14 +40,16 @@ Amostra de 31 Insiders:
 
 `checkins` liga à pessoa **apenas por CPF em texto** (com e sem máscara); não há FK para `dados_insiders`. `checkins.evento_id` → `eventos.id` é nullable.
 
-## Restrição estruturante: o middleware não está em produção
+## Restrição estruturante: o middleware está ativo
 
-`middleware.ts` não é versionado e não foi publicado. Portanto:
+Em 2026-08-06, depois da primeira versão desta spec, o commit `c888bee` versionou `middleware.ts` junto com o login que cria o cookie de sessão e a rota de logout. Verificado em produção: `/` sem sessão responde 307 para `/login?from=/`. **A proteção de rotas do admin está ativa.**
 
-- **Cada rota do portal valida a sessão dentro do próprio handler.** Nada depende de `route-permissions.ts` ser aplicado.
-- **A página `/insider/painel` confere o cookie no servidor** antes de renderizar e redireciona para `/insider` se ausente.
+Duas consequências que o portal precisa respeitar, ou ele nasce quebrado:
 
-`OPEN_PAGES` e `PUBLIC_API_ROUTES` recebem as entradas correspondentes mesmo assim, para que o dia em que o middleware for publicado não quebre o portal.
+1. **`OPEN_PAGES` é `/^\/insider$/` — exato.** `/insider/painel` seria capturado pelo middleware e redirecionado para o login **do admin**. Precisa virar `/^\/insider(\/|$)/`.
+2. **A regra `/^\/api\/insider/` → permissão `pagamentos` casa com `/api/insiders/eu*`.** Sem liberação, o portal responderia 403 para os próprios Insiders, que não têm sessão de admin.
+
+Ainda assim, **cada rota do portal valida a sessão de Insider dentro do próprio handler**, e a página `/insider/painel` confere o cookie no servidor antes de renderizar. O middleware apenas decide quem passa pela porta; quem verifica a identidade é a própria rota. Defesa em profundidade, e evita depender de uma configuração que já mudou uma vez hoje.
 
 ## Sessão do Insider
 
@@ -145,8 +147,10 @@ O componente principal mantém o estado e o fluxo; os blocos recebem valores e h
 
 ## Configuração de rotas
 
-- `lib/auth/page-routes.ts`: `OPEN_PAGES` passa de `/^\/insider$/` para `/^\/insider(\/|$)/`.
-- `lib/auth/route-permissions.ts`: adicionar às públicas `POST /api/insiders/entrar` e `POST /api/insiders/sair`. As rotas `/api/insiders/eu*` **não** entram nas públicas nem nas de permissão de admin — elas se protegem sozinhas pela sessão de Insider.
+- `lib/auth/page-routes.ts`: `OPEN_PAGES` passa de `/^\/insider$/` para `/^\/insider(\/|$)/`. **Obrigatório** — sem isso o middleware manda o Insider para o login do admin.
+- `lib/auth/route-permissions.ts`: adicionar a `PUBLIC_API_ROUTES` as rotas do portal — `POST /api/insiders/entrar`, `POST /api/insiders/sair` e o prefixo `/^\/api\/insiders\/eu(\/|$)/`. **Obrigatório**: sem isso a regra `/^\/api\/insider/` exige permissão `pagamentos` e o portal responde 403 ao Insider.
+
+"Público" aqui significa apenas *o middleware não gateia*. As rotas `eu*` continuam exigindo sessão de Insider válida no próprio handler — nenhuma delas responde sem cookie assinado.
 
 ## Testes
 
@@ -161,4 +165,4 @@ Verificação manual contra o banco real, ao fim de cada fatia, no mesmo formato
 - Recuperação de senha por e-mail ou WhatsApp. Quem esquecer fala com a equipe.
 - Unificar as colunas `validated` / `validacao_do_checkin`.
 - Estruturar as sete colunas de benefício no banco (a tradução fica na camada de apresentação).
-- Publicar o `middleware.ts` e completar a camada de auth do admin — trabalho próprio, já registrado.
+- A camada de auth do admin — resolvida fora desta spec pelo commit `c888bee`.
