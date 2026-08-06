@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { ArrowRight, CheckCircle2, Loader2 } from 'lucide-react'
 import { INPUT_CLS, InsiderField, Reveal } from '@/components/insider/insider-form-ui'
@@ -70,7 +71,11 @@ export function InsiderCadastroForm() {
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [concluido, setConcluido] = useState<'novo' | 'atualizado' | null>(null)
+  const [senhaLogin, setSenhaLogin] = useState('')
+  const [entrando, setEntrando] = useState(false)
+  const [modoEdicao, setModoEdicao] = useState(false)
 
+  const router = useRouter()
   const cep = useCepLookup()
   const ultimoCepBuscado = useRef('')
 
@@ -92,6 +97,8 @@ export function InsiderCadastroForm() {
       if (anterior) URL.revokeObjectURL(anterior)
       return ''
     })
+    setSenhaLogin('')
+    setModoEdicao(false)
   }
 
   // --- Busca do CPF ---
@@ -238,6 +245,7 @@ export function InsiderCadastroForm() {
   // --- Revelação progressiva ---
   const revelarTudo = lookupStatus === 'found'
   const iniciado = lookupStatus === 'found' || lookupStatus === 'new'
+  const modoLogin = lookupStatus === 'found' && temSenha && !modoEdicao
 
   const nomeOk = form.nome.trim().length >= 3
   const emailOk = /\S+@\S+\.\S+/.test(form.email)
@@ -253,7 +261,7 @@ export function InsiderCadastroForm() {
   const sexoOk = form.sexo === 'masculino' || form.sexo === 'feminino'
   const senhaOk = validateSenha(form.senha, form.senha_confirmacao, !temSenha) === null
 
-  const showNome = iniciado
+  const showNome = iniciado && !modoLogin
   const showEmail = showNome && (revelarTudo || nomeOk)
   const showNascCep = showEmail && (revelarTudo || emailOk)
   const showEndereco = showNascCep && (revelarTudo || (nascOk && cepOk))
@@ -261,6 +269,29 @@ export function InsiderCadastroForm() {
   const showSexo = showTelefone && (revelarTudo || telefoneOk)
   const showFotoSenha = showSexo && (revelarTudo || sexoOk)
   const showFinal = showFotoSenha && (revelarTudo || senhaOk)
+
+  async function handleEntrar(e: React.FormEvent) {
+    e.preventDefault()
+    if (entrando) return
+    setErro(null)
+    setEntrando(true)
+    try {
+      const res = await fetch('/api/insiders/entrar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cpf: form.cpf, senha: senhaLogin }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        throw new Error(data?.error || 'Não foi possível entrar.')
+      }
+      router.push('/insider/painel')
+    } catch (err) {
+      setErro(err instanceof Error ? err.message : 'Não foi possível entrar.')
+    } finally {
+      setEntrando(false)
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -369,6 +400,39 @@ export function InsiderCadastroForm() {
           CPF não encontrado — vamos fazer o seu cadastro.
         </p>
       )}
+
+      <Reveal show={modoLogin}>
+        <InsiderField id="senha_login" label="Senha">
+          <input
+            id="senha_login"
+            type="password"
+            autoComplete="current-password"
+            value={senhaLogin}
+            onChange={(e) => setSenhaLogin(e.target.value)}
+            className={INPUT_CLS}
+            placeholder="Sua senha de acesso"
+          />
+        </InsiderField>
+
+        <button
+          type="button"
+          onClick={handleEntrar}
+          disabled={entrando}
+          className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-[#FF2C03] px-6 py-3.5 text-base font-semibold text-white transition-colors hover:bg-[#FB4C00] disabled:opacity-70"
+        >
+          {entrando ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
+          Entrar
+          {!entrando && <ArrowRight className="h-4 w-4" />}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setModoEdicao(true)}
+          className="mt-3 w-full text-center text-sm text-[#737373] underline"
+        >
+          Prefiro atualizar meus dados sem entrar
+        </button>
+      </Reveal>
 
       <Reveal show={showNome}>
         <InsiderField id="nome" label="Nome completo">
