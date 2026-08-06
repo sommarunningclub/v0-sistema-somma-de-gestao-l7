@@ -411,6 +411,12 @@ export function InsiderCadastroForm() {
             autoComplete="current-password"
             value={senhaLogin}
             onChange={(e) => setSenhaLogin(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                handleEntrar(e)
+              }
+            }}
             className={INPUT_CLS}
             placeholder="Sua senha de acesso"
           />

@@ -74,6 +74,12 @@ describe('insider-session', () => {
     }
   })
 
+  it('rejeita token cujo payload não tem nome', async () => {
+    const semNome = { ...insider, nome: undefined } as unknown as typeof insider
+    const token = await createInsiderToken(semNome)
+    expect(await verifyInsiderToken(token)).toBeNull()
+  })
+
   it('REJEITA um token de sessão de ADMIN', async () => {
     const tokenAdmin = await createSessionToken({
       id: 'admin-1',

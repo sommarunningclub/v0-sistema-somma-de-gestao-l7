@@ -91,6 +91,7 @@ export async function verifyInsiderToken(token: string): Promise<InsiderSession 
     const payload = JSON.parse(json) as InsiderSession
     if (payload.typ !== 'insider') return null
     if (!payload.sub || !payload.exp) return null
+    if (typeof payload.nome !== 'string' || typeof payload.cpf !== 'string') return null
     if (payload.exp < Math.floor(Date.now() / 1000)) return null
     return payload
   } catch {

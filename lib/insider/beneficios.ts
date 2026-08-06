@@ -33,6 +33,9 @@ function percentual(valor: unknown): { valor: string; disponivel: boolean } {
   const numero = Number.parseFloat(normalizado)
   // Only accept values in the range (0, 1] — a fraction between 0% and 100%
   if (!bruto || Number.isNaN(numero) || numero <= 0 || numero > 1) {
+    if (bruto) {
+      console.warn(`[beneficios] percentual inválido em dopahmina: ${JSON.stringify(bruto)}`)
+    }
     return { valor: '', disponivel: false }
   }
   const pct = Math.round(numero * 100)

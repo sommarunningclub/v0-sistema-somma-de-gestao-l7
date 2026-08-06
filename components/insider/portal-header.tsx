@@ -8,7 +8,7 @@ export function PortalHeader({ nome }: { nome: string }) {
   const router = useRouter()
   const [saindo, setSaindo] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
-  const primeiroNome = nome.trim().split(' ')[0] || 'Insider'
+  const primeiroNome = String(nome ?? '').trim().split(' ')[0] || 'Insider'
 
   async function sair() {
     if (saindo) return
