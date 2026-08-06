@@ -11,6 +11,11 @@ export const PUBLIC_API_ROUTES: Array<{ method?: string; pattern: RegExp }> = [
   // Página pública /insider (auto-cadastro do Insider)
   { method: 'POST', pattern: /^\/api\/insiders\/lookup$/ },
   { method: 'POST', pattern: /^\/api\/insiders\/register$/ },
+  // Portal do Insider — o middleware não gateia; cada rota valida o
+  // cookie somma_insider_session dentro do próprio handler.
+  { method: 'POST', pattern: /^\/api\/insiders\/entrar$/ },
+  { method: 'POST', pattern: /^\/api\/insiders\/sair$/ },
+  { pattern: /^\/api\/insiders\/eu(\/|$)/ },
 ]
 
 export function isPublicApiRoute(pathname: string, method: string): boolean {
