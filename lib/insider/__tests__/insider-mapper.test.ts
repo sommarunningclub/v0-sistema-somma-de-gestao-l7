@@ -125,4 +125,9 @@ describe('buildInsiderRow', () => {
   it('grava complemento vazio como null', () => {
     expect(buildInsiderRow(input).complemento).toBeNull()
   })
+
+  it('rejeita data_nascimento malformada', () => {
+    const malformedInput = { ...input, data_nascimento: '15/03/90' }
+    expect(() => buildInsiderRow(malformedInput)).toThrow(/data_nascimento malformada/)
+  })
 })

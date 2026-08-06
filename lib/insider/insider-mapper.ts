@@ -72,11 +72,16 @@ export function toInsiderPublic(
  * `cpf` e `foto_url` ficam de fora: a rota decide se insere ou preserva.
  */
 export function buildInsiderRow(input: InsiderFormInput): Record<string, unknown> {
+  const dataNascimento = brDateToISO(input.data_nascimento)
+  if (dataNascimento === null) {
+    throw new Error(`data_nascimento malformada: "${input.data_nascimento}" não corresponde ao padrão DD/MM/AAAA`)
+  }
+
   return {
     nome: input.nome.trim(),
     email: input.email.trim().toLowerCase(),
     telefone: maskPhone(input.telefone),
-    data_nascimento: brDateToISO(input.data_nascimento),
+    data_nascimento: dataNascimento,
     sexo: input.sexo,
     cep: maskCep(input.cep),
     logradouro: input.logradouro.trim(),
