@@ -42,6 +42,14 @@ describe('insider-session', () => {
     expect(await verifyInsiderToken(`${encoded}.assinaturaFalsa`)).toBeNull()
   })
 
+  it('rejeita assinatura forjada do mesmo tamanho', async () => {
+    const token = await createInsiderToken(insider)
+    const [encoded, assinatura] = token.split('.')
+    const forjada = assinatura.slice(0, -1) + (assinatura.endsWith('A') ? 'B' : 'A')
+    expect(forjada).toHaveLength(assinatura.length)
+    expect(await verifyInsiderToken(`${encoded}.${forjada}`)).toBeNull()
+  })
+
   it('rejeita token com payload adulterado', async () => {
     const token = await createInsiderToken(insider)
     const [, assinatura] = token.split('.')
@@ -56,13 +64,14 @@ describe('insider-session', () => {
   })
 
   it('rejeita token expirado', async () => {
-    const expirado = Math.floor(Date.now() / 1000) - 10
-    const payload = { sub: 'x', cpf: 'y', nome: 'z', typ: 'insider', exp: expirado }
-    const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url')
-    // assina com a chave real reutilizando o próprio módulo
-    const valido = await createInsiderToken(insider)
-    const [, assinaturaDeOutro] = valido.split('.')
-    expect(await verifyInsiderToken(`${encoded}.${assinaturaDeOutro}`)).toBeNull()
+    const token = await createInsiderToken(insider)
+    const futuro = (Date.now() / 1000 + INSIDER_SESSION_MAX_AGE_SEC + 60) * 1000
+    const spy = jest.spyOn(Date, 'now').mockReturnValue(futuro)
+    try {
+      expect(await verifyInsiderToken(token)).toBeNull()
+    } finally {
+      spy.mockRestore()
+    }
   })
 
   it('REJEITA um token de sessão de ADMIN', async () => {
