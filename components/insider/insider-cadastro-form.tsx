@@ -77,6 +77,23 @@ export function InsiderCadastroForm() {
   const set = (campo: keyof FormState, valor: string) =>
     setForm((f) => ({ ...f, [campo]: valor }))
 
+  /**
+   * Zera tudo que não faz parte de FormState/FORM_VAZIO e que, por isso,
+   * não é limpo automaticamente por `setForm({ ...FORM_VAZIO, cpf })`:
+   * consentimentos e a foto escolhida (com revogação da object URL).
+   * Chamada nos dois ramos do efeito de busca de CPF (reset e encontrado)
+   * para que nenhum estado fora de FormState sobreviva a uma troca de CPF.
+   */
+  function limparConsentEFoto() {
+    setConsentLgpd(false)
+    setConsentImagem(false)
+    setFoto(null)
+    setFotoPreview((anterior) => {
+      if (anterior) URL.revokeObjectURL(anterior)
+      return ''
+    })
+  }
+
   // --- Busca do CPF ---
   useEffect(() => {
     const digits = onlyDigits(form.cpf)
@@ -88,6 +105,7 @@ export function InsiderCadastroForm() {
       setFotoAtual('')
       ultimoCepBuscado.current = ''
       setForm((f) => ({ ...FORM_VAZIO, cpf: f.cpf }))
+      limparConsentEFoto()
       return
     }
 
@@ -135,8 +153,19 @@ export function InsiderCadastroForm() {
           setNomeEncontrado(i.nome.split(' ')[0] || '')
           setTemSenha(i.tem_senha)
           setFotoAtual(i.foto_url)
+          limparConsentEFoto()
           setLookupStatus('found')
         } else {
+          // CPF válido, mas não encontrado: garante que nada do CPF anterior
+          // (campos de texto, consentimentos, foto) sobrevive — inclusive no
+          // caso de troca direta de um CPF válido/encontrado para outro
+          // válido/não encontrado, que nunca passa pelo ramo de reset acima.
+          setNomeEncontrado('')
+          setTemSenha(false)
+          setFotoAtual('')
+          ultimoCepBuscado.current = ''
+          setForm((f) => ({ ...FORM_VAZIO, cpf: f.cpf }))
+          limparConsentEFoto()
           setLookupStatus('new')
         }
       })
@@ -179,6 +208,17 @@ export function InsiderCadastroForm() {
       return file ? URL.createObjectURL(file) : ''
     })
   }
+
+  // Mantém a última object URL acessível para o cleanup de desmontagem sem
+  // recriar o efeito a cada troca de foto (evita revogar uma URL ainda em uso).
+  const fotoPreviewRef = useRef('')
+  fotoPreviewRef.current = fotoPreview
+
+  useEffect(() => {
+    return () => {
+      if (fotoPreviewRef.current) URL.revokeObjectURL(fotoPreviewRef.current)
+    }
+  }, [])
 
   // --- Revelação progressiva ---
   const revelarTudo = lookupStatus === 'found'
