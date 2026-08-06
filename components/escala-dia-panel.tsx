@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { X, Plus, Trash2 } from 'lucide-react'
+import { X, Plus, Trash2, Edit3 } from 'lucide-react'
 import { apiFetch } from '@/lib/api-client'
 import { ErrorBanner } from '@/components/ui/error-banner'
 import { PageLoading } from '@/components/ui/page-loading'
@@ -122,6 +122,21 @@ export function EscalaDiaPanel({ eventoId, onFechar, onAlterado }: EscalaDiaPane
           {item.motivo && <span className="text-[10px] text-neutral-400">{item.motivo}</span>}
         </div>
       </div>
+      <button
+        onClick={() =>
+          setRascunho({
+            insider: { id: item.insider_id, nome: item.insider_nome },
+            status: item.status,
+            pelotao: item.pelotao ?? '',
+            motivo: item.motivo ?? '',
+            atividadeIds: item.atividades.map((a) => a.id),
+          })
+        }
+        className="p-1.5 text-neutral-500 hover:text-orange-400 transition-colors flex-shrink-0"
+        aria-label={`Editar ${item.insider_nome}`}
+      >
+        <Edit3 className="w-4 h-4" />
+      </button>
       <button
         onClick={() => remover(item.id)}
         className="p-1.5 text-neutral-500 hover:text-red-400 transition-colors flex-shrink-0"
