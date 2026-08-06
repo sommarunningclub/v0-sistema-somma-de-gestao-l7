@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { CalendarRange } from 'lucide-react'
 import { apiFetch } from '@/lib/api-client'
 import { EscalaCalendario } from '@/components/escala-calendario'
+import { EscalaDiaPanel } from '@/components/escala-dia-panel'
 import { ErrorBanner } from '@/components/ui/error-banner'
 import { PageLoading } from '@/components/ui/page-loading'
 import type { EscalaDiaResumo } from '@/lib/types/escala'
@@ -67,7 +68,11 @@ export default function EscalaPage() {
       )}
 
       {eventoSelecionado && (
-        <p className="text-xs text-neutral-600">Evento selecionado: {eventoSelecionado}</p>
+        <EscalaDiaPanel
+          eventoId={eventoSelecionado}
+          onFechar={() => setEventoSelecionado(null)}
+          onAlterado={carregar}
+        />
       )}
     </div>
   )
