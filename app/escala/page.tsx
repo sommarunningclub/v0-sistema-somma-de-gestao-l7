@@ -1,10 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { CalendarRange } from 'lucide-react'
+import { CalendarRange, ListChecks } from 'lucide-react'
 import { apiFetch } from '@/lib/api-client'
 import { EscalaCalendario } from '@/components/escala-calendario'
 import { EscalaDiaPanel } from '@/components/escala-dia-panel'
+import { EscalaAtividadesManager } from '@/components/escala-atividades-manager'
 import { ErrorBanner } from '@/components/ui/error-banner'
 import { PageLoading } from '@/components/ui/page-loading'
 import type { EscalaDiaResumo } from '@/lib/types/escala'
@@ -17,6 +18,7 @@ export default function EscalaPage() {
   const [loading, setLoading] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
   const [eventoSelecionado, setEventoSelecionado] = useState<string | null>(null)
+  const [mostrarAtividades, setMostrarAtividades] = useState(false)
 
   const carregar = useCallback(async () => {
     setLoading(true)
@@ -39,9 +41,18 @@ export default function EscalaPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-4">
-      <div className="flex items-center gap-2">
-        <CalendarRange className="w-5 h-5 text-orange-500" />
-        <h1 className="text-white font-bold text-xl">Escala</h1>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <CalendarRange className="w-5 h-5 text-orange-500" />
+          <h1 className="text-white font-bold text-xl">Escala</h1>
+        </div>
+        <button
+          onClick={() => setMostrarAtividades(true)}
+          className="flex items-center gap-1.5 text-sm text-neutral-300 hover:text-white bg-neutral-800 border border-neutral-700 hover:border-neutral-500 px-3 py-1.5 rounded-lg transition-colors"
+        >
+          <ListChecks className="w-4 h-4" />
+          Atividades
+        </button>
       </div>
 
       {erro && <ErrorBanner message={erro} onRetry={carregar} />}
@@ -73,6 +84,10 @@ export default function EscalaPage() {
           onFechar={() => setEventoSelecionado(null)}
           onAlterado={carregar}
         />
+      )}
+
+      {mostrarAtividades && (
+        <EscalaAtividadesManager onFechar={() => setMostrarAtividades(false)} />
       )}
     </div>
   )
