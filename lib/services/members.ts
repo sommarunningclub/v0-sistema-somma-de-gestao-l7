@@ -1,102 +1,72 @@
-import { supabase, type CadastroSite } from "@/lib/supabase-client"
+import { apiFetch } from "@/lib/api-client"
+import { MEMBROS_PAGE_SIZE } from "@/lib/api/writable-fields"
+import type { CadastroSite } from "@/lib/supabase-client"
 
-const PAGE_SIZE = 50 // Reduzido para carregamento mais rápido
+// As consultas passam pelas rotas /api/membros, que rodam no servidor com
+// service role. O cliente Supabase do browser usa a anon key e a RLS de
+// `cadastro_site` esconde todas as linhas dela — o resultado era uma lista
+// vazia sem nenhum erro, e update/delete viravam no-op silencioso.
+
+const PAGE_SIZE = MEMBROS_PAGE_SIZE // mesma constante usada pela rota
+
+async function readJson(res: Response): Promise<any> {
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error(body?.error || `Falha na requisição (HTTP ${res.status})`)
+  }
+  return body
+}
+
+function buildQuery(params: Record<string, string | number | undefined>): string {
+  const search = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== "") search.set(key, String(value))
+  }
+  return search.toString()
+}
 
 // Buscar membros com paginação
 export async function getMembers(page: number = 0): Promise<CadastroSite[]> {
-  try {
-    const start = page * PAGE_SIZE
-    const end = start + PAGE_SIZE - 1
-
-    const { data, error } = await supabase
-      .from("cadastro_site")
-      .select("id, nome_completo, email, cpf, whatsapp, data_nascimento")
-      .order("id", { ascending: false })
-      .range(start, end)
-
-    if (error) {
-      console.error("[v0] Erro ao buscar membros página", page, ":", error)
-      return []
-    }
-
-    return data || []
-  } catch (err) {
-    console.error("[v0] Erro inesperado ao buscar membros:", err)
-    return []
-  }
+  const res = await apiFetch(`/api/membros?${buildQuery({ page })}`)
+  const body = await readJson(res)
+  return body.data || []
 }
 
 // Contar total de membros para paginação
 export async function getMembersCount(): Promise<number> {
-  try {
-    const { count, error } = await supabase
-      .from("cadastro_site")
-      .select("*", { count: "exact", head: true })
-
-    if (error) {
-      console.error("[v0] Erro ao contar membros:", error)
-      return 0
-    }
-
-    return count || 0
-  } catch (err) {
-    console.error("[v0] Erro inesperado ao contar membros:", err)
-    return 0
-  }
+  const res = await apiFetch(`/api/membros?countOnly=1`)
+  const body = await readJson(res)
+  return body.count || 0
 }
 
 // Buscar um único membro
 export async function getMemberById(id: number): Promise<CadastroSite | null> {
-  try {
-    const { data, error } = await supabase
-      .from("cadastro_site")
-      .select("*")
-      .eq("id", id)
-      .single()
-
-    if (error) {
-      console.error("[v0] Erro ao buscar membro:", error)
-      return null
-    }
-
-    return data
-  } catch (err) {
-    console.error("[v0] Erro inesperado ao buscar membro:", err)
-    return null
-  }
+  const res = await apiFetch(`/api/membros/${id}`)
+  if (res.status === 404) return null
+  const body = await readJson(res)
+  return body.data ?? null
 }
 
-// Buscar membros por termo de busca (otimizado)
+// Buscar membros por termo de busca
 export async function searchMembers(searchTerm: string, page: number = 0): Promise<CadastroSite[]> {
   if (!searchTerm.trim()) {
     return getMembers(page)
   }
 
-  try {
-    const start = page * PAGE_SIZE
-    const end = start + PAGE_SIZE - 1
-    const lowerSearch = searchTerm.toLowerCase()
+  const res = await apiFetch(`/api/membros?${buildQuery({ page, q: searchTerm.trim() })}`)
+  const body = await readJson(res)
+  return body.data || []
+}
 
-    // Tentar buscar por email ou nome (mais eficiente)
-    const { data, error } = await supabase
-      .from("cadastro_site")
-      .select("id, nome_completo, email, cpf, whatsapp, data_nascimento")
-      .or(
-        `nome_completo.ilike.%${lowerSearch}%,email.ilike.%${lowerSearch}%,cpf.ilike.%${lowerSearch}%`
-      )
-      .order("id", { ascending: false })
-      .range(start, end)
-
-    if (error) {
-      console.error("[v0] Erro ao buscar membros:", error)
-      return []
-    }
-
-    return data || []
-  } catch (err) {
-    console.error("[v0] Erro inesperado ao buscar membros:", err)
-    return []
-  }
+// Criar membro
+export async function createMember(member: Omit<CadastroSite, "id">): Promise<CadastroSite> {
+  const res = await apiFetch("/api/membros", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(member),
+  })
+  const body = await readJson(res)
+  return body.data
 }
 
 // Atualizar membro
@@ -105,20 +75,15 @@ export async function updateMember(
   updates: Partial<CadastroSite>
 ): Promise<boolean> {
   try {
-    const { error } = await supabase
-      .from("cadastro_site")
-      .update(updates)
-      .eq("id", id)
-
-    if (error) {
-      console.error("[v0] Erro ao atualizar membro:", error)
-      return false
-    }
-
-    console.log("[v0] Membro atualizado com sucesso:", id)
+    const res = await apiFetch(`/api/membros/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    })
+    await readJson(res)
     return true
   } catch (err) {
-    console.error("[v0] Erro inesperado ao atualizar membro:", err)
+    console.error("[membros] Erro ao atualizar membro:", err)
     return false
   }
 }
@@ -126,20 +91,11 @@ export async function updateMember(
 // Deletar membro
 export async function deleteMember(id: number): Promise<boolean> {
   try {
-    const { error } = await supabase
-      .from("cadastro_site")
-      .delete()
-      .eq("id", id)
-
-    if (error) {
-      console.error("[v0] Erro ao deletar membro:", error)
-      return false
-    }
-
-    console.log("[v0] Membro deletado com sucesso:", id)
+    const res = await apiFetch(`/api/membros/${id}`, { method: "DELETE" })
+    await readJson(res)
     return true
   } catch (err) {
-    console.error("[v0] Erro inesperado ao deletar membro:", err)
+    console.error("[membros] Erro ao deletar membro:", err)
     return false
   }
 }

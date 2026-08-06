@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
 export async function POST(request: NextRequest) {
+  const webhookToken = process.env.ASAAS_WEBHOOK_TOKEN
+  if (webhookToken) {
+    const incoming =
+      request.headers.get('asaas-access-token') ||
+      request.headers.get('x-asaas-access-token')
+    if (incoming !== webhookToken) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+  }
+
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY || ''

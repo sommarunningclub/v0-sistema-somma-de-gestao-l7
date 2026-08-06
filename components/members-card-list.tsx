@@ -8,15 +8,33 @@ import type { CadastroSite } from '@/lib/supabase-client'
 interface MembersCardListProps {
   members: CadastroSite[]
   onSelectMember: (member: CadastroSite) => void
+  loading?: boolean
 }
 
-export function MembersCardList({ members, onSelectMember }: MembersCardListProps) {
+export function MembersCardList({ members, onSelectMember, loading = false }: MembersCardListProps) {
   const formatPhone = (phone: string) => {
     const cleaned = phone.replace(/\D/g, '')
     if (cleaned.length === 11) {
       return `(${cleaned.slice(0, 2)}) ${cleaned.slice(2, 7)}-${cleaned.slice(7)}`
     }
     return phone
+  }
+
+  const formatCPF = (cpf: string) => {
+    const cleaned = cpf.replace(/\D/g, '')
+    if (cleaned.length === 11) {
+      return `${cleaned.slice(0, 3)}.${cleaned.slice(3, 6)}.${cleaned.slice(6, 9)}-${cleaned.slice(9)}`
+    }
+    return cpf
+  }
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 px-4">
+        <div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mb-3" />
+        <p className="text-center text-sm text-neutral-400">Carregando membros...</p>
+      </div>
+    )
   }
 
   if (members.length === 0) {
@@ -75,8 +93,8 @@ export function MembersCardList({ members, onSelectMember }: MembersCardListProp
               <div className="text-xs text-neutral-500">
                 ID: <span className="font-mono">{member.id}</span>
               </div>
-              <div className="inline-flex items-center gap-1 px-2 py-1 bg-green-500/10 rounded text-xs font-bold text-green-400">
-                ✓ Ativo
+              <div className="text-xs text-neutral-400 font-mono">
+                {formatCPF(member.cpf)}
               </div>
             </div>
           </CardContent>

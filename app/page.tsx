@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ChevronRight, Monitor, Settings, Shield, Users, Bell, RefreshCw, LogOut, CheckSquare, Briefcase, ChevronLeft, Star, X as CloseIcon, Handshake, Calendar, KanbanSquare, Megaphone } from "lucide-react"
+import { ChevronRight, Monitor, Settings, Shield, Users, Bell, RefreshCw, LogOut, CheckSquare, Briefcase, ChevronLeft, Star, X as CloseIcon, Handshake, Calendar, KanbanSquare, Megaphone, CalendarRange } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { UserProfile } from "@/components/user-profile"
 import ProtectedRouteComponent from "@/components/protected-route"
@@ -18,6 +18,7 @@ import ParcerioSommaPage from "./parceiro/page"
 import OperationsPage from "./operations/page"
 import CRMPage from "./crm/page"
 import EventosSommaPage from "./eventos/page"
+import EscalaPage from "./escala/page"
 import TarefasPage from "./tarefas/page"
 import PopupsPage from "./popups/page"
 import { TarefasFiltersProvider } from "@/lib/context/tarefas-filters-context"
@@ -39,6 +40,7 @@ function TacticalDashboard() {
       const permObj: Record<string, boolean> = {
         dashboard: hasPermission('dashboard'),
         checkin: hasPermission('checkin'),
+        escala: hasPermission('escala'),
         membros: hasPermission('membros'),
         parceiro: hasPermission('parceiro'),
         crm: hasPermission('crm'),
@@ -157,6 +159,7 @@ function TacticalDashboard() {
                 { id: "overview", icon: Monitor, label: "DASHBOARD", permissionKey: "dashboard" },
                 { id: "checkin", icon: CheckSquare, label: "CHECK-IN", permissionKey: "checkin" },
                 { id: "eventos", icon: Calendar, label: "EVENTOS", permissionKey: "checkin" },
+                { id: "escala", icon: CalendarRange, label: "ESCALA", permissionKey: "escala" },
                 { id: "agents", icon: Users, label: "MEMBROS", permissionKey: "membros" },
                 { id: "parceiro", icon: Briefcase, label: "PARCEIRO SOMMA", permissionKey: "parceiro" },
                 { id: "crm", icon: Handshake, label: "CRM", permissionKey: "crm" },
@@ -252,6 +255,7 @@ function TacticalDashboard() {
                   { id: "overview",      icon: Monitor,      label: "Dashboard",   permissionKey: "dashboard" },
                   { id: "checkin",       icon: CheckSquare,  label: "Check-in",    permissionKey: "checkin" },
                   { id: "eventos",      icon: Calendar,     label: "Eventos",     permissionKey: "checkin" },
+                  { id: "escala",        icon: CalendarRange, label: "Escala",      permissionKey: "escala" },
                   { id: "agents",        icon: Users,        label: "Membros",     permissionKey: "membros" },
                   { id: "parceiro",      icon: Briefcase,    label: "Parceiro",    permissionKey: "parceiro" },
                   { id: "insiders",      icon: Star,         label: "Insiders",    permissionKey: "insiders" },
@@ -341,6 +345,7 @@ function TacticalDashboard() {
             {activeSection === "overview" && <CommandCenterPage />}
             {activeSection === "checkin" && permissions.checkin && <CheckInPage initialEventoId={checkinEventoId} />}
             {activeSection === "eventos" && permissions.checkin && <EventosSommaPage onViewCheckins={(eventoId: string) => { setCheckinEventoId(eventoId); navigateToSection("checkin") }} />}
+            {activeSection === "escala" && permissions.escala && <EscalaPage />}
             {activeSection === "agents" && permissions.membros && <AgentNetworkPage />}
             {activeSection === "parceiro" && permissions.parceiro && <ParcerioSommaPage />}
             {activeSection === "insiders" && permissions.insiders && <InsidersPage />}

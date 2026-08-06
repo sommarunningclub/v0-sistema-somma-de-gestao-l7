@@ -4,7 +4,7 @@ import { useState } from "react"
 import { X, Save, Camera } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { supabase } from "@/lib/supabase-client"
+import { apiFetch } from "@/lib/api-client"
 
 interface ProfileModalProps {
   user: {
@@ -42,17 +42,16 @@ export function ProfileModal({ user, onClose, onSave }: ProfileModalProps) {
     setSuccess(false)
 
     try {
-      const { error: updateError } = await supabase
-        .from("users")
-        .update({
-          full_name: fullName,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", user.id)
+      const res = await apiFetch("/api/auth/me", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ full_name: fullName }),
+      })
 
-      if (updateError) {
-        setError("Erro ao atualizar perfil")
-        console.error("[v0] Update error:", updateError)
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        setError(body?.error || "Erro ao atualizar perfil")
+        console.error("[perfil] Update error:", body)
         return
       }
 

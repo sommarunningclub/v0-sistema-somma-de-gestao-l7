@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import { apiFetch } from '@/lib/api-client'
 import {
   Search, RefreshCw, Download, CheckCircle2, XCircle,
   Users, Trash2, AlertTriangle, X, Shield,
@@ -10,6 +11,9 @@ import {
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { MobileBottomSheet } from "@/components/mobile/mobile-bottom-sheet"
+import { matchesTextSearch } from "@/lib/search-utils"
+import { ErrorBanner } from '@/components/ui/error-banner'
+import { PageLoading } from '@/components/ui/page-loading'
 
 interface CheckInData {
   id?: string
@@ -112,7 +116,7 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
   useEffect(() => {
     async function fetchEventos() {
       try {
-        const res = await fetch('/api/insider/eventos', { cache: 'no-store' })
+        const res = await apiFetch('/api/insider/eventos', { cache: 'no-store' })
         if (!res.ok) throw new Error('Erro ao buscar eventos')
         const json = await res.json()
         const list: EventoOption[] = (json.data || []).map((e: any) => ({
@@ -145,7 +149,7 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`/api/checkin?evento_id=${selectedEvento}`, { cache: "no-store" })
+      const res = await apiFetch(`/api/checkin?evento_id=${selectedEvento}`, { cache: "no-store" })
       if (!res.ok) throw new Error(`Erro ${res.status}`)
       const json = await res.json()
       if (json.error) throw new Error(json.error)
@@ -166,7 +170,7 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
     if (!item.id) return
     setUpdatingId(item.id)
     try {
-      const res = await fetch(`/api/checkin/${item.id}`, {
+      const res = await apiFetch(`/api/checkin/${item.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ validacao_do_checkin: !item.validated }),
@@ -186,7 +190,7 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
     if (!confirmDelete?.id) return
     setDeletingId(confirmDelete.id)
     try {
-      const res = await fetch(`/api/checkin/${confirmDelete.id}`, { method: "DELETE" })
+      const res = await apiFetch(`/api/checkin/${confirmDelete.id}`, { method: "DELETE" })
       if (!res.ok) throw new Error("Falha ao deletar")
       setCheckInData(prev => prev.filter(c => c.id !== confirmDelete.id))
       setConfirmDelete(null)
@@ -213,7 +217,7 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
     if (!editingItem?.id) return
     setSavingEdit(true)
     try {
-      const res = await fetch(`/api/checkin/${editingItem.id}`, {
+      const res = await apiFetch(`/api/checkin/${editingItem.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -249,13 +253,13 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
   }
 
   const filtered = checkInData.filter(item => {
-    const q = searchTerm.toLowerCase()
-    const matchesSearch = !q ||
-      (item.nome || "").toLowerCase().includes(q) ||
-      (item.cpf || "").includes(q) ||
-      (item.telefone || "").includes(q) ||
-      (item.pelotao || "").toLowerCase().includes(q) ||
-      (item.email || "").toLowerCase().includes(q)
+    const matchesSearch = matchesTextSearch(searchTerm, [
+      item.nome,
+      item.cpf,
+      item.telefone,
+      item.pelotao,
+      item.email,
+    ])
     const matchesFilter =
       activeFilter === "all" ||
       (activeFilter === "validated" && item.validated) ||
@@ -914,8 +918,8 @@ export default function CheckInPage({ initialEventoId }: { initialEventoId?: str
             </div>
           )}
 
-          {loading && <div className="text-center py-16"><RefreshCw className="w-7 h-7 animate-spin mx-auto mb-3 text-orange-500" /><p className="text-neutral-400 text-sm">Carregando...</p></div>}
-          {!loading && error && <div className="bg-red-900/20 border border-red-800/50 rounded-xl p-4 text-red-400 text-sm flex gap-3 items-start"><AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" /><div><p className="font-medium">Erro ao carregar dados</p><p className="text-red-500 text-xs mt-0.5">{error}</p></div></div>}
+          {loading && <PageLoading label="Carregando check-ins..." />}
+          {!loading && error && <ErrorBanner message={error} onRetry={fetchCheckInData} />}
           {!loading && !error && filtered.length === 0 && <div className="text-center py-16"><Users className="w-10 h-10 text-neutral-700 mx-auto mb-3" /><p className="text-neutral-400 text-sm">{searchTerm ? `Nenhum resultado para "${searchTerm}"` : "Nenhum check-in neste evento"}</p></div>}
 
           {/* Sort toggle desktop */}

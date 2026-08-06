@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { AlertCircle, Loader2, Search, CheckCircle2 } from 'lucide-react'
 import type { CNPJData } from '@/lib/services/partners'
+import { apiFetch } from '@/lib/api-client'
 
 interface CNPJLookupProps {
   onDataLoaded: (data: CNPJData) => void
@@ -40,7 +41,7 @@ export function CNPJLookup({ onDataLoaded, onLoading, onError }: CNPJLookupProps
       onError(null)
       setSuccess(false)
 
-      const response = await fetch(`/api/cnpj?cnpj=${cleanCNPJ}`)
+      const response = await apiFetch(`/api/cnpj?cnpj=${cleanCNPJ}`)
 
       if (!response.ok) {
         const error = await response.json()

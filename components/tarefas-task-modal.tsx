@@ -6,6 +6,7 @@ import { X, Plus, Trash2, Check, Paperclip, FileText, Download, ChevronLeft, Che
 import { TAREFAS_PRIORIDADES } from '@/lib/tarefas-constants'
 import type { TarefasTask, TarefasColumn, TarefasUser, ChecklistItem, TarefasAnexo } from '@/lib/services/tarefas'
 import { getSession } from '@/components/protected-route'
+import { apiFetch } from '@/lib/api-client'
 
 interface TarefasTaskModalProps {
   task: Partial<TarefasTask> | null
@@ -59,7 +60,7 @@ export function TarefasTaskModal({
 
   const loadAnexos = useCallback(async () => {
     if (!task?.id) return
-    const res = await fetch(`/api/tarefas/tasks/${task.id}/attachments`)
+    const res = await apiFetch(`/api/tarefas/tasks/${task.id}/attachments`)
     if (res.ok) setAnexos(await res.json())
   }, [task?.id])
 
@@ -124,7 +125,7 @@ export function TarefasTaskModal({
         .from('tarefas-anexos')
         .getPublicUrl(fileName)
 
-      const res = await fetch(`/api/tarefas/tasks/${task.id}/attachments`, {
+      const res = await apiFetch(`/api/tarefas/tasks/${task.id}/attachments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -145,7 +146,7 @@ export function TarefasTaskModal({
 
   const handleDeleteAnexo = async (id: string) => {
     if (!task?.id) return
-    const res = await fetch(`/api/tarefas/tasks/${task.id}/attachments?attachmentId=${id}`, { method: 'DELETE' })
+    const res = await apiFetch(`/api/tarefas/tasks/${task.id}/attachments?attachmentId=${id}`, { method: 'DELETE' })
     if (res.ok) setAnexos(prev => prev.filter(a => a.id !== id))
   }
 

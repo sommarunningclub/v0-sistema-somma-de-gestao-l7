@@ -1,6 +1,7 @@
 export interface ModulePermissions {
   dashboard: boolean
   checkin: boolean
+  escala: boolean
   membros: boolean
   parceiro: boolean
   pagamentos: boolean

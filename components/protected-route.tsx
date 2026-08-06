@@ -1,6 +1,7 @@
 'use client'
 
 import React from "react"
+import { apiFetch } from '@/lib/api-client'
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
@@ -20,47 +21,56 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const sessionStr = localStorage.getItem('somma_session')
-
-      if (!sessionStr) {
-        router.push('/login')
-        return
-      }
-
       try {
-        const session: SessionData = JSON.parse(sessionStr)
+        const res = await apiFetch('/api/auth/me')
 
-        if (!session.id || !session.email) {
+        if (res.ok) {
+          const fresh = await res.json()
+          const sessionStr = localStorage.getItem('somma_session')
+          const existing = sessionStr ? JSON.parse(sessionStr) as SessionData : null
+          const updatedSession: SessionData = {
+            id: fresh.id,
+            email: fresh.email,
+            role: fresh.role,
+            permissions: fresh.permissions,
+            full_name: fresh.full_name,
+            logged_in_at: existing?.logged_in_at || new Date().toISOString(),
+          }
+          localStorage.setItem('somma_session', JSON.stringify(updatedSession))
+          setIsAuthenticated(true)
+          return
+        }
+
+        if (res.status === 401 || res.status === 403 || res.status === 404) {
           localStorage.removeItem('somma_session')
           router.push('/login')
           return
         }
 
-        // Sincronizar permissões atualizadas do banco em background
-        try {
-          const res = await fetch(`/api/auth/me?id=${session.id}`)
-          if (res.ok) {
-            const fresh = await res.json()
-            // Atualizar sessão local com dados frescos do banco
-            const updatedSession: SessionData = {
-              ...session,
-              role: fresh.role,
-              permissions: fresh.permissions,
-              full_name: fresh.full_name,
-            }
-            localStorage.setItem('somma_session', JSON.stringify(updatedSession))
-          } else if (res.status === 403 || res.status === 404) {
-            // Usuário inativo ou removido — forçar logout
-            localStorage.removeItem('somma_session')
-            router.push('/login')
+        // Falha de rede: fallback para cache local
+        const sessionStr = localStorage.getItem('somma_session')
+        if (sessionStr) {
+          const session: SessionData = JSON.parse(sessionStr)
+          if (session.id && session.email) {
+            setIsAuthenticated(true)
             return
           }
-        } catch {
-          // Falha de rede: mantém sessão local sem bloquear acesso
         }
 
-        setIsAuthenticated(true)
+        router.push('/login')
       } catch {
+        const sessionStr = localStorage.getItem('somma_session')
+        if (sessionStr) {
+          try {
+            const session: SessionData = JSON.parse(sessionStr)
+            if (session.id && session.email) {
+              setIsAuthenticated(true)
+              return
+            }
+          } catch {
+            // ignore
+          }
+        }
         localStorage.removeItem('somma_session')
         router.push('/login')
       }
@@ -105,8 +115,13 @@ export function getSession(): SessionData | null {
 }
 
 // Funcao helper para fazer logout
-export function logout() {
+export async function logout() {
   localStorage.removeItem('somma_session')
+  try {
+    await apiFetch('/api/auth/logout', { method: 'POST' })
+  } catch {
+    // Ignora falha de rede — cookie será limpo no próximo login
+  }
   window.location.href = '/login'
 }
 

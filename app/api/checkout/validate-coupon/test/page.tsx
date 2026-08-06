@@ -4,7 +4,10 @@ import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { CheckCircle, XCircle, Loader2, Ticket } from "lucide-react"
+import { CheckCircle, Loader2, Ticket } from "lucide-react"
+import { apiFetch } from '@/lib/api-client'
+import { ErrorBanner } from '@/components/ui/error-banner'
+import { PageLoading } from '@/components/ui/page-loading'
 
 export default function TestCouponPage() {
   const [code, setCode] = useState("")
@@ -24,7 +27,7 @@ export default function TestCouponPage() {
     setResult(null)
 
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         `/api/checkout/validate-coupon?code=${encodeURIComponent(code)}&value=${value}`
       )
       const data = await response.json()
@@ -92,11 +95,12 @@ export default function TestCouponPage() {
             )}
           </Button>
 
+          {loading && !result && (
+            <PageLoading label="Validando cupom..." />
+          )}
+
           {error && (
-            <div className="flex items-center gap-2 p-3 bg-red-500/20 border border-red-500/30 rounded-lg">
-              <XCircle className="w-5 h-5 text-red-400" />
-              <span className="text-red-400 text-sm">{error}</span>
-            </div>
+            <ErrorBanner message={error} onRetry={testCoupon} />
           )}
 
           {result?.valid && (

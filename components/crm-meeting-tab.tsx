@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { apiFetch } from '@/lib/api-client'
 import {
   Calendar,
   Clock,
@@ -221,7 +222,7 @@ export function CRMMeetingTab({
     setSaveSuccess(false)
 
     try {
-      const res = await fetch(`/api/crm/${leadId}/meeting`, {
+      const res = await apiFetch(`/api/crm/${leadId}/meeting`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(meeting),

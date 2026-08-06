@@ -6,7 +6,7 @@ import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { supabase } from "@/lib/supabase-client"
+import { createMember } from "@/lib/services/members"
 import { AlertCircle, CheckCircle } from "lucide-react"
 
 interface AddMemberModalProps {
@@ -75,36 +75,30 @@ export function AddMemberModal({ isOpen, onClose, onMemberAdded }: AddMemberModa
     setError(null)
 
     try {
-      const { error: insertError } = await supabase.from("cadastro_site").insert([
-        {
-          nome_completo: formData.nome_completo,
-          email: formData.email,
-          cpf: formData.cpf.replace(/\D/g, ""),
-          data_nascimento: formData.data_nascimento,
-          whatsapp: formData.whatsapp,
-        },
-      ])
+      await createMember({
+        nome_completo: formData.nome_completo,
+        email: formData.email,
+        cpf: formData.cpf.replace(/\D/g, ""),
+        data_nascimento: formData.data_nascimento,
+        whatsapp: formData.whatsapp,
+      })
 
-      if (insertError) {
-        setError(`Erro ao adicionar membro: ${insertError.message}`)
-      } else {
-        setSuccess(true)
-        setTimeout(() => {
-          setFormData({
-            nome_completo: "",
-            email: "",
-            cpf: "",
-            data_nascimento: "",
-            whatsapp: "",
-          })
-          setSuccess(false)
-          onMemberAdded()
-          onClose()
-        }, 1500)
-      }
+      setSuccess(true)
+      setTimeout(() => {
+        setFormData({
+          nome_completo: "",
+          email: "",
+          cpf: "",
+          data_nascimento: "",
+          whatsapp: "",
+        })
+        setSuccess(false)
+        onMemberAdded()
+        onClose()
+      }, 1500)
     } catch (err) {
-      setError("Erro ao conectar com o servidor")
-      console.error("[v0] Error adding member:", err)
+      setError(err instanceof Error ? `Erro ao adicionar membro: ${err.message}` : "Erro ao conectar com o servidor")
+      console.error("[membros] Error adding member:", err)
     } finally {
       setLoading(false)
     }

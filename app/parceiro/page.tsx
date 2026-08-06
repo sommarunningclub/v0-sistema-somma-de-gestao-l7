@@ -5,7 +5,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { 
+import { apiFetch } from '@/lib/api-client'
+import {
   AlertCircle, CheckCircle2, Trash2, Edit2, RefreshCw, Plus, Search, 
   Mail, Phone, Building2, User, X, MessageCircle, ChevronDown, ChevronUp,
   Briefcase, Filter, LayoutGrid, LayoutList, Eye, Gift
@@ -14,6 +15,7 @@ import { CNPJLookup } from '@/components/cnpj-lookup'
 import { PartnerForm } from '@/components/partner-form'
 import { PartnerCodesModal } from '@/components/partner-codes-modal'
 import type { CNPJData, Partner } from '@/lib/services/partners'
+import { matchesTextSearch } from '@/lib/search-utils'
 import { WhatsAppMessageModal } from '@/components/whatsapp-message-modal'
 import {
   Collapsible,
@@ -40,6 +42,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { ErrorBanner } from '@/components/ui/error-banner'
+import { PageLoading } from '@/components/ui/page-loading'
 
 type ViewMode = 'list' | 'form' | 'edit' | 'codes'
 type FilterStatus = 'all' | 'active' | 'pending' | 'inactive' | 'negotiating'
@@ -78,7 +82,7 @@ export default function ParcerioSommaPage() {
     try {
       setIsLoading(true)
       setError(null)
-      const response = await fetch('/api/partners')
+      const response = await apiFetch('/api/partners')
       if (!response.ok) throw new Error('Erro ao carregar parceiros')
       const data = await response.json()
       setPartners(data.data || [])
@@ -91,7 +95,7 @@ export default function ParcerioSommaPage() {
 
   const loadPartnerCodes = async () => {
     try {
-      const response = await fetch('/api/partner-codes')
+      const response = await apiFetch('/api/partner-codes')
       if (!response.ok) throw new Error('Erro ao carregar códigos')
       const data = await response.json()
       setPartnerCodes(data.data || [])
@@ -107,10 +111,15 @@ export default function ParcerioSommaPage() {
 
   // Filter and search logic
   const filteredPartners = partners.filter(p => {
-    const matchesSearch = !searchTerm || 
-      p.company_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.cnpj?.includes(searchTerm) ||
-      p.responsible_name?.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesSearch = !searchTerm ||
+      matchesTextSearch(searchTerm, [
+        p.company_name,
+        p.cnpj,
+        p.responsible_name,
+        p.responsible_email,
+        p.company_email,
+        p.responsible_phone,
+      ])
     const matchesStatus = filterStatus === 'all' || p.status === filterStatus
     return matchesSearch && matchesStatus
   })
@@ -134,7 +143,7 @@ export default function ParcerioSommaPage() {
       // Se está editando
       if (viewMode === 'edit' && editingPartner?.id) {
         console.log('[v0] Updating partner:', editingPartner.id)
-        const response = await fetch(`/api/partners?id=${editingPartner.id}`, {
+        const response = await apiFetch(`/api/partners?id=${editingPartner.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(formData)
@@ -148,7 +157,7 @@ export default function ParcerioSommaPage() {
         setSuccessMessage('Parceiro atualizado com sucesso!')
       } else {
         // Criando novo
-        const response = await fetch('/api/partners', {
+        const response = await apiFetch('/api/partners', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(formData)
@@ -177,7 +186,7 @@ export default function ParcerioSommaPage() {
   const handleDeletePartner = async (id: string) => {
     if (!confirm('Tem certeza que deseja deletar este parceiro?')) return
     try {
-      const response = await fetch(`/api/partners?id=${id}`, { method: 'DELETE' })
+      const response = await apiFetch(`/api/partners?id=${id}`, { method: 'DELETE' })
       if (!response.ok) throw new Error('Erro ao deletar parceiro')
       setPartners(partners.filter(p => p.id !== id))
       setSuccessMessage('Parceiro deletado com sucesso!')
@@ -272,13 +281,7 @@ export default function ParcerioSommaPage() {
 
         {/* Alerts */}
         {error && (
-          <div className="flex items-center gap-3 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
-            <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
-            <p className="text-sm text-red-300 flex-1">{error}</p>
-            <button onClick={() => setError(null)} className="text-red-400 hover:text-red-300">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
+          <ErrorBanner message={error} onRetry={loadPartners} />
         )}
         {successMessage && (
           <div className="flex items-center gap-3 p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
@@ -529,9 +532,7 @@ export default function ParcerioSommaPage() {
               {/* Main Content Area */}
               <div className={`flex-1 overflow-y-auto ${selectedPartner ? 'hidden md:block' : ''}`}>
                 {isLoading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <RefreshCw className="w-6 h-6 text-orange-500 animate-spin" />
-                  </div>
+                  <PageLoading label="Carregando parceiros..." />
                 ) : filteredPartners.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12 text-center">
                     <Building2 className="w-12 h-12 text-neutral-700 mb-3" />

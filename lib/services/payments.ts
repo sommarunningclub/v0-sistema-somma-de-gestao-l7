@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase-client'
 import type { AsaasCustomer, AsaasPayment, AsaasCoupon, DashboardMetrics } from '@/lib/types/asaas'
+import { apiFetch } from '@/lib/api-client'
 
 // Clientes do banco local
 export async function getCustomersFromDB(): Promise<AsaasCustomer[]> {
@@ -201,7 +202,7 @@ export async function calculateDashboardMetrics(month: string): Promise<Dashboar
     const endDate = new Date(year, monthNum, 0).toISOString().split('T')[0]
 
     // Buscar TODOS os pagamentos do Asaas no período
-    const paymentsResponse = await fetch(`/api/asaas?endpoint=/payments&dateCreated[ge]=${startDate}&dateCreated[le]=${endDate}&limit=1000`)
+    const paymentsResponse = await apiFetch(`/api/asaas?endpoint=/payments&dateCreated[ge]=${startDate}&dateCreated[le]=${endDate}&limit=1000`)
     const paymentsData = await paymentsResponse.json()
     const allPayments = paymentsData.data || []
 
@@ -221,7 +222,7 @@ export async function calculateDashboardMetrics(month: string): Promise<Dashboar
       .reduce((sum: number, p: any) => sum + (p.value || 0), 0)
 
     // Buscar TODAS as assinaturas ATIVAS do Asaas
-    const subscriptionsResponse = await fetch(`/api/asaas?endpoint=/subscriptions&status=ACTIVE&limit=1000`)
+    const subscriptionsResponse = await apiFetch(`/api/asaas?endpoint=/subscriptions&status=ACTIVE&limit=1000`)
     const subscriptionsData = await subscriptionsResponse.json()
     const activeSubscriptions = subscriptionsData.data || []
 
@@ -244,7 +245,7 @@ export async function calculateDashboardMetrics(month: string): Promise<Dashboar
     }, 0)
 
     // Buscar assinaturas canceladas para calcular Churn
-    const canceledResponse = await fetch(`/api/asaas?endpoint=/subscriptions&status=INACTIVE&limit=1000`)
+    const canceledResponse = await apiFetch(`/api/asaas?endpoint=/subscriptions&status=INACTIVE&limit=1000`)
     const canceledData = await canceledResponse.json()
     const canceledSubs = canceledData.data || []
 

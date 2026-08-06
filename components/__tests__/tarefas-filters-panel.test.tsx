@@ -59,6 +59,8 @@ describe('TarefasFiltersPanel (Desktop)', () => {
   it('should render date inputs', async () => {
     renderWithProvider(<TarefasFiltersPanel columns={mockColumns} />)
 
+    fireEvent.click(screen.getByText('Data de Entrega'))
+
     await waitFor(() => {
       const dateInputs = document.querySelectorAll('input[type="date"]')
       expect(dateInputs.length).toBeGreaterThan(0)

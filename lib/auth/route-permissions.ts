@@ -24,6 +24,7 @@ export function isPublicApiRoute(pathname: string, method: string): boolean {
 const ROUTE_PERMISSIONS: Array<{ pattern: RegExp; permission: PermissionKey }> = [
   { pattern: /^\/api\/admin\//, permission: 'admin' },
   { pattern: /^\/api\/checkin/, permission: 'checkin' },
+  { pattern: /^\/api\/escala/, permission: 'escala' },
   { pattern: /^\/api\/asaas/, permission: 'pagamentos' },
   { pattern: /^\/api\/clicksign/, permission: 'pagamentos' },
   { pattern: /^\/api\/crm/, permission: 'crm' },

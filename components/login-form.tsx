@@ -7,11 +7,14 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Eye, EyeOff } from 'lucide-react'
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
+import { apiFetch } from '@/lib/api-client'
+import { ErrorBanner } from '@/components/ui/error-banner'
 
 export function LoginForm({
   className,
+  redirectTo = '/',
   ...props
-}: React.ComponentProps<'form'>) {
+}: React.ComponentProps<'form'> & { redirectTo?: string }) {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -26,7 +29,7 @@ export function LoginForm({
 
     try {
       // Autenticação server-side — password nunca sai do servidor
-      const res = await fetch('/api/auth/login', {
+      const res = await apiFetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -50,7 +53,8 @@ export function LoginForm({
       }
       localStorage.setItem('somma_session', JSON.stringify(sessionData))
 
-      router.push('/')
+      const target = redirectTo.startsWith('/') ? redirectTo : '/'
+      router.push(target)
     } catch (err) {
       console.error('[v0] Login exception:', err)
       setError('Erro ao realizar login')
@@ -79,9 +83,7 @@ export function LoginForm({
           </div>
 
           {error && (
-            <div className="p-2 bg-red-500/20 border border-red-500/30 rounded text-red-400 text-xs sm:text-sm">
-              {error}
-            </div>
+            <ErrorBanner message={error} className="text-xs sm:text-sm" />
           )}
 
           <Field>

@@ -1,10 +1,9 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Search, MoreHorizontal, Mail, Phone, Trash2, MessageCircle, Plus, ChevronDown, ChevronUp } from "lucide-react"
+import { MoreHorizontal, Mail, Phone, Trash2, MessageCircle, Plus, ChevronDown, ChevronUp } from "lucide-react"
 import type { CadastroSite } from "@/lib/supabase-client"
 import { TagManager } from "@/components/tag-manager"
 import { getMembers, getMembersCount, searchMembers, deleteMember, PAGE_SIZE_EXPORT } from "@/lib/services/members"
@@ -15,10 +14,13 @@ import { CreateChargeModal } from "@/components/create-charge-modal"
 import { MemberChargesList } from "@/components/member-charges-list"
 import { MembersStatsCollapsible } from "@/components/members-stats-collapsible"
 import { MembersCardList } from "@/components/members-card-list"
+import { MembersSearchBar } from "@/components/members-search-bar"
 import { MembersTableRow } from "@/components/members-table-row"
+import { ErrorBanner } from '@/components/ui/error-banner'
+import { PageLoading } from '@/components/ui/page-loading'
 
 export default function AgentNetworkPage() {
-  const [searchTerm, setSearchTerm] = useState("")
+  const [query, setQuery] = useState("")
   const [selectedMember, setSelectedMember] = useState<CadastroSite | null>(null)
   const [editingMember, setEditingMember] = useState<CadastroSite | null>(null)
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false)
@@ -32,11 +34,13 @@ export default function AgentNetworkPage() {
   const [hasMore, setHasMore] = useState(true)
   const [searchMode, setSearchMode] = useState(false)
   const [isSearching, setIsSearching] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   // Buscar membros inicial
   useEffect(() => {
     async function initMembers() {
       setLoading(true)
+      setError(null)
       try {
         const [membersData, count] = await Promise.all([
           getMembers(0),
@@ -48,6 +52,7 @@ export default function AgentNetworkPage() {
         setHasMore(membersData.length === PAGE_SIZE_EXPORT)
       } catch (err) {
         console.error("[v0] Erro ao carregar membros:", err)
+        setError('Erro ao carregar membros')
       } finally {
         setLoading(false)
       }
@@ -55,33 +60,45 @@ export default function AgentNetworkPage() {
     initMembers()
   }, [])
 
-  // Debounce search
-  useEffect(() => {
-    const timer = setTimeout(async () => {
-      if (searchTerm.trim()) {
-        setSearchMode(true)
-        setIsSearching(true)
-        setCurrentPage(0)
-        try {
-          const results = await searchMembers(searchTerm, 0)
-          setMembers(results)
-          setHasMore(results.length === PAGE_SIZE_EXPORT)
-        } catch (err) {
-          console.error("[v0] Erro ao buscar:", err)
-        } finally {
-          setIsSearching(false)
-        }
-      } else {
-        setSearchMode(false)
-        const data = await getMembers(0)
-        setMembers(data)
-        setCurrentPage(0)
-        setHasMore(data.length === PAGE_SIZE_EXPORT)
-      }
-    }, 300)
+  // Termo já "debounced" vindo do campo de busca isolado.
+  const handleSearch = useCallback((term: string) => {
+    setQuery(term)
+  }, [])
 
-    return () => clearTimeout(timer)
-  }, [searchTerm])
+  // Reage a mudanças de termo de busca. A carga inicial fica por conta do
+  // efeito de mount (initMembers), então pulamos a primeira execução aqui.
+  const didMount = useRef(false)
+  useEffect(() => {
+    if (!didMount.current) {
+      didMount.current = true
+      return
+    }
+
+    let cancelled = false
+    async function runSearch() {
+      setIsSearching(true)
+      setCurrentPage(0)
+      try {
+        const isSearch = query.trim().length > 0
+        setSearchMode(isSearch)
+        const results = isSearch ? await searchMembers(query, 0) : await getMembers(0)
+        // Ignora respostas obsoletas (usuário continuou digitando).
+        if (cancelled) return
+        setMembers(results)
+        setHasMore(results.length === PAGE_SIZE_EXPORT)
+      } catch (err) {
+        console.error("[v0] Erro ao buscar:", err)
+        if (!cancelled) setError('Erro ao buscar membros')
+      } finally {
+        if (!cancelled) setIsSearching(false)
+      }
+    }
+
+    runSearch()
+    return () => {
+      cancelled = true
+    }
+  }, [query])
 
   // Carregar próxima página
   const loadMore = useCallback(async () => {
@@ -91,7 +108,7 @@ export default function AgentNetworkPage() {
     try {
       const nextPage = currentPage + 1
       const newMembers = searchMode
-        ? await searchMembers(searchTerm, nextPage)
+        ? await searchMembers(query, nextPage)
         : await getMembers(nextPage)
 
       setMembers((prev) => [...prev, ...newMembers])
@@ -99,10 +116,11 @@ export default function AgentNetworkPage() {
       setHasMore(newMembers.length === PAGE_SIZE_EXPORT)
     } catch (err) {
       console.error("[v0] Erro ao carregar mais:", err)
+      setError('Erro ao carregar mais membros')
     } finally {
       setLoading(false)
     }
-  }, [currentPage, loading, isSearching, hasMore, searchMode, searchTerm])
+  }, [currentPage, loading, isSearching, hasMore, searchMode, query])
 
   // Memoizar membros visíveis
   const displayedMembers = useMemo(() => members, [members])
@@ -139,13 +157,22 @@ export default function AgentNetworkPage() {
     }
   }
 
+  const reloadMembersList = useCallback(async () => {
+    const pages = Array.from({ length: currentPage + 1 }, (_, i) => i)
+    const fetchPage = searchMode && query.trim()
+      ? (page: number) => searchMembers(query, page)
+      : (page: number) => getMembers(page)
+
+    const results = await Promise.all(pages.map(fetchPage))
+    setMembers(results.flat())
+  }, [currentPage, searchMode, query])
+
   const handleMemberUpdated = async () => {
     setEditingMember(null)
     setSelectedMember(null)
     setLoading(true)
     try {
-      const data = await getMembers(currentPage)
-      setMembers(data)
+      await reloadMembersList()
     } finally {
       setLoading(false)
     }
@@ -194,15 +221,6 @@ export default function AgentNetworkPage() {
     setSelectedMember(null)
   }
 
-  const filteredMembers = useMemo(() => {
-    if (!searchTerm.trim()) {
-      return members;
-    }
-    return members.filter(member =>
-      member.nome_completo.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [members, searchTerm]);
-
   return (
     <div className="w-full h-full flex flex-col p-3 sm:p-6 lg:p-8 gap-3 sm:gap-6">
       {/* Header */}
@@ -228,18 +246,29 @@ export default function AgentNetworkPage() {
         foundMembers={displayedMembers.length}
       />
 
-      {/* Search Bar - Mobile Optimized */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-neutral-400 pointer-events-none" />
-        <Input
-          placeholder="Buscar membros..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          disabled={isSearching}
-          className="pl-10 w-full bg-neutral-800 border-neutral-600 text-white placeholder-neutral-400 text-xs sm:text-sm rounded-lg disabled:opacity-50"
+      {error && (
+        <ErrorBanner
+          message={error}
+          onRetry={async () => {
+            setLoading(true)
+            setError(null)
+            try {
+              const [membersData, count] = await Promise.all([getMembers(0), getMembersCount()])
+              setMembers(membersData)
+              setTotalMembers(count)
+              setCurrentPage(0)
+              setHasMore(membersData.length === PAGE_SIZE_EXPORT)
+            } catch {
+              setError('Erro ao carregar membros')
+            } finally {
+              setLoading(false)
+            }
+          }}
         />
-        {isSearching && <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />}
-      </div>
+      )}
+
+      {/* Search Bar - isolada para não travar a digitação */}
+      <MembersSearchBar onSearch={handleSearch} isSearching={isSearching} />
 
       {/* Desktop Stats Grid */}
       <div className="hidden lg:grid lg:grid-cols-3 gap-3 sm:gap-4">
@@ -281,9 +310,10 @@ export default function AgentNetworkPage() {
       </div>
 
       {/* Mobile Card List View */}
-      <MembersCardList 
-        members={displayedMembers} 
+      <MembersCardList
+        members={displayedMembers}
         onSelectMember={setSelectedMember}
+        loading={(loading || isSearching) && !error && displayedMembers.length === 0}
       />
 
       {/* Desktop Table View */}
@@ -292,10 +322,8 @@ export default function AgentNetworkPage() {
           <CardTitle className="text-xs sm:text-sm font-medium text-neutral-300 tracking-wider">LISTA DE MEMBROS</CardTitle>
         </CardHeader>
         <CardContent className="flex-1 overflow-hidden flex flex-col p-0">
-          {loading ? (
-            <div className="flex items-center justify-center h-full">
-              <p className="text-neutral-400">Carregando membros...</p>
-            </div>
+          {loading && displayedMembers.length === 0 ? (
+            <PageLoading label="Carregando membros..." />
           ) : displayedMembers.length === 0 ? (
             <div className="flex items-center justify-center h-full">
               <p className="text-neutral-400">
@@ -334,7 +362,7 @@ export default function AgentNetworkPage() {
       </Card>
 
       {/* Load More Button */}
-      {hasMore && !searchMode && !loading && (
+      {hasMore && !loading && (
         <div className="flex justify-center pt-2">
           <Button
             onClick={loadMore}

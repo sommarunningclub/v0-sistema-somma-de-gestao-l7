@@ -9,10 +9,15 @@ import { CRMLeadModal } from '@/components/crm-lead-modal'
 import { CRM_STAGES } from '@/lib/crm-constants'
 import type { CRMLead, CRMStage } from '@/lib/services/crm'
 import { getSession } from '@/components/protected-route'
+import { matchesTextSearch } from '@/lib/search-utils'
+import { apiFetch } from '@/lib/api-client'
+import { ErrorBanner } from '@/components/ui/error-banner'
+import { PageLoading } from '@/components/ui/page-loading'
 
 export default function CRMPage() {
   const [leads, setLeads] = useState<CRMLead[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [search, setSearch] = useState('')
   const [filterStage, setFilterStage] = useState<CRMStage | 'all'>('all')
@@ -31,13 +36,18 @@ export default function CRMPage() {
 
   const fetchLeads = useCallback(async () => {
     try {
-      const res = await fetch('/api/crm')
+      const res = await apiFetch('/api/crm')
       if (res.ok) {
         const data = await res.json()
         setLeads(data)
+        setError(null)
+      } else {
+        const body = await res.json().catch(() => ({}))
+        setError(body.error || 'Erro ao carregar leads')
       }
     } catch (err) {
       console.error('[v0] Error fetching CRM leads:', err)
+      setError('Erro de conexão ao carregar leads')
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -55,15 +65,14 @@ export default function CRMPage() {
 
   // Filter leads
   const filteredLeads = leads.filter((lead) => {
-    const matchesSearch =
-      !search ||
-      lead.name.toLowerCase().includes(search.toLowerCase()) ||
-      lead.company_name.toLowerCase().includes(search.toLowerCase()) ||
-      lead.email.toLowerCase().includes(search.toLowerCase()) ||
-      lead.phone.includes(search)
-
+    const matchesSearch = matchesTextSearch(search, [
+      lead.name,
+      lead.company_name,
+      lead.email,
+      lead.phone,
+      lead.cnpj,
+    ])
     const matchesStage = filterStage === 'all' || lead.stage === filterStage
-
     return matchesSearch && matchesStage
   })
 
@@ -90,7 +99,7 @@ export default function CRMPage() {
     )
 
     try {
-      const res = await fetch(`/api/crm/${leadId}`, {
+      const res = await apiFetch(`/api/crm/${leadId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ stage: newStage }),
@@ -110,7 +119,7 @@ export default function CRMPage() {
     const session = getSession()
 
     if (isNewLead) {
-      const res = await fetch('/api/crm', {
+      const res = await apiFetch('/api/crm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -124,7 +133,7 @@ export default function CRMPage() {
         fetchLeads()
       }
     } else if (leadData.id) {
-      const res = await fetch(`/api/crm/${leadData.id}`, {
+      const res = await apiFetch(`/api/crm/${leadData.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(leadData),
@@ -138,7 +147,7 @@ export default function CRMPage() {
 
   // Delete lead
   const handleDelete = async (id: string) => {
-    const res = await fetch(`/api/crm/${id}`, { method: 'DELETE' })
+    const res = await apiFetch(`/api/crm/${id}`, { method: 'DELETE' })
     if (res.ok) {
       fetchLeads()
     }
@@ -151,14 +160,7 @@ export default function CRMPage() {
   }))
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center">
-          <RefreshCw className="w-8 h-8 text-orange-500 animate-spin mx-auto mb-3" />
-          <p className="text-neutral-400 text-sm">Carregando CRM...</p>
-        </div>
-      </div>
-    )
+    return <PageLoading label="Carregando CRM..." />
   }
 
   return (
@@ -242,15 +244,28 @@ export default function CRMPage() {
           )}
         </div>
 
+        {error && (
+          <ErrorBanner message={error} onRetry={() => { setLoading(true); fetchLeads() }} />
+        )}
+
         {/* Search */}
         <div className="relative">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500 pointer-events-none" />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por nome, empresa..."
-            className="pl-10 bg-neutral-800 border-neutral-700 text-white text-sm h-11 sm:h-10 rounded-lg px-3.5"
+            placeholder="Buscar por nome, empresa, CNPJ..."
+            className="pl-10 pr-10 bg-neutral-800 border-neutral-700 text-white text-sm h-11 sm:h-10 rounded-lg px-3.5"
           />
+          {search && (
+            <button
+              onClick={() => setSearch('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white transition-colors"
+              aria-label="Limpar busca"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
 

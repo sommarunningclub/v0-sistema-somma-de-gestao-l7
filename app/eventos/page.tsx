@@ -1,12 +1,16 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import { apiFetch } from '@/lib/api-client'
 import {
   Calendar, Clock, MapPin, Users, Plus, Edit3, Trash2, Copy,
   Lock, Unlock, CheckCircle2, RefreshCw, AlertTriangle, X,
   ChevronDown, ChevronUp, Search,
 } from "lucide-react"
 import type { EventoWithStats } from "@/lib/types/evento"
+import { matchesTextSearch } from "@/lib/search-utils"
+import { ErrorBanner } from '@/components/ui/error-banner'
+import { PageLoading } from '@/components/ui/page-loading'
 
 const STATUS_CONFIG = {
   aberto: { label: "Aberto", bg: "bg-green-500/15", text: "text-green-400", border: "border-green-500/30", icon: Unlock },
@@ -76,7 +80,7 @@ export default function EventosSommaPage({ onViewCheckins }: { onViewCheckins?: 
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/insider/eventos', { cache: 'no-store' })
+      const res = await apiFetch('/api/insider/eventos', { cache: 'no-store' })
       if (!res.ok) throw new Error(`Erro ${res.status}`)
       const json = await res.json()
       if (json.error) throw new Error(json.error)
@@ -97,11 +101,9 @@ export default function EventosSommaPage({ onViewCheckins }: { onViewCheckins?: 
   const encerrados = eventos.filter(e => e.checkin_status === 'encerrado').length
 
   // Filter
-  const filtered = eventos.filter(e => {
-    if (!searchTerm) return true
-    const q = searchTerm.toLowerCase()
-    return e.titulo.toLowerCase().includes(q) || e.local.toLowerCase().includes(q)
-  })
+  const filtered = eventos.filter(e =>
+    matchesTextSearch(searchTerm, [e.titulo, e.local])
+  )
 
   // Open modal for create
   const handleCreate = () => {
@@ -189,7 +191,7 @@ export default function EventosSommaPage({ onViewCheckins }: { onViewCheckins?: 
       const url = editingId ? `/api/insider/eventos/${editingId}` : '/api/insider/eventos'
       const method = editingId ? 'PUT' : 'POST'
 
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -212,7 +214,7 @@ export default function EventosSommaPage({ onViewCheckins }: { onViewCheckins?: 
     if (!confirmDelete) return
     setDeleting(true)
     try {
-      const res = await fetch(`/api/insider/eventos/${confirmDelete.id}`, { method: 'DELETE' })
+      const res = await apiFetch(`/api/insider/eventos/${confirmDelete.id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error('Falha ao deletar')
       setConfirmDelete(null)
       fetchEventos()
@@ -231,7 +233,7 @@ export default function EventosSommaPage({ onViewCheckins }: { onViewCheckins?: 
     }
     setTogglingId(evento.id)
     try {
-      const res = await fetch(`/api/insider/eventos/${evento.id}`, {
+      const res = await apiFetch(`/api/insider/eventos/${evento.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ checkin_status: newStatus }),
@@ -327,22 +329,10 @@ export default function EventosSommaPage({ onViewCheckins }: { onViewCheckins?: 
         </div>
 
         {/* Loading */}
-        {loading && (
-          <div className="text-center py-16 text-neutral-400">
-            <RefreshCw className="w-7 h-7 animate-spin mx-auto mb-3 text-orange-500" />
-            <p className="text-sm">Carregando eventos...</p>
-          </div>
-        )}
+        {loading && <PageLoading label="Carregando eventos..." />}
 
-        {/* Error */}
         {!loading && error && (
-          <div className="bg-red-900/20 border border-red-800/50 rounded-xl p-4 text-red-400 text-sm flex gap-3 items-start">
-            <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="font-medium">Erro ao carregar eventos</p>
-              <p className="text-red-500 text-xs mt-0.5">{error}</p>
-            </div>
-          </div>
+          <ErrorBanner message={error} onRetry={fetchEventos} />
         )}
 
         {/* Empty */}

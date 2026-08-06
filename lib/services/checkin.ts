@@ -1,4 +1,5 @@
 import { cache } from "react"
+import { apiFetch } from '@/lib/api-client'
 
 export interface CheckInData {
   nome: string
@@ -20,7 +21,7 @@ interface ApiResponse {
  */
 export const getCheckInData = async (): Promise<CheckInData[]> => {
   try {
-    const response = await fetch("/api/checkin", {
+    const response = await apiFetch("/api/checkin", {
       method: "GET",
       cache: "no-store",
       headers: {

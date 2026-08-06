@@ -9,6 +9,7 @@ import type { CRMLead, CRMLeadNote, CRMLeadAttachment, CRMStage, MeetingData } f
 import { getSession } from '@/components/protected-route'
 import { useCNPJLookup } from '@/hooks/use-cnpj-lookup'
 import { CRMMeetingTab } from '@/components/crm-meeting-tab'
+import { apiFetch } from '@/lib/api-client'
 
 interface CRMLeadModalProps {
   lead: CRMLead | null
@@ -50,8 +51,8 @@ export function CRMLeadModal({ lead, isNew, onClose, onSave, onDelete }: CRMLead
     if (!lead?.id) return
 
     const [notesRes, attachRes] = await Promise.all([
-      fetch(`/api/crm/${lead.id}/notes`),
-      fetch(`/api/crm/${lead.id}/attachments`),
+      apiFetch(`/api/crm/${lead.id}/notes`),
+      apiFetch(`/api/crm/${lead.id}/attachments`),
     ])
 
     if (notesRes.ok) setNotes(await notesRes.json())
@@ -111,7 +112,7 @@ export function CRMLeadModal({ lead, isNew, onClose, onSave, onDelete }: CRMLead
   // Fetch fresh company name from DB when opening existing lead
   useEffect(() => {
     if (!lead?.id || isNew) return
-    fetch(`/api/crm/${lead.id}`)
+    apiFetch(`/api/crm/${lead.id}`)
       .then(res => res.ok ? res.json() : null)
       .then(data => {
         if (data?.company_name) setCompanyName(data.company_name)
@@ -127,7 +128,7 @@ export function CRMLeadModal({ lead, isNew, onClose, onSave, onDelete }: CRMLead
       setActiveTab('details')
     }
     if (!lead?.id || isNew) return
-    await fetch(`/api/crm/${lead.id}`, {
+    await apiFetch(`/api/crm/${lead.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ stage: newStage }),
@@ -161,7 +162,7 @@ export function CRMLeadModal({ lead, isNew, onClose, onSave, onDelete }: CRMLead
   const handleAddNote = async () => {
     if (!newNote.trim() || !lead?.id) return
 
-    const res = await fetch(`/api/crm/${lead.id}/notes`, {
+    const res = await apiFetch(`/api/crm/${lead.id}/notes`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -178,7 +179,7 @@ export function CRMLeadModal({ lead, isNew, onClose, onSave, onDelete }: CRMLead
 
   const handleDeleteNote = async (noteId: string) => {
     if (!lead?.id) return
-    const res = await fetch(`/api/crm/${lead.id}/notes?noteId=${noteId}`, { method: 'DELETE' })
+    const res = await apiFetch(`/api/crm/${lead.id}/notes?noteId=${noteId}`, { method: 'DELETE' })
     if (res.ok) loadNotesAndAttachments()
   }
 
@@ -207,7 +208,7 @@ export function CRMLeadModal({ lead, isNew, onClose, onSave, onDelete }: CRMLead
         .getPublicUrl(fileName)
 
       // Save attachment record
-      const res = await fetch(`/api/crm/${lead.id}/attachments`, {
+      const res = await apiFetch(`/api/crm/${lead.id}/attachments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -234,7 +235,7 @@ export function CRMLeadModal({ lead, isNew, onClose, onSave, onDelete }: CRMLead
 
   const handleDeleteAttachment = async (attachmentId: string) => {
     if (!lead?.id) return
-    const res = await fetch(`/api/crm/${lead.id}/attachments?attachmentId=${attachmentId}`, { method: 'DELETE' })
+    const res = await apiFetch(`/api/crm/${lead.id}/attachments?attachmentId=${attachmentId}`, { method: 'DELETE' })
     if (res.ok) loadNotesAndAttachments()
   }
 

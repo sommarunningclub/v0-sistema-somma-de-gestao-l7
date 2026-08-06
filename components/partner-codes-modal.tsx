@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Trash2, Plus, RefreshCw } from 'lucide-react'
+import { apiFetch } from '@/lib/api-client'
 import {
   Dialog,
   DialogContent,
@@ -55,7 +56,7 @@ export function PartnerCodesModal({ codes: initialCodes, onCodesUpdate, partnerN
   const loadCodesFromSupabase = async () => {
     try {
       setIsRefreshing(true)
-      const response = await fetch('/api/partner-codes')
+      const response = await apiFetch('/api/partner-codes')
       if (!response.ok) throw new Error('Erro ao carregar códigos')
       const data = await response.json()
       setCodes(data.data || [])
@@ -82,7 +83,7 @@ export function PartnerCodesModal({ codes: initialCodes, onCodesUpdate, partnerN
     setSuccessMessage(null)
 
     try {
-      const response = await fetch('/api/partner-codes', {
+      const response = await apiFetch('/api/partner-codes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -116,7 +117,7 @@ export function PartnerCodesModal({ codes: initialCodes, onCodesUpdate, partnerN
     if (!confirm('Tem certeza que deseja deletar este código?')) return
 
     try {
-      const response = await fetch(`/api/partner-codes/${id}`, {
+      const response = await apiFetch(`/api/partner-codes/${id}`, {
         method: 'DELETE'
       })
 

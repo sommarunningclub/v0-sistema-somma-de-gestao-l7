@@ -1,11 +1,14 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { supabase } from "@/lib/supabase-client"
+import { apiFetch } from "@/lib/api-client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Download, Search, Plus, Eye, Edit, Trash2, X, Filter, MoreHorizontal, Users } from "lucide-react"
 import { Input } from "@/components/ui/input"
+import { matchesTextSearch } from "@/lib/search-utils"
+import { ErrorBanner } from '@/components/ui/error-banner'
+import { PageLoading } from '@/components/ui/page-loading'
 
 interface Insider {
   id: string
@@ -48,19 +51,17 @@ export default function InsidersPage() {
       setLoading(true)
       setError(null)
       console.log("[v0] Fetching insiders data...")
-      const { data, error: err } = await supabase
-        .from("dados_insiders")
-        .select("*")
-        .limit(100)
+      const res = await apiFetch("/api/insiders")
+      const body = await res.json().catch(() => ({}))
 
-      if (err) {
-        console.error("[v0] Error fetching insiders:", err)
-        setError(err.message)
+      if (!res.ok) {
+        console.error("[insiders] Error fetching insiders:", body)
+        setError(body?.error || `Erro ao carregar insiders (HTTP ${res.status})`)
         return
       }
 
-      console.log("[v0] Insiders fetched successfully, count:", data?.length)
-      setInsiders(data || [])
+      console.log("[insiders] Insiders fetched successfully, count:", body.data?.length)
+      setInsiders(body.data || [])
     } catch (err: any) {
       console.error("[v0] Error fetching insiders:", err)
       setError(err.message)
@@ -73,19 +74,17 @@ export default function InsidersPage() {
     if (!confirm("Tem certeza que deseja excluir este insider?")) return
 
     try {
-      const { error: err } = await supabase
-        .from("dados_insiders")
-        .delete()
-        .eq("id", id)
+      const res = await apiFetch(`/api/insiders/${id}`, { method: "DELETE" })
 
-      if (err) {
-        console.error("[v0] Error deleting insider:", err)
-        alert("Erro ao deletar insider")
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        console.error("[insiders] Error deleting insider:", body)
+        alert(body?.error || "Erro ao deletar insider")
         return
       }
 
       setInsiders(insiders.filter((i) => i.id !== id))
-      console.log("[v0] Insider deleted successfully")
+      console.log("[insiders] Insider deleted successfully")
     } catch (err: any) {
       console.error("[v0] Error deleting insider:", err)
       alert("Erro ao deletar insider")
@@ -101,21 +100,23 @@ export default function InsidersPage() {
     setCreating(true)
     try {
       console.log("[v0] Creating new insider:", formData)
-      const { data, error: err } = await supabase
-        .from("dados_insiders")
-        .insert([formData])
-        .select()
+      const res = await apiFetch("/api/insiders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      })
+      const body = await res.json().catch(() => ({}))
 
-      if (err) {
-        console.error("[v0] Error creating insider:", err)
-        alert("Erro ao criar insider: " + err.message)
+      if (!res.ok) {
+        console.error("[insiders] Error creating insider:", body)
+        alert("Erro ao criar insider: " + (body?.error || `HTTP ${res.status}`))
         setCreating(false)
         return
       }
 
-      console.log("[v0] Insider created successfully:", data)
-      if (data && data.length > 0) {
-        setInsiders([...insiders, data[0]])
+      console.log("[insiders] Insider created successfully:", body.data)
+      if (body.data) {
+        setInsiders([...insiders, body.data])
         setFormData({
           nome: "",
           cpf: "",
@@ -137,8 +138,7 @@ export default function InsidersPage() {
   }
 
   const filteredInsiders = insiders.filter((insider) =>
-    insider.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    insider.cpf.includes(searchTerm)
+    matchesTextSearch(searchTerm, [insider.nome, insider.cpf])
   )
 
   const exportToCSV = () => {
@@ -242,9 +242,9 @@ export default function InsidersPage() {
 
       {/* Content */}
       {loading ? (
-        <div className="text-center py-12 text-neutral-400">Carregando insiders...</div>
+        <PageLoading label="Carregando insiders..." />
       ) : error ? (
-        <div className="text-center py-12 text-red-400">Erro: {error}</div>
+        <ErrorBanner message={error} onRetry={fetchInsiders} />
       ) : filteredInsiders.length === 0 ? (
         <div className="text-center py-12">
           <Users className="w-10 h-10 text-neutral-700 mx-auto mb-3" />
