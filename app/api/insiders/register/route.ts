@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getAdminClient, hashPassword } from '@/lib/auth/api-auth'
+import { getAdminClient, hashPassword, verifyPassword } from '@/lib/auth/api-auth'
 import {
   insiderFormSchema,
   firstZodError,
@@ -8,6 +8,7 @@ import {
   onlyDigits,
 } from '@/lib/insider/validation'
 import { cpfCandidates, buildInsiderRow } from '@/lib/insider/insider-mapper'
+import { checkRateLimit, clientKey } from '@/lib/insider/rate-limit'
 
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 const EXT_BY_MIME: Record<string, string> = {
@@ -20,6 +21,15 @@ const BUCKET = 'insider-fotos'
 
 export async function POST(req: NextRequest) {
   try {
+    const rate = checkRateLimit(`register:${clientKey(req)}`, 5, 60_000)
+    if (!rate.allowed) {
+      console.warn('[insiders/register] rate limit exceeded')
+      return NextResponse.json(
+        { error: 'Muitas tentativas. Aguarde um instante e tente novamente.' },
+        { status: 429, headers: { 'Retry-After': String(rate.retryAfterSeconds) } }
+      )
+    }
+
     const formData = await req.formData()
     const campo = (nome: string) => String(formData.get(nome) ?? '').trim()
 
@@ -63,13 +73,26 @@ export async function POST(req: NextRequest) {
 
     // 2. Senha é obrigatória enquanto não houver credencial salva
     let temSenha = false
+    let senhaHashAtual: string | null = null
     if (existente) {
       const { data: credencial } = await supabase
         .from('insider_credentials')
-        .select('insider_id')
+        .select('insider_id, senha_hash')
         .eq('insider_id', existente.id)
         .maybeSingle()
       temSenha = Boolean(credencial)
+      senhaHashAtual = credencial?.senha_hash ?? null
+    }
+
+    // 2b. Para alterar um cadastro que já tem senha, exige a senha atual.
+    if (temSenha) {
+      const senhaAtual = String(formData.get('senha_atual') ?? '')
+      const valido = senhaAtual && senhaHashAtual
+        ? (await verifyPassword(senhaAtual, senhaHashAtual)).valid
+        : false
+      if (!valido) {
+        return NextResponse.json({ error: 'Senha atual incorreta.' }, { status: 401 })
+      }
     }
 
     const senha = String(formData.get('senha') ?? '')
