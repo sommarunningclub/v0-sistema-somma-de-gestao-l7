@@ -7,16 +7,25 @@ import { LogOut } from 'lucide-react'
 export function PortalHeader({ nome }: { nome: string }) {
   const router = useRouter()
   const [saindo, setSaindo] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
   const primeiroNome = nome.trim().split(' ')[0] || 'Insider'
 
   async function sair() {
     if (saindo) return
     setSaindo(true)
+    setErro(null)
     try {
-      await fetch('/api/insiders/sair', { method: 'POST' })
+      const res = await fetch('/api/insiders/sair', { method: 'POST' })
+      if (res.ok) {
+        router.push('/insider')
+        router.refresh()
+        return
+      }
+      setErro('Não foi possível sair. Verifique sua conexão e tente novamente.')
+    } catch {
+      setErro('Não foi possível sair. Verifique sua conexão e tente novamente.')
     } finally {
-      router.push('/insider')
-      router.refresh()
+      setSaindo(false)
     }
   }
 
@@ -30,15 +39,22 @@ export function PortalHeader({ nome }: { nome: string }) {
           Olá, {primeiroNome}
         </h1>
       </div>
-      <button
-        type="button"
-        onClick={sair}
-        disabled={saindo}
-        className="flex shrink-0 items-center gap-2 rounded-full border border-white/20 px-4 py-2 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 disabled:opacity-60"
-      >
-        <LogOut className="h-4 w-4" />
-        Sair
-      </button>
+      <div className="flex shrink-0 flex-col items-end gap-2">
+        <button
+          type="button"
+          onClick={sair}
+          disabled={saindo}
+          className="flex shrink-0 items-center gap-2 rounded-full border border-white/20 px-4 py-2 text-sm font-medium text-white/80 transition-colors hover:bg-white/10 disabled:opacity-60"
+        >
+          <LogOut className="h-4 w-4" />
+          Sair
+        </button>
+        {erro ? (
+          <p role="alert" className="max-w-[220px] text-right text-xs text-[#FF2C03]">
+            {erro}
+          </p>
+        ) : null}
+      </div>
     </header>
   )
 }

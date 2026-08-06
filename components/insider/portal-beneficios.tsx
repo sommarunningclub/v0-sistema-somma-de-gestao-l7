@@ -24,7 +24,7 @@ function CartaoCupom({ beneficio }: { beneficio: Beneficio }) {
       onClick={copiar}
       className="flex w-full items-center justify-between gap-3 rounded-xl border border-black/10 px-4 py-3 text-left transition-colors hover:border-[#FF2C03]"
     >
-      <span className="font-mono text-base font-semibold tracking-wide text-[#0A0A0A]">
+      <span className="break-all font-mono text-base font-semibold tracking-wide text-[#0A0A0A]">
         {beneficio.valor}
       </span>
       <span className="flex items-center gap-1.5 text-sm text-[#737373]">
