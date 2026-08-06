@@ -37,13 +37,25 @@ Migration `sql/009-insider-cadastro.sql` (aditiva, `ADD COLUMN IF NOT EXISTS`, n
 | `cidade` | text | |
 | `estado` | text | UF, 2 letras |
 | `foto_url` | text | URL pública no Storage |
-| `senha_hash` | text | bcrypt (nunca exposto em API) |
 | `consent_lgpd` | boolean | |
 | `consent_imagem` | boolean | |
 | `criado_em` | timestamptz | `DEFAULT now()` |
 | `atualizado_em` | timestamptz | setado pela API a cada gravação |
 
 A mesma migration cria o bucket de Storage **`insider-fotos`** (leitura pública, escrita apenas `service_role`), seguindo o padrão de `sql/006-create-popups.sql`.
+
+**Senha em tabela separada `insider_credentials`** (decisão de segurança): a tela atual do admin lê `dados_insiders` com `select("*")` via chave **anon** (pública no browser) — um `senha_hash` nessa tabela ficaria legível por qualquer pessoa com a chave. A migration cria:
+
+```
+insider_credentials (
+  insider_id  uuid PRIMARY KEY REFERENCES dados_insiders(id) ON DELETE CASCADE,
+  senha_hash  text NOT NULL,
+  criado_em   timestamptz DEFAULT now(),
+  atualizado_em timestamptz DEFAULT now()
+)
+```
+
+com RLS habilitado e política de acesso **apenas `service_role`**.
 
 **Sem constraint UNIQUE em `cpf`**: a base legada tem formatos mistos (com e sem máscara) e possivelmente duplicatas; a deduplicação é feita pela API (busca por ambos os formatos, UPDATE por `id`).
 
@@ -56,14 +68,14 @@ Execução: SQL Editor do Supabase (ou `psql` com as credenciais `POSTGRES_*` do
 - Body JSON: `{ cpf: string }`.
 - Valida CPF pelo algoritmo dos dígitos verificadores → `400` se inválido.
 - Busca em `dados_insiders` casando `cpf` com **e** sem máscara (`.in("cpf", [digits, formatted])`).
-- Resposta: `{ found: false }` ou `{ found: true, insider: { id, nome, email, telefone, data_nascimento, sexo, cep, logradouro, numero, complemento, bairro, cidade, estado, foto_url, tem_senha: boolean } }`.
-- **Nunca** retorna `senha_hash` nem campos de benefícios.
+- Resposta: `{ found: false }` ou `{ found: true, insider: { id, nome, email, telefone, data_nascimento, sexo, cep, logradouro, numero, complemento, bairro, cidade, estado, foto_url, tem_senha: boolean } }` — `tem_senha` deriva da existência de linha em `insider_credentials`.
+- **Nunca** retorna hash de senha nem campos de benefícios.
 
 ### `POST /api/insiders/register`
 
 - `multipart/form-data`: campos do formulário + arquivo `foto` opcional.
 - Revalida tudo com zod no servidor (mesmo schema do client, módulo compartilhado).
-- **Senha**: obrigatória quando o registro é novo ou não tem `senha_hash`; opcional caso contrário (em branco = mantém a atual). Mínimo 8 caracteres. Hash com bcrypt (`hashPassword` de `@/lib/auth/password`, salt 12).
+- **Senha**: obrigatória quando o registro é novo ou não tem credencial em `insider_credentials`; opcional caso contrário (em branco = mantém a atual). Mínimo 8 caracteres. Hash com bcrypt (`hashPassword` de `@/lib/auth/password`, salt 12), gravado via upsert em `insider_credentials`.
 - **Foto**: jpeg/png/webp, máx. 5MB, path `${cpfDigits}/${timestamp}.${ext}` no bucket `insider-fotos`; grava a URL pública em `foto_url`.
 - **Upsert manual**: busca por CPF (ambos formatos); se existe → `UPDATE` por `id` (preserva o formato do CPF já gravado — a página de intelligence deriva `asaas_customer_id` dele); se não existe → `INSERT` com CPF formatado `000.000.000-00`.
 - Seta `atualizado_em`. Resposta `{ success: true }` ou `{ error }` com status adequado.
