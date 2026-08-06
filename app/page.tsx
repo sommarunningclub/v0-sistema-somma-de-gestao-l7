@@ -1,18 +1,18 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { ChevronRight, ChevronDown, Monitor, Settings, Shield, Target, Users, Bell, RefreshCw, CreditCard, LogOut, CheckSquare, Briefcase, LayoutDashboard, Receipt, Ticket, Zap, ChevronLeft, Star, X as CloseIcon, Link2, Handshake, Calendar, KanbanSquare, Megaphone } from "lucide-react"
+import { useState, useEffect, useCallback, Suspense } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { ChevronRight, Monitor, Settings, Shield, Users, Bell, RefreshCw, LogOut, CheckSquare, Briefcase, ChevronLeft, Star, X as CloseIcon, Handshake, Calendar, KanbanSquare, Megaphone } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { UserProfile } from "@/components/user-profile"
 import ProtectedRouteComponent from "@/components/protected-route"
 import { logout, hasPermission } from "@/components/protected-route"
 import { OfflineBanner } from "@/hooks/use-online-status"
+import { buildDashboardUrl, SECTION_LABELS } from "@/lib/auth/page-routes"
 import CommandCenterPage from "./command-center/page"
 import AgentNetworkPage from "./agent-network/page"
-import IntelligencePage from "./intelligence/page"
-import InsidersPage from "./pagamentos/insiders/page"
+import InsidersPage from "./insiders/page"
 import SystemsPage from "./systems/page"
-import PagamentosPage from "./pagamentos/page"
 import CheckInPage from "./checkin/page"
 import ParcerioSommaPage from "./parceiro/page"
 import OperationsPage from "./operations/page"
@@ -22,13 +22,13 @@ import TarefasPage from "./tarefas/page"
 import PopupsPage from "./popups/page"
 import { TarefasFiltersProvider } from "@/lib/context/tarefas-filters-context"
 
-export default function TacticalDashboard() {
+function TacticalDashboard() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [activeSection, setActiveSection] = useState("overview")
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
-  const [pagamentosOpen, setPagamentosOpen] = useState(false)
-  const [pagamentosTab, setPagamentosTab] = useState("dashboard")
   const [permissions, setPermissions] = useState<Record<string, boolean>>({})
   const [showAppsModal, setShowAppsModal] = useState(false)
   const [checkinEventoId, setCheckinEventoId] = useState<string | null>(null)
@@ -44,33 +44,49 @@ export default function TacticalDashboard() {
         crm: hasPermission('crm'),
         tarefas: hasPermission('tarefas'),
         popups: hasPermission('popups'),
-        carteiras: hasPermission('carteiras'),
-        pagamentos: hasPermission('pagamentos'),
+        insiders: hasPermission('pagamentos'),
         admin: hasPermission('admin'),
       }
       setPermissions(permObj)
     }
     loadPermissions()
-    
-    // Carregar preferência de sidebar colapsado
+
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('somma_sidebar_collapsed')
       if (saved === 'true') {
         setSidebarCollapsed(true)
       }
+      // Sidebar aberta apenas em desktop
+      const mq = window.matchMedia('(min-width: 1024px)')
+      setSidebarOpen(mq.matches)
     }
   }, [])
 
-  const pagamentosSubItems = [
-    { id: "dashboard", icon: LayoutDashboard, label: "Dashboard" },
-    { id: "clientes", icon: Users, label: "Clientes Asaas" },
-    { id: "listaespera", icon: Users, label: "Lista de Espera" },
-    { id: "cobrancas", icon: Receipt, label: "Cobrancas" },
-    { id: "assinaturas", icon: CreditCard, label: "Assinaturas" },
-    { id: "link-pagamento", icon: Link2, label: "Link de Pagamento" },
-    { id: "insiders", icon: Star, label: "Insiders" },
-    { id: "sincronizacao", icon: RefreshCw, label: "Sincronizacao" },
-  ]
+  const navigateToSection = useCallback((section: string, tab?: string) => {
+    setActiveSection(section)
+    setSidebarOpen(false)
+    setShowAppsModal(false)
+
+    const extra: Record<string, string> = {}
+    searchParams.forEach((value, key) => {
+      if (!['section', 'tab', 'error'].includes(key)) {
+        extra[key] = value
+      }
+    })
+    router.replace(buildDashboardUrl(section, tab, extra), { scroll: false })
+  }, [router, searchParams])
+
+  // Sincronizar estado com URL
+  useEffect(() => {
+    const section = searchParams.get('section')
+    const tab = searchParams.get('tab')
+
+    if (section) {
+      setActiveSection(section)
+    } else if (!section && searchParams.toString() === '') {
+      setActiveSection('overview')
+    }
+  }, [searchParams])
 
   const handleRefresh = async () => {
     setIsRefreshing(true)
@@ -91,13 +107,7 @@ export default function TacticalDashboard() {
     }
   }
 
-  // Valida se pode navegar para secao
-  const canAccessSection = (sectionId: string): boolean => {
-    if (sectionId === "overview") return true // Dashboard sempre disponivel
-    if (sectionId === "pagamentos") return permissions.pagamentos === true
-    if (sectionId === "systems") return permissions.admin === true
-    return permissions[sectionId] === true
-  }
+  const breadcrumbSection = SECTION_LABELS[activeSection] || 'APP'
 
   return (
     <ProtectedRouteComponent>
@@ -149,22 +159,17 @@ export default function TacticalDashboard() {
                 { id: "eventos", icon: Calendar, label: "EVENTOS", permissionKey: "checkin" },
                 { id: "agents", icon: Users, label: "MEMBROS", permissionKey: "membros" },
                 { id: "parceiro", icon: Briefcase, label: "PARCEIRO SOMMA", permissionKey: "parceiro" },
-                { id: "insiders", icon: Star, label: "INSIDERS", permissionKey: "pagamentos" },
                 { id: "crm", icon: Handshake, label: "CRM", permissionKey: "crm" },
                 { id: "tarefas", icon: KanbanSquare, label: "TAREFAS", permissionKey: "tarefas" },
                 { id: "popups", icon: Megaphone, label: "POP-UPS", permissionKey: "popups" },
-                { id: "intelligence", icon: Target, label: "CARTEIRAS", permissionKey: "carteiras" },
+                { id: "insiders", icon: Star, label: "INSIDERS", permissionKey: "insiders" },
               ].map((item) => {
                 const hasAccess = permissions[item.permissionKey] !== false
                 return (
                   <button
                     key={item.id}
                     onClick={() => {
-                      if (hasAccess) {
-                        setActiveSection(item.id)
-                        setPagamentosOpen(false)
-                        setSidebarOpen(false)
-                      }
+                      if (hasAccess) navigateToSection(item.id)
                     }}
                     disabled={!hasAccess}
                     className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all active:scale-95 md:active:scale-100 ${
@@ -182,62 +187,10 @@ export default function TacticalDashboard() {
                 )
               })}
 
-              {/* Assessoria Somma com Dropdown */}
-              {permissions.pagamentos && (
-                <div>
-                  <button
-                    onClick={() => {
-                      setPagamentosOpen(!pagamentosOpen)
-                      if (!pagamentosOpen) {
-                        setActiveSection("pagamentos")
-                      }
-                    }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all active:scale-95 md:active:scale-100 ${
-                      activeSection === "pagamentos"
-                        ? "bg-orange-500 text-white shadow-lg shadow-orange-500/20"
-                        : "text-neutral-400 hover:text-white hover:bg-neutral-800"
-                    }`}
-                    title={sidebarCollapsed ? "ASSESSORIA SOMMA" : ""}
-                  >
-                    <CreditCard className="w-5 h-5 flex-shrink-0" />
-                    <span className={`text-sm font-medium truncate flex-1 text-left ${sidebarCollapsed ? "hidden md:hidden" : ""}`}>ASSESSORIA SOMMA</span>
-                    <ChevronDown className={`w-4 h-4 transition-transform ${pagamentosOpen ? "rotate-180" : ""} ${sidebarCollapsed ? "hidden md:hidden" : ""}`} />
-                  </button>
-
-                  {/* Submenu Dropdown */}
-                  {pagamentosOpen && !sidebarCollapsed && (
-                    <div className="ml-4 mt-1 space-y-1 border-l border-neutral-700 pl-3">
-                      {pagamentosSubItems.map((subItem) => (
-                        <button
-                          key={subItem.id}
-                          onClick={() => {
-                            setActiveSection("pagamentos")
-                            setPagamentosTab(subItem.id)
-                            setSidebarOpen(false)
-                          }}
-                          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-sm ${
-                            activeSection === "pagamentos" && pagamentosTab === subItem.id
-                              ? "bg-orange-500/20 text-orange-500"
-                              : "text-neutral-400 hover:text-white hover:bg-neutral-800"
-                          }`}
-                        >
-                          <subItem.icon className="w-4 h-4 flex-shrink-0" />
-                          <span className="truncate">{subItem.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
               {/* Admin */}
               {permissions.admin && (
                 <button
-                  onClick={() => {
-                    setActiveSection("systems")
-                    setPagamentosOpen(false)
-                    setSidebarOpen(false)
-                  }}
+                  onClick={() => navigateToSection('systems')}
                   className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all active:scale-95 md:active:scale-100 ${
                     activeSection === "systems"
                       ? "bg-orange-500 text-white shadow-lg shadow-orange-500/20"
@@ -301,22 +254,15 @@ export default function TacticalDashboard() {
                   { id: "eventos",      icon: Calendar,     label: "Eventos",     permissionKey: "checkin" },
                   { id: "agents",        icon: Users,        label: "Membros",     permissionKey: "membros" },
                   { id: "parceiro",      icon: Briefcase,    label: "Parceiro",    permissionKey: "parceiro" },
-                  { id: "insiders",      icon: Star,         label: "Insiders",    permissionKey: "pagamentos" },
+                  { id: "insiders",      icon: Star,         label: "Insiders",    permissionKey: "insiders" },
                   { id: "crm",           icon: Handshake,    label: "CRM",         permissionKey: "crm" },
                   { id: "tarefas",       icon: KanbanSquare, label: "Tarefas",     permissionKey: "tarefas" },
                   { id: "popups",        icon: Megaphone,    label: "Pop-ups",     permissionKey: "popups" },
-                  { id: "intelligence",  icon: Target,       label: "Carteiras",   permissionKey: "carteiras" },
-                  { id: "pagamentos",    icon: CreditCard,   label: "Assessoria",  permissionKey: "pagamentos" },
                   { id: "systems",       icon: Settings,     label: "Admin",       permissionKey: "admin" },
                 ].filter(m => permissions[m.permissionKey] !== false).map(m => (
                   <button
                     key={m.id}
-                    onClick={() => {
-                      setActiveSection(m.id)
-                      setPagamentosOpen(false)
-                      setShowAppsModal(false)
-                      setSidebarOpen(false)
-                    }}
+                    onClick={() => navigateToSection(m.id)}
                     className={`flex flex-col items-center gap-2.5 p-3 sm:p-4 rounded-xl border transition-all active:scale-95 ${
                       activeSection === m.id
                         ? "bg-orange-500/20 border-orange-500/60 text-orange-400"
@@ -361,7 +307,7 @@ export default function TacticalDashboard() {
 
             <div className="flex items-center gap-2 min-w-0 flex-1">
               <div className="text-xs md:text-sm text-neutral-400 truncate">
-                SOMMA / <span className="text-orange-500">APP</span>
+                SOMMA / <span className="text-orange-500">{breadcrumbSection}</span>
               </div>
             </div>
 
@@ -394,19 +340,36 @@ export default function TacticalDashboard() {
           <div id="main-content-scroll" className="flex-1 overflow-auto bg-black">
             {activeSection === "overview" && <CommandCenterPage />}
             {activeSection === "checkin" && permissions.checkin && <CheckInPage initialEventoId={checkinEventoId} />}
-            {activeSection === "eventos" && permissions.checkin && <EventosSommaPage onViewCheckins={(eventoId: string) => { setCheckinEventoId(eventoId); setActiveSection("checkin") }} />}
+            {activeSection === "eventos" && permissions.checkin && <EventosSommaPage onViewCheckins={(eventoId: string) => { setCheckinEventoId(eventoId); navigateToSection("checkin") }} />}
             {activeSection === "agents" && permissions.membros && <AgentNetworkPage />}
             {activeSection === "parceiro" && permissions.parceiro && <ParcerioSommaPage />}
-              {activeSection === "insiders" && permissions.pagamentos && <InsidersPage />}
+            {activeSection === "insiders" && permissions.insiders && <InsidersPage />}
             {activeSection === "crm" && permissions.crm && <CRMPage />}
             {activeSection === "tarefas" && permissions.tarefas && <TarefasFiltersProvider><TarefasPage /></TarefasFiltersProvider>}
             {activeSection === "popups" && permissions.popups && <PopupsPage />}
-              {activeSection === "intelligence" && permissions.carteiras && <IntelligencePage />}
-            {activeSection === "pagamentos" && permissions.pagamentos && <PagamentosPage activeTab={pagamentosTab} />}
             {activeSection === "systems" && permissions.admin && <SystemsPage />}
           </div>
         </main>
       </div>
     </ProtectedRouteComponent>
+  )
+}
+
+function DashboardLoading() {
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-black">
+      <div className="text-center">
+        <h1 className="text-2xl font-bold text-white tracking-wider mb-4">SOMMA CLUB</h1>
+        <p className="text-neutral-400">Carregando...</p>
+      </div>
+    </div>
+  )
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={<DashboardLoading />}>
+      <TacticalDashboard />
+    </Suspense>
   )
 }
