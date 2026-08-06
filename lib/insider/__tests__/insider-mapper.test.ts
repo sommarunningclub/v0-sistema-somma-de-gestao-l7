@@ -89,7 +89,7 @@ describe('buildInsiderRow', () => {
     email: 'joao@exemplo.com',
     telefone: '61999998888',
     data_nascimento: '15/03/1990',
-    sexo: 'masculino',
+    sexo: 'masculino' as const,
     cep: '70000000',
     logradouro: 'SQN 210',
     numero: '101',
