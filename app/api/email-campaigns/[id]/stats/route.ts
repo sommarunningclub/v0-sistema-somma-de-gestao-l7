@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requirePermission } from '@/lib/auth/api-auth'
 import {
   getCampaignClickedLinks,
+  getCampaignEventSeries,
   getCampaignRecipients,
   getCampaignStats,
 } from '@/lib/services/email-campaigns'
@@ -14,12 +15,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params
   const statusParam = req.nextUrl.searchParams.get('status') as RecipientStatus | null
 
-  const [stats, recipients, links] = await Promise.all([
+  const [stats, recipients, links, dailySeries] = await Promise.all([
     getCampaignStats(id),
     getCampaignRecipients(id, statusParam ?? undefined),
     getCampaignClickedLinks(id),
+    getCampaignEventSeries(id),
   ])
 
   if (!stats) return NextResponse.json({ error: 'Campanha não encontrada' }, { status: 404 })
-  return NextResponse.json({ stats, recipients, links })
+  return NextResponse.json({ stats, recipients, links, daily_series: dailySeries })
 }

@@ -220,6 +220,50 @@ export async function getCampaignRecipients(
   }
 }
 
+export interface DailyEventPoint {
+  date: string
+  abertos: number
+  clicados: number
+}
+
+/**
+ * Série diária de aberturas/cliques para o gráfico da Task 13. `email_campaign_events`
+ * guarda um evento por ocorrência (created_at real), diferente de
+ * `email_campaign_recipients.status`, que é um snapshot (um clique sobrescreve o
+ * status 'aberto' do destinatário — ver STATUS_RANK no webhook). Por isso a série
+ * vem daqui, não de getCampaignStats.
+ */
+export async function getCampaignEventSeries(id: string): Promise<DailyEventPoint[]> {
+  try {
+    const supabase = getSupabase()
+    const { data, error } = await supabase
+      .from('email_campaign_events')
+      .select('type,created_at')
+      .eq('campaign_id', id)
+      .in('type', ['opened', 'clicked'])
+      .limit(10000)
+
+    if (error) {
+      console.error('[email-campaigns] getCampaignEventSeries error:', error)
+      return []
+    }
+
+    const byDate = new Map<string, DailyEventPoint>()
+    for (const row of data ?? []) {
+      const date = String(row.created_at).slice(0, 10)
+      const point = byDate.get(date) ?? { date, abertos: 0, clicados: 0 }
+      if (row.type === 'opened') point.abertos++
+      else if (row.type === 'clicked') point.clicados++
+      byDate.set(date, point)
+    }
+
+    return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date))
+  } catch (e) {
+    console.error('[email-campaigns] getCampaignEventSeries exception:', e)
+    return []
+  }
+}
+
 export async function getCampaignClickedLinks(
   id: string,
 ): Promise<Array<{ link: string; count: number }>> {
