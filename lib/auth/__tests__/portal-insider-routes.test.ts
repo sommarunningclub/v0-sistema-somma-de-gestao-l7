@@ -23,6 +23,11 @@ describe('rotas de API do portal', () => {
     expect(isPublicApiRoute('/api/insiders/sair', 'POST')).toBe(true)
   })
 
+  it('libera criar-senha apenas para POST', () => {
+    expect(isPublicApiRoute('/api/insiders/criar-senha', 'POST')).toBe(true)
+    expect(isPublicApiRoute('/api/insiders/criar-senha', 'GET')).toBe(false)
+  })
+
   it('libera as rotas eu* do gate do middleware', () => {
     expect(isPublicApiRoute('/api/insiders/eu', 'GET')).toBe(true)
     expect(isPublicApiRoute('/api/insiders/eu/eventos', 'GET')).toBe(true)

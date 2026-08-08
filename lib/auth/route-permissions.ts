@@ -14,6 +14,7 @@ export const PUBLIC_API_ROUTES: Array<{ method?: string; pattern: RegExp }> = [
   // Portal do Insider — o middleware não gateia; cada rota valida o
   // cookie somma_insider_session dentro do próprio handler.
   { method: 'POST', pattern: /^\/api\/insiders\/entrar$/ },
+  { method: 'POST', pattern: /^\/api\/insiders\/criar-senha$/ },
   { method: 'POST', pattern: /^\/api\/insiders\/sair$/ },
   { pattern: /^\/api\/insiders\/eu(\/|$)/ },
 ]
