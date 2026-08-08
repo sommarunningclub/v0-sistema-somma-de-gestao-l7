@@ -30,7 +30,7 @@ export default async function PainelPage() {
     console.error('[insider/painel] select error:', error)
     return (
       <main className="mx-auto max-w-[1000px] px-5 py-14 md:py-20">
-        <PortalHeader nome={sessao.nome} />
+        <PortalHeader nome={sessao.nome} fotoUrl={null} />
 
         <section className="mt-10">
           <p className="text-sm text-white/70">
@@ -47,10 +47,14 @@ export default async function PainelPage() {
   }
 
   const beneficios = montarBeneficios(row as Record<string, unknown>)
+  const fotoUrl =
+    typeof (row as Record<string, unknown>).foto_url === 'string'
+      ? ((row as Record<string, unknown>).foto_url as string)
+      : null
 
   return (
     <main className="mx-auto max-w-[1000px] px-5 py-14 md:py-20">
-      <PortalHeader nome={sessao.nome} />
+      <PortalHeader nome={sessao.nome} fotoUrl={fotoUrl} />
 
       <section className="mt-10">
         <h2 className="text-xl font-semibold">Seus benefícios</h2>

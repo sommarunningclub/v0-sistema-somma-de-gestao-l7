@@ -36,25 +36,26 @@ function CartaoCupom({ beneficio }: { beneficio: Beneficio }) {
 }
 
 export function PortalBeneficios({ beneficios }: { beneficios: Beneficio[] }) {
-  const visiveis = beneficios.filter((b) => b.disponivel)
-
-  if (visiveis.length === 0) {
-    return (
-      <p className="text-sm text-[#737373]">
-        Nenhum benefício cadastrado ainda. Fale com a equipe do Somma Club.
-      </p>
-    )
-  }
-
   return (
     <div className="grid gap-4 sm:grid-cols-2">
-      {visiveis.map((b) => (
-        <div key={b.chave} className="rounded-2xl bg-white p-5 shadow-lg">
+      {beneficios.map((b) => (
+        <div
+          key={b.chave}
+          className={
+            b.disponivel
+              ? 'rounded-2xl bg-white p-5 shadow-lg'
+              : 'rounded-2xl bg-white/60 p-5 opacity-60 shadow-none'
+          }
+        >
           <p className="text-sm font-semibold uppercase tracking-wide text-[#737373]">
             {b.rotulo}
           </p>
           <div className="mt-3">
-            {b.tipo === 'cupom' ? (
+            {!b.disponivel ? (
+              <span className="inline-block rounded-full bg-black/10 px-3 py-1 text-sm font-medium text-[#737373]">
+                Não incluído
+              </span>
+            ) : b.tipo === 'cupom' ? (
               <CartaoCupom beneficio={b} />
             ) : b.tipo === 'status' ? (
               <span

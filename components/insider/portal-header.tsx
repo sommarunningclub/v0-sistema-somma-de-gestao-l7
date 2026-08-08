@@ -4,7 +4,18 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { LogOut } from 'lucide-react'
 
-export function PortalHeader({ nome }: { nome: string }) {
+function iniciais(nome: string): string {
+  const partes = String(nome ?? '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+  if (partes.length === 0) return ''
+  const primeira = partes[0]?.[0] ?? ''
+  const ultima = partes.length > 1 ? partes[partes.length - 1]?.[0] ?? '' : ''
+  return `${primeira}${ultima}`.toUpperCase()
+}
+
+export function PortalHeader({ nome, fotoUrl }: { nome: string; fotoUrl?: string | null }) {
   const router = useRouter()
   const [saindo, setSaindo] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
@@ -31,13 +42,29 @@ export function PortalHeader({ nome }: { nome: string }) {
 
   return (
     <header className="flex items-center justify-between gap-4">
-      <div>
-        <p className="text-sm font-semibold uppercase tracking-widest text-[#FF2C03]">
-          Área do Insider
-        </p>
-        <h1 className="mt-2 text-3xl font-semibold leading-tight md:text-4xl">
-          Olá, {primeiroNome}
-        </h1>
+      <div className="flex items-center gap-4">
+        {fotoUrl ? (
+          <img
+            src={fotoUrl}
+            alt={`Foto de ${primeiroNome}`}
+            className="h-16 w-16 shrink-0 rounded-full object-cover"
+          />
+        ) : (
+          <div
+            aria-hidden="true"
+            className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[#FF2C03] text-lg font-semibold text-white"
+          >
+            {iniciais(nome)}
+          </div>
+        )}
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-widest text-[#FF2C03]">
+            Área do Insider
+          </p>
+          <h1 className="mt-2 text-3xl font-semibold leading-tight md:text-4xl">
+            Olá, {primeiroNome}
+          </h1>
+        </div>
       </div>
       <div className="flex shrink-0 flex-col items-end gap-2">
         <button
