@@ -1,10 +1,11 @@
 import { redirect } from 'next/navigation'
 import { getAdminClient } from '@/lib/auth/api-auth'
 import { getInsiderFromCookies } from '@/lib/auth/insider-session'
-import { INSIDER_PUBLIC_COLUMNS } from '@/lib/insider/insider-mapper'
+import { INSIDER_PUBLIC_COLUMNS, toInsiderPublic } from '@/lib/insider/insider-mapper'
 import { montarBeneficios, BENEFICIO_COLUNAS } from '@/lib/insider/beneficios'
 import { PortalHeader } from '@/components/insider/portal-header'
 import { PortalBeneficios } from '@/components/insider/portal-beneficios'
+import { PortalMeusDados } from '@/components/insider/portal-meus-dados'
 
 export const metadata = {
   title: 'Área do Insider — Somma Club',
@@ -63,6 +64,16 @@ export default async function PainelPage() {
         </p>
         <div className="mt-6">
           <PortalBeneficios beneficios={beneficios} />
+        </div>
+      </section>
+
+      <section className="mt-12">
+        <h2 className="text-xl font-semibold">Meus dados</h2>
+        <p className="mt-1 text-sm text-white/70">
+          Mantenha seu contato e endereço atualizados.
+        </p>
+        <div className="mt-6">
+          <PortalMeusDados insider={toInsiderPublic(row as Record<string, unknown>, true)} />
         </div>
       </section>
     </main>

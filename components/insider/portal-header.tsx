@@ -19,6 +19,7 @@ export function PortalHeader({ nome, fotoUrl }: { nome: string; fotoUrl?: string
   const router = useRouter()
   const [saindo, setSaindo] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
+  const [fotoComErro, setFotoComErro] = useState(false)
   const primeiroNome = String(nome ?? '').trim().split(' ')[0] || 'Insider'
 
   async function sair() {
@@ -43,10 +44,11 @@ export function PortalHeader({ nome, fotoUrl }: { nome: string; fotoUrl?: string
   return (
     <header className="flex items-center justify-between gap-4">
       <div className="flex items-center gap-4">
-        {fotoUrl ? (
+        {fotoUrl && !fotoComErro ? (
           <img
             src={fotoUrl}
             alt={`Foto de ${primeiroNome}`}
+            onError={() => setFotoComErro(true)}
             className="h-16 w-16 shrink-0 rounded-full object-cover"
           />
         ) : (

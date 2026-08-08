@@ -189,7 +189,10 @@ export function InsiderCadastroForm() {
       .catch(() => {
         // Rede falhou: segue como cadastro novo. O servidor refaz a busca
         // por CPF no envio, então não há risco de duplicar.
-        if (!cancelado) setLookupStatus('new')
+        if (!cancelado) {
+          limparConsentEFoto()
+          setLookupStatus('new')
+        }
       })
 
     return () => {
