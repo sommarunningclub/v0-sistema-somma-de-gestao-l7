@@ -123,23 +123,36 @@ export function buildAudienceQuery(
 
 const PAGE_SIZE = 1000
 
+/** `null` quando alguma página falhou — uma base parcial é pior que nenhuma. */
 async function fetchBase(
   source: AudienceSource,
   filtros: Record<string, string>,
-): Promise<Recipient[]> {
+): Promise<Recipient[] | null> {
   const supabase = getSupabase()
   const { table, select, eq } = buildAudienceQuery(source, filtros)
   const out: Recipient[] = []
 
   // Paginado — o PostgREST corta em 1000 por requisição.
   for (let from = 0; ; from += PAGE_SIZE) {
-    let query = supabase.from(table).select(select).range(from, from + PAGE_SIZE - 1)
+    let query = supabase
+      .from(table)
+      .select(select)
+      // Sem ORDER BY o Postgres não garante a mesma ordem entre duas
+      // consultas paginadas, e uma escrita concorrente pode deslocar uma linha
+      // através da fronteira de página — a base sairia com menos endereços do
+      // que tem, de forma não determinística, contrariando a promessa de que o
+      // número da revisão é o número que vai receber. A coluna de e-mail pode
+      // repetir dentro da base, mas linhas empatadas têm o mesmo endereço e o
+      // dedupe as colapsaria de qualquer forma: nenhum destinatário distinto
+      // se perde.
+      .order(source.emailCol)
+      .range(from, from + PAGE_SIZE - 1)
     for (const [col, value] of eq) query = query.eq(col, value)
 
     const { data, error } = await query
     if (error) {
       console.error(`[email] fetchBase ${source.key} error:`, error)
-      break
+      return null
     }
     if (!data || data.length === 0) break
 
@@ -162,14 +175,19 @@ async function fetchBase(
 /**
  * Resolve a seleção em destinatários finais: filtra cada base, deduplica por
  * e-mail entre todas elas e remove os suprimidos.
+ *
+ * `null` quando alguma base ou a lista de supressão não pôde ser lida — o
+ * chamador não deve tratar um resultado incompleto como a audiência real.
  */
-export async function resolveAudience(selection: AudienceSelection): Promise<Recipient[]> {
+export async function resolveAudience(selection: AudienceSelection): Promise<Recipient[] | null> {
   const bases = selection?.bases ?? []
   const lists: Recipient[][] = []
 
   for (const base of bases) {
     if (!isAudienceKey(base.key)) continue
-    lists.push(await fetchBase(AUDIENCE_SOURCES[base.key], base.filtros ?? {}))
+    const rows = await fetchBase(AUDIENCE_SOURCES[base.key], base.filtros ?? {})
+    if (rows === null) return null
+    lists.push(rows)
   }
 
   return filterSuppressed(dedupeRecipients(lists))

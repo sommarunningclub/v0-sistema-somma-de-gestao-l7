@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
-import { dispatchSlice, prepareCampaign } from '@/lib/email/dispatch'
+import { dispatchSlice, finalizeSlice, prepareCampaign } from '@/lib/email/dispatch'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -27,7 +27,13 @@ export async function GET(req: NextRequest) {
 
   const supabase = getSupabase()
   const now = new Date().toISOString()
-  const processed: Array<{ id: string; sent: number; remaining: number }> = []
+  const processed: Array<{
+    id: string
+    ok: boolean
+    sent: number
+    remaining: number
+    error: string | null
+  }> = []
 
   try {
     // 1) Promove as agendadas que já venceram.
@@ -47,6 +53,10 @@ export async function GET(req: NextRequest) {
             : { status: 'erro', error: 'Audiência vazia', finished_at: now },
         )
         .eq('id', campaign.id)
+        // `prepareCampaign` de uma base grande demora, e o operador pode
+        // cancelar nesse meio-tempo. Sem esta guarda a promoção sobrescreveria
+        // o cancelamento e a campanha sairia assim mesmo.
+        .eq('status', 'agendada')
     }
 
     // 2) Processa uma fatia de cada campanha em andamento.
@@ -57,14 +67,19 @@ export async function GET(req: NextRequest) {
 
     for (const campaign of running ?? []) {
       const result = await dispatchSlice(campaign.id)
-      processed.push({ id: campaign.id, sent: result.sent, remaining: result.remaining })
-
-      if (result.remaining === 0) {
-        await supabase
-          .from('email_campaigns')
-          .update({ status: 'enviada', finished_at: new Date().toISOString() })
-          .eq('id', campaign.id)
-      }
+      // A transição de estado da campanha vive em `finalizeSlice`, que só
+      // encerra quando a fatia realmente terminou (`ok`) e só escreve sobre
+      // uma campanha ainda 'enviando' — um cancelamento durante a fatia não é
+      // sobrescrito. `remaining === 0` sozinho não significa "acabou": também
+      // é o que uma falha precoce devolve.
+      await finalizeSlice(campaign.id, result)
+      processed.push({
+        id: campaign.id,
+        ok: result.ok,
+        sent: result.sent,
+        remaining: result.remaining,
+        error: result.error,
+      })
     }
   } catch (err) {
     console.error('[email-campaigns/cron] exception:', err)

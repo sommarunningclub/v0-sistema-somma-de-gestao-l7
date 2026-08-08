@@ -18,6 +18,17 @@ export async function POST(req: NextRequest) {
     const audience = await req.json()
     const recipients = await resolveAudience(audience)
 
+    // `null` = alguma base ou a lista de supressão não pôde ser lida. Devolver
+    // uma contagem parcial aqui é pior do que devolver erro: este número é
+    // exatamente o que a tela de revisão promete ao operador antes de ele
+    // apertar "disparar".
+    if (recipients === null) {
+      return NextResponse.json(
+        { error: 'Não foi possível calcular a audiência agora — tente de novo' },
+        { status: 503 },
+      )
+    }
+
     const porBase: Record<string, number> = {}
     for (const r of recipients) porBase[r.sourceBase] = (porBase[r.sourceBase] ?? 0) + 1
 

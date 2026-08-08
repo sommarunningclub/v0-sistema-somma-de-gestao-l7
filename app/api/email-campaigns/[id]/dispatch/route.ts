@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requirePermission } from '@/lib/auth/api-auth'
 import { getCampaignById, updateCampaign } from '@/lib/services/email-campaigns'
-import { dispatchSlice, prepareCampaign } from '@/lib/email/dispatch'
+import { dispatchSlice, finalizeSlice, prepareCampaign } from '@/lib/email/dispatch'
 
 export const maxDuration = 300
 
@@ -27,9 +27,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     await updateCampaign(id, { status: 'enviando', started_at: new Date().toISOString() })
 
     const result = await dispatchSlice(id)
+    // Idem cron: só `finalizeSlice` encerra a campanha, e só quando a fatia
+    // completou de fato e a campanha ainda está 'enviando'.
+    await finalizeSlice(id, result)
 
-    if (result.remaining === 0) {
-      await updateCampaign(id, { status: 'enviada', finished_at: new Date().toISOString() })
+    // Configuração ausente (RESEND_API_KEY/EMAIL_FROM/NEXT_PUBLIC_APP_URL) não
+    // manda nenhum e-mail e não adianta repetir. Sem um erro HTTP aqui, o
+    // operador que clicou "disparar agora" veria o modal fechar em silêncio,
+    // como se tivesse dado certo.
+    if (result.fatal) {
+      return NextResponse.json(
+        { error: result.error ?? 'Falha de configuração no disparo' },
+        { status: 500 },
+      )
     }
 
     return NextResponse.json({ ...result, total: prepared.total })
