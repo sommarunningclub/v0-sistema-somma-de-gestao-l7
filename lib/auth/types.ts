@@ -8,6 +8,7 @@ export interface ModulePermissions {
   crm: boolean
   tarefas: boolean
   popups: boolean
+  email: boolean
   admin: boolean
 }
 

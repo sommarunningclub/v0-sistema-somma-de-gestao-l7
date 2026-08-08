@@ -11,6 +11,7 @@ export const PUBLIC_API_ROUTES: Array<{ method?: string; pattern: RegExp }> = [
   // Página pública /insider (auto-cadastro do Insider)
   { method: 'POST', pattern: /^\/api\/insiders\/lookup$/ },
   { method: 'POST', pattern: /^\/api\/insiders\/register$/ },
+  { pattern: /^\/api\/unsubscribe$/ },
 ]
 
 export function isPublicApiRoute(pathname: string, method: string): boolean {
@@ -30,6 +31,7 @@ const ROUTE_PERMISSIONS: Array<{ pattern: RegExp; permission: PermissionKey }> =
   { pattern: /^\/api\/crm/, permission: 'crm' },
   { pattern: /^\/api\/tarefas/, permission: 'tarefas' },
   { pattern: /^\/api\/popups/, permission: 'popups' },
+  { pattern: /^\/api\/email-/, permission: 'email' },
   { pattern: /^\/api\/partners/, permission: 'parceiro' },
   { pattern: /^\/api\/partner-codes/, permission: 'parceiro' },
   { pattern: /^\/api\/insider/, permission: 'pagamentos' },

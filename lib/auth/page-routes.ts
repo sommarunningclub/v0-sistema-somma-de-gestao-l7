@@ -11,6 +11,7 @@ export const SECTION_LABELS: Record<string, string> = {
   crm: 'CRM',
   tarefas: 'Tarefas',
   popups: 'Pop-ups',
+  email: 'E-mail Marketing',
   systems: 'Administração',
 }
 
@@ -26,6 +27,7 @@ export const SECTION_PERMISSIONS: Record<string, PermissionKey | null> = {
   crm: 'crm',
   tarefas: 'tarefas',
   popups: 'popups',
+  email: 'email',
   systems: 'admin',
 }
 
@@ -41,6 +43,7 @@ const LEGACY_EXACT: Record<string, string> = {
   '/tarefas': '/?section=tarefas',
   '/insiders': '/?section=insiders',
   '/popups': '/?section=popups',
+  '/email-marketing': '/?section=email',
   '/systems': '/?section=systems',
   '/command-center': '/?section=overview',
   '/operations': '/?section=overview',
@@ -56,6 +59,7 @@ const PAGE_PERMISSIONS: Array<{ pattern: RegExp; permission: PermissionKey }> = 
   { pattern: /^\/crm/, permission: 'crm' },
   { pattern: /^\/tarefas/, permission: 'tarefas' },
   { pattern: /^\/popups/, permission: 'popups' },
+  { pattern: /^\/email-marketing/, permission: 'email' },
   { pattern: /^\/insiders/, permission: 'pagamentos' },
 ]
 
