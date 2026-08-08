@@ -34,6 +34,10 @@ export async function GET(req: NextRequest) {
     remaining: number
     error: string | null
   }> = []
+  // Campanhas cuja audiência não pôde ser lida nesta execução (erro
+  // transiente) — distinto de `processed`, que é sobre fatias de disparo.
+  // Ficam 'agendada' e o próximo tick tenta de novo; ver o `continue` abaixo.
+  const postponed: string[] = []
 
   try {
     // 1) Promove as agendadas que já venceram.
@@ -45,10 +49,28 @@ export async function GET(req: NextRequest) {
 
     for (const campaign of due ?? []) {
       const prepared = await prepareCampaign(campaign.id)
+
+      // `null` = não foi possível ler a audiência (erro transiente do
+      // Supabase ao paginar, ou falha ao carregar a supressão — já logado
+      // dentro de `prepareCampaign`). Isso é diferente de `{ total: 0 }`
+      // (leu tudo e a audiência é genuinamente vazia). Não mude o status:
+      // deixar 'agendada' faz o próximo tick do cron (5 min depois) tentar de
+      // novo. Sem isso a campanha era marcada 'erro' com o diagnóstico falso
+      // "Audiência vazia" e nunca mais era retomada, já que o cron só
+      // seleciona campanhas 'agendada'/'enviando'.
+      if (prepared === null) {
+        console.error(
+          '[email-campaigns/cron] audiência indisponível — campanha adiada para o próximo tick:',
+          campaign.id,
+        )
+        postponed.push(campaign.id)
+        continue
+      }
+
       await supabase
         .from('email_campaigns')
         .update(
-          prepared && prepared.total > 0
+          prepared.total > 0
             ? { status: 'enviando', started_at: now }
             : { status: 'erro', error: 'Audiência vazia', finished_at: now },
         )
@@ -86,5 +108,5 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Erro no agendador' }, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true, processed })
+  return NextResponse.json({ ok: true, processed, postponed })
 }
