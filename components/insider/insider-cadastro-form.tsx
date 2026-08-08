@@ -73,6 +73,9 @@ export function InsiderCadastroForm() {
   const [concluido, setConcluido] = useState<'novo' | 'atualizado' | null>(null)
   const [senhaLogin, setSenhaLogin] = useState('')
   const [entrando, setEntrando] = useState(false)
+  const [senhaNova, setSenhaNova] = useState('')
+  const [senhaNovaConfirmacao, setSenhaNovaConfirmacao] = useState('')
+  const [criandoSenha, setCriandoSenha] = useState(false)
   const [modoEdicao, setModoEdicao] = useState(false)
 
   const router = useRouter()
@@ -85,10 +88,12 @@ export function InsiderCadastroForm() {
   /**
    * Zera tudo que não faz parte de FormState/FORM_VAZIO e que, por isso,
    * não é limpo automaticamente por `setForm({ ...FORM_VAZIO, cpf })`:
-   * consentimentos e a foto escolhida (com revogação da object URL).
+   * consentimentos, a foto escolhida (com revogação da object URL) e os
+   * campos/flags dos modos de login e criação de senha.
    * Chamada nos três ramos do efeito de busca de CPF (reset, encontrado e
    * não encontrado) para que nenhum estado fora de FormState — nem uma
-   * mensagem de erro de um CPF anterior — sobreviva a uma troca de CPF.
+   * senha digitada ou um envio em andamento de um CPF anterior — sobreviva
+   * a uma troca de CPF.
    */
   function limparConsentEFoto() {
     setConsentLgpd(false)
@@ -99,6 +104,9 @@ export function InsiderCadastroForm() {
       return ''
     })
     setSenhaLogin('')
+    setSenhaNova('')
+    setSenhaNovaConfirmacao('')
+    setCriandoSenha(false)
     setModoEdicao(false)
     setErro(null)
   }
@@ -248,6 +256,7 @@ export function InsiderCadastroForm() {
   const revelarTudo = lookupStatus === 'found'
   const iniciado = lookupStatus === 'found' || lookupStatus === 'new'
   const modoLogin = lookupStatus === 'found' && temSenha && !modoEdicao
+  const modoCriarSenha = lookupStatus === 'found' && !temSenha && !modoEdicao
 
   const nomeOk = form.nome.trim().length >= 3
   const emailOk = /\S+@\S+\.\S+/.test(form.email)
@@ -263,7 +272,7 @@ export function InsiderCadastroForm() {
   const sexoOk = form.sexo === 'masculino' || form.sexo === 'feminino'
   const senhaOk = validateSenha(form.senha, form.senha_confirmacao, !temSenha) === null
 
-  const showNome = iniciado && !modoLogin
+  const showNome = iniciado && !modoLogin && !modoCriarSenha
   const showEmail = showNome && (revelarTudo || nomeOk)
   const showNascCep = showEmail && (revelarTudo || emailOk)
   const showEndereco = showNascCep && (revelarTudo || (nascOk && cepOk))
@@ -292,6 +301,33 @@ export function InsiderCadastroForm() {
       setErro(err instanceof Error ? err.message : 'Não foi possível entrar.')
     } finally {
       setEntrando(false)
+    }
+  }
+
+  async function handleCriarSenha(e: React.FormEvent) {
+    e.preventDefault()
+    if (criandoSenha) return
+    setErro(null)
+    setCriandoSenha(true)
+    try {
+      const res = await fetch('/api/insiders/criar-senha', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cpf: form.cpf,
+          senha: senhaNova,
+          senha_confirmacao: senhaNovaConfirmacao,
+        }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        throw new Error(data?.error || 'Não foi possível criar a senha.')
+      }
+      router.push('/insider/painel')
+    } catch (err) {
+      setErro(err instanceof Error ? err.message : 'Não foi possível criar a senha.')
+    } finally {
+      setCriandoSenha(false)
     }
   }
 
@@ -397,6 +433,9 @@ export function InsiderCadastroForm() {
           os dados.
         </p>
       )}
+      {modoCriarSenha && (
+        <p className="mt-2 text-sm text-[#737373]">Crie uma senha para acessar seu perfil.</p>
+      )}
       {lookupStatus === 'new' && (
         <p className="mt-2 text-sm text-[#737373]">
           CPF não encontrado — vamos fazer o seu cadastro.
@@ -431,6 +470,65 @@ export function InsiderCadastroForm() {
           {entrando ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
           Entrar
           {!entrando && <ArrowRight className="h-4 w-4" />}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setModoEdicao(true)}
+          className="mt-3 w-full text-center text-sm text-[#737373] underline"
+        >
+          Prefiro atualizar meus dados sem entrar
+        </button>
+      </Reveal>
+
+      <Reveal show={modoCriarSenha}>
+        <InsiderField id="senha_nova" label="Senha">
+          <input
+            id="senha_nova"
+            type="password"
+            autoComplete="new-password"
+            value={senhaNova}
+            onChange={(e) => setSenhaNova(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                handleCriarSenha(e)
+              }
+            }}
+            className={INPUT_CLS}
+            placeholder="Mínimo de 8 caracteres"
+          />
+        </InsiderField>
+
+        <div className="mt-4">
+          <InsiderField id="senha_nova_confirmacao" label="Confirme a senha">
+            <input
+              id="senha_nova_confirmacao"
+              type="password"
+              autoComplete="new-password"
+              value={senhaNovaConfirmacao}
+              onChange={(e) => setSenhaNovaConfirmacao(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  handleCriarSenha(e)
+                }
+              }}
+              className={INPUT_CLS}
+              placeholder="Repita a senha"
+            />
+          </InsiderField>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleCriarSenha}
+          disabled={criandoSenha}
+          className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-[#FF2C03] px-6 py-3.5 text-base font-semibold text-white transition-colors hover:bg-[#FB4C00] disabled:opacity-70"
+        >
+          {criandoSenha ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
+          Criar senha e entrar
+          {!criandoSenha && <ArrowRight className="h-4 w-4" />}
         </button>
 
         <button
