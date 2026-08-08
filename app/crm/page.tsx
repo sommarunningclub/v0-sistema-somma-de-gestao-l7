@@ -1,18 +1,52 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { Search, Plus, RefreshCw, LayoutGrid, List, Filter, X } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import {
+  Handshake,
+  LayoutGrid,
+  List,
+  Plus,
+  RefreshCw,
+  Target,
+  TrendingUp,
+  Users,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { CRMKanbanBoard } from '@/components/crm-kanban-board'
 import { CRMLeadModal } from '@/components/crm-lead-modal'
+import { STAGE_TONE, stageLabel } from '@/components/crm-lead-card'
+import {
+  CardListSkeleton,
+  EmptyState,
+  MobileRecordCard,
+  NoResultsState,
+  PageHeader,
+  PageShell,
+  SegmentedControl,
+  StatGrid,
+  StatGridSkeleton,
+  StatTile,
+  StatusPill,
+  TBody,
+  TD,
+  TH,
+  THead,
+  TR,
+  Table,
+  TableFrame,
+  TableSkeleton,
+  Toolbar,
+  SearchInput,
+  notify,
+} from '@/components/somma'
 import { CRM_STAGES } from '@/lib/crm-constants'
 import type { CRMLead, CRMStage } from '@/lib/services/crm'
 import { getSession } from '@/components/protected-route'
 import { matchesTextSearch } from '@/lib/search-utils'
 import { apiFetch } from '@/lib/api-client'
 import { ErrorBanner } from '@/components/ui/error-banner'
-import { PageLoading } from '@/components/ui/page-loading'
+
+type CRMView = 'kanban' | 'list'
 
 export default function CRMPage() {
   const [leads, setLeads] = useState<CRMLead[]>([])
@@ -29,7 +63,7 @@ export default function CRMPage() {
   const [newLeadStage, setNewLeadStage] = useState<CRMStage>('novo_lead')
 
   // View state - default to list on mobile
-  const [view, setView] = useState<'kanban' | 'list'>(() => {
+  const [view, setView] = useState<CRMView>(() => {
     if (typeof window !== 'undefined' && window.innerWidth < 768) return 'list'
     return 'kanban'
   })
@@ -107,9 +141,13 @@ export default function CRMPage() {
 
       if (!res.ok) {
         // Revert on error
+        notify.error('Não foi possível mover o lead', {
+          description: 'A alteração de fase não foi salva.',
+        })
         fetchLeads()
       }
     } catch {
+      notify.error('Erro de conexão ao mover o lead')
       fetchLeads()
     }
   }
@@ -130,7 +168,10 @@ export default function CRMPage() {
       })
 
       if (res.ok) {
+        notify.success('Lead criado')
         fetchLeads()
+      } else {
+        notify.error('Erro ao criar o lead')
       }
     } else if (leadData.id) {
       const res = await apiFetch(`/api/crm/${leadData.id}`, {
@@ -140,7 +181,10 @@ export default function CRMPage() {
       })
 
       if (res.ok) {
+        notify.success('Lead atualizado')
         fetchLeads()
+      } else {
+        notify.error('Erro ao salvar o lead')
       }
     }
   }
@@ -149,210 +193,291 @@ export default function CRMPage() {
   const handleDelete = async (id: string) => {
     const res = await apiFetch(`/api/crm/${id}`, { method: 'DELETE' })
     if (res.ok) {
+      notify.success('Lead excluído')
       fetchLeads()
+    } else {
+      notify.error('Erro ao excluir o lead')
     }
   }
 
-  // Stats
-  const stats = CRM_STAGES.map((stage) => ({
-    ...stage,
-    count: leads.filter((l) => l.stage === stage.id).length,
-  }))
+  // KPIs do funil — todos derivados apenas do que a API já retorna.
+  const total = leads.length
+  const countByStage = (stage: CRMStage) => leads.filter((l) => l.stage === stage).length
+  const inNegotiation = countByStage('proposta_enviada') + countByStage('negociacao')
+  const won = countByStage('fechado_ganho')
+  const lost = countByStage('perdido')
+  const decided = won + lost
+  const conversionRate = decided > 0 ? Math.round((won / decided) * 100) : 0
 
-  if (loading) {
-    return <PageLoading label="Carregando CRM..." />
+  const hasFilters = search.trim() !== '' || filterStage !== 'all'
+  const clearFilters = () => {
+    setSearch('')
+    setFilterStage('all')
   }
 
+  const newLeadButton = (
+    <Button onClick={() => handleNewLead('novo_lead')}>
+      <Plus aria-hidden="true" />
+      Novo lead
+    </Button>
+  )
+
   return (
-    <div className="flex flex-col h-full bg-neutral-950">
-      {/* Header */}
-      <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-neutral-800 space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex-1 min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold text-white tracking-wide">CRM</h1>
-            <p className="text-xs text-neutral-500 mt-0.5">Gestão de Parcerias B2B</p>
-          </div>
-          <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
-            {/* View Toggle */}
-            <div className="flex bg-neutral-800 rounded-lg p-1 border border-neutral-700">
-              <button
-                onClick={() => setView('kanban')}
-                className={`p-2 sm:p-2.5 rounded-md transition-colors min-h-[40px] min-w-[40px] flex items-center justify-center ${
-                  view === 'kanban' ? 'bg-orange-500 text-white shadow-lg' : 'text-neutral-400 hover:text-white active:bg-neutral-700'
-                }`}
-                title="Kanban"
-              >
-                <LayoutGrid className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => setView('list')}
-                className={`p-2 sm:p-2.5 rounded-md transition-colors min-h-[40px] min-w-[40px] flex items-center justify-center ${
-                  view === 'list' ? 'bg-orange-500 text-white shadow-lg' : 'text-neutral-400 hover:text-white active:bg-neutral-700'
-                }`}
-                title="Lista"
-              >
-                <List className="w-4 h-4" />
-              </button>
-            </div>
-
-            <button
-              onClick={handleRefresh}
-              disabled={refreshing}
-              className="p-2.5 text-neutral-400 hover:text-orange-500 active:text-orange-500 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg hover:bg-neutral-800/50 active:bg-neutral-800"
-              title="Atualizar"
-            >
-              <RefreshCw className={`w-5 h-5 ${refreshing ? 'animate-spin' : ''}`} />
-            </button>
-
-            <Button
-              onClick={() => handleNewLead('novo_lead')}
-              className="bg-orange-500 hover:bg-orange-600 text-white text-xs sm:text-sm font-bold min-h-[44px] px-3 sm:px-4"
-              size="sm"
-            >
-              <Plus className="w-4 h-4 mr-1" />
-              <span className="hidden sm:inline">NOVO LEAD</span>
-              <span className="sm:hidden">NOVO</span>
-            </Button>
-          </div>
-        </div>
-
-        {/* Stats Row */}
-        <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 sm:-mx-6 px-4 sm:px-6 scrollbar-hide">
-          {stats.map((stage) => (
-            <button
-              key={stage.id}
-              onClick={() => setFilterStage(filterStage === stage.id ? 'all' : stage.id)}
-              className={`flex-shrink-0 flex items-center gap-1.5 sm:gap-2 px-3 py-2 sm:py-2.5 rounded-lg border transition-colors text-xs sm:text-sm font-medium min-h-[44px] ${
-                filterStage === stage.id
-                  ? 'bg-orange-500/20 border-orange-500/50 text-orange-400 shadow-lg'
-                  : 'bg-neutral-800/50 border-neutral-800 text-neutral-400 hover:border-neutral-600 active:bg-neutral-700'
-              }`}
-            >
-              <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${stage.color}`} />
-              <span>{stage.label}</span>
-              <span className="font-bold text-white ml-0.5">{stage.count}</span>
-            </button>
-          ))}
-          {filterStage !== 'all' && (
-            <button
-              onClick={() => setFilterStage('all')}
-              className="flex-shrink-0 flex items-center gap-1.5 px-2.5 py-2 sm:py-2.5 text-xs sm:text-sm text-neutral-500 hover:text-white hover:bg-neutral-800/50 active:bg-neutral-700 transition-colors min-h-[44px] rounded-lg font-medium"
-            >
-              <X className="w-4 h-4" />
-              Limpar
-            </button>
-          )}
-        </div>
-
-        {error && (
-          <ErrorBanner message={error} onRetry={() => { setLoading(true); fetchLeads() }} />
-        )}
-
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500 pointer-events-none" />
-          <Input
+    <PageShell>
+      <PageHeader
+        eyebrow="Relacionamento"
+        title="CRM"
+        description="Funil de parcerias B2B — da prospecção ao fechamento."
+        meta={
+          <>
+            <span>
+              <span className="font-mono tabular-nums text-ink">{total}</span> leads no funil
+            </span>
+            <span>
+              <span className="font-mono tabular-nums text-ink">{filteredLeads.length}</span>{' '}
+              exibidos
+            </span>
+          </>
+        }
+        actions={
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleRefresh}
+            loading={refreshing}
+            aria-label="Atualizar leads"
+          >
+            <RefreshCw aria-hidden="true" />
+          </Button>
+        }
+        primaryAction={newLeadButton}
+      >
+        <Toolbar>
+          <SearchInput
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onValueChange={setSearch}
             placeholder="Buscar por nome, empresa, CNPJ..."
-            className="pl-10 pr-10 bg-neutral-800 border-neutral-700 text-white text-sm h-11 sm:h-10 rounded-lg px-3.5"
+            placeholderShort="Nome ou empresa"
           />
-          {search && (
-            <button
-              onClick={() => setSearch('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white transition-colors"
-              aria-label="Limpar busca"
-            >
-              <X className="w-4 h-4" />
-            </button>
+          <SegmentedControl<CRMView>
+            label="Visualização do funil"
+            value={view}
+            onChange={setView}
+            options={[
+              { value: 'kanban', label: 'Kanban', icon: LayoutGrid },
+              { value: 'list', label: 'Lista', icon: List },
+            ]}
+          />
+        </Toolbar>
+
+        {/* Filtro por fase */}
+        <div
+          role="group"
+          aria-label="Filtrar por fase"
+          className="scroll-touch no-scrollbar -mx-4 mt-3 flex gap-2 overflow-x-auto px-4 sm:-mx-6 sm:px-6"
+        >
+          <button
+            type="button"
+            aria-pressed={filterStage === 'all'}
+            onClick={() => setFilterStage('all')}
+            className={`ds-tap shrink-0 rounded-lg border px-3 text-sm font-medium transition-colors ${
+              filterStage === 'all'
+                ? 'border-brand-border bg-brand-soft text-brand-strong'
+                : 'border-line bg-surface-raised text-ink-muted hover:border-line-strong hover:text-ink'
+            }`}
+          >
+            Todas
+            <span className="ml-2 font-mono tabular-nums">{total}</span>
+          </button>
+          {CRM_STAGES.map((stage) => {
+            const count = countByStage(stage.id)
+            const active = filterStage === stage.id
+            return (
+              <button
+                key={stage.id}
+                type="button"
+                aria-pressed={active}
+                onClick={() => setFilterStage(active ? 'all' : stage.id)}
+                className={`ds-tap flex shrink-0 items-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors ${
+                  active
+                    ? 'border-brand-border bg-brand-soft text-brand-strong'
+                    : 'border-line bg-surface-raised text-ink-muted hover:border-line-strong hover:text-ink'
+                }`}
+              >
+                <StatusPill tone={STAGE_TONE[stage.id]} size="sm">
+                  {stage.label}
+                </StatusPill>
+                <span className="font-mono tabular-nums">{count}</span>
+              </button>
+            )
+          })}
+        </div>
+      </PageHeader>
+
+      {error ? (
+        <div className="mb-5">
+          <ErrorBanner
+            message={error}
+            onRetry={() => {
+              setLoading(true)
+              fetchLeads()
+            }}
+          />
+        </div>
+      ) : null}
+
+      {loading ? (
+        <div className="space-y-5">
+          <StatGridSkeleton />
+          <div className="hidden lg:block">
+            <TableSkeleton rows={6} columns={6} />
+          </div>
+          <div className="lg:hidden">
+            <CardListSkeleton count={5} />
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-5">
+          <StatGrid>
+            <StatTile
+              label="Leads no funil"
+              value={total}
+              hint="Todas as fases"
+              icon={Users}
+            />
+            <StatTile
+              label="Em negociação"
+              value={inNegotiation}
+              hint="Proposta enviada + negociação"
+              icon={TrendingUp}
+              tone="brand"
+            />
+            <StatTile
+              label="Fechados (ganho)"
+              value={won}
+              hint={`${lost} perdidos`}
+              icon={Handshake}
+            />
+            <StatTile
+              label="Taxa de conversão"
+              value={`${conversionRate}%`}
+              hint={decided > 0 ? `${won} de ${decided} decididos` : 'Sem leads decididos'}
+              icon={Target}
+            />
+          </StatGrid>
+
+          {view === 'kanban' ? (
+            <div className="h-[calc(100dvh-22rem)] min-h-[26rem]">
+              {filteredLeads.length === 0 && hasFilters ? (
+                <NoResultsState query={search || stageLabel(filterStage as CRMStage)} onClear={clearFilters} />
+              ) : (
+                <CRMKanbanBoard
+                  leads={filteredLeads}
+                  onCardClick={handleCardClick}
+                  onMoveCard={handleMoveCard}
+                  onNewLead={handleNewLead}
+                />
+              )}
+            </div>
+          ) : filteredLeads.length === 0 ? (
+            hasFilters ? (
+              <NoResultsState query={search || stageLabel(filterStage as CRMStage)} onClear={clearFilters} />
+            ) : (
+              <EmptyState
+                icon={Users}
+                title="Nenhum lead cadastrado"
+                description="Os leads das parcerias B2B aparecem aqui assim que forem criados."
+                action={newLeadButton}
+              />
+            )
+          ) : (
+            <>
+              {/* Desktop: tabela */}
+              <div className="hidden lg:block">
+                <TableFrame>
+                  <Table caption="Lista de leads do CRM com contato, fase do funil e data de criação">
+                    <THead>
+                      <TH>Nome</TH>
+                      <TH>Empresa</TH>
+                      <TH>E-mail</TH>
+                      <TH>Telefone</TH>
+                      <TH>Fase</TH>
+                      <TH>Criado em</TH>
+                    </THead>
+                    <TBody>
+                      {filteredLeads.map((lead) => (
+                        <TR key={lead.id} onClick={() => handleCardClick(lead)}>
+                          <TD className="font-medium text-ink-strong">{lead.name}</TD>
+                          <TD>{lead.company_name || '—'}</TD>
+                          <TD>{lead.email || '—'}</TD>
+                          <TD>{lead.phone || '—'}</TD>
+                          <TD>
+                            <StatusPill tone={STAGE_TONE[lead.stage]}>
+                              {stageLabel(lead.stage)}
+                            </StatusPill>
+                          </TD>
+                          <TD className="text-ink-muted">
+                            <time dateTime={lead.created_at}>
+                              {new Date(lead.created_at).toLocaleDateString('pt-BR', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
+                              })}
+                            </time>
+                          </TD>
+                        </TR>
+                      ))}
+                    </TBody>
+                  </Table>
+                </TableFrame>
+              </div>
+
+              {/* Mobile: cards */}
+              <div className="space-y-3 lg:hidden">
+                {filteredLeads.map((lead) => (
+                  <MobileRecordCard
+                    key={lead.id}
+                    title={lead.name}
+                    subtitle={lead.company_name || 'Sem empresa'}
+                    status={
+                      <StatusPill tone={STAGE_TONE[lead.stage]}>
+                        {stageLabel(lead.stage)}
+                      </StatusPill>
+                    }
+                    fields={[
+                      { label: 'E-mail', value: lead.email || '—' },
+                      { label: 'Telefone', value: lead.phone || '—' },
+                      {
+                        label: 'Criado em',
+                        value: new Date(lead.created_at).toLocaleDateString('pt-BR', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                        }),
+                      },
+                      { label: 'Responsável', value: lead.created_by || '—' },
+                    ]}
+                    onClick={() => handleCardClick(lead)}
+                  />
+                ))}
+              </div>
+            </>
           )}
         </div>
-      </div>
+      )}
 
-      {/* Content */}
-      <div className="flex-1 overflow-hidden px-4 py-4 sm:px-6 sm:py-6">
-        {view === 'kanban' ? (
-          <CRMKanbanBoard
-            leads={filteredLeads}
-            onCardClick={handleCardClick}
-            onMoveCard={handleMoveCard}
-            onNewLead={handleNewLead}
-          />
-        ) : (
-          /* List View */
-          <div className="overflow-auto h-full rounded-lg border border-neutral-800">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-neutral-800 bg-neutral-900/50 sticky top-0">
-                  <th className="text-left text-xs font-semibold text-neutral-400 px-3 sm:px-4 py-3 sm:py-3.5">NOME</th>
-                  <th className="text-left text-xs font-semibold text-neutral-400 px-3 sm:px-4 py-3 sm:py-3.5 hidden md:table-cell">EMPRESA</th>
-                  <th className="text-left text-xs font-semibold text-neutral-400 px-3 sm:px-4 py-3 sm:py-3.5 hidden lg:table-cell">E-MAIL</th>
-                  <th className="text-left text-xs font-semibold text-neutral-400 px-3 sm:px-4 py-3 sm:py-3.5 hidden lg:table-cell">TELEFONE</th>
-                  <th className="text-left text-xs font-semibold text-neutral-400 px-3 sm:px-4 py-3 sm:py-3.5">ETAPA</th>
-                  <th className="text-left text-xs font-semibold text-neutral-400 px-3 sm:px-4 py-3 sm:py-3.5 hidden sm:table-cell">DATA</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredLeads.map((lead) => {
-                  const stageConfig = CRM_STAGES.find((s) => s.id === lead.stage)
-                  return (
-                    <tr
-                      key={lead.id}
-                      onClick={() => handleCardClick(lead)}
-                      className="border-b border-neutral-800/50 hover:bg-neutral-800/50 active:bg-neutral-800 cursor-pointer transition-colors min-h-[48px]"
-                    >
-                      <td className="px-3 sm:px-4 py-3 sm:py-3.5 min-h-[48px] flex items-center">
-                        <div className="flex-1 min-w-0">
-                          <span className="text-sm font-medium text-white block truncate">{lead.name}</span>
-                          <span className="text-xs text-neutral-500 md:hidden block truncate">{lead.company_name || '—'}</span>
-                        </div>
-                      </td>
-                      <td className="px-3 sm:px-4 py-3 sm:py-3.5 hidden md:table-cell">
-                        <span className="text-sm text-neutral-400 truncate block">{lead.company_name || '—'}</span>
-                      </td>
-                      <td className="px-3 sm:px-4 py-3 sm:py-3.5 hidden lg:table-cell">
-                        <span className="text-sm text-neutral-400 truncate block">{lead.email || '—'}</span>
-                      </td>
-                      <td className="px-3 sm:px-4 py-3 sm:py-3.5 hidden lg:table-cell">
-                        <span className="text-sm text-neutral-400 truncate block">{lead.phone || '—'}</span>
-                      </td>
-                      <td className="px-3 sm:px-4 py-3 sm:py-3.5">
-                        <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${stageConfig?.color} text-white`}>
-                          <span className="hidden sm:inline">{stageConfig?.label}</span>
-                          <span className="sm:hidden text-xs">{stageConfig?.label?.split(' ')[0]}</span>
-                        </span>
-                      </td>
-                      <td className="px-3 sm:px-4 py-3 sm:py-3.5 hidden sm:table-cell">
-                        <span className="text-xs text-neutral-500">
-                          {new Date(lead.created_at).toLocaleDateString('pt-BR', { month: 'short', day: 'numeric' })}
-                        </span>
-                      </td>
-                    </tr>
-                  )
-                })}
-                {filteredLeads.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="text-center py-12 text-neutral-500 text-sm">
-                      Nenhum lead encontrado.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
 
-      {/* Modal */}
-      {modalOpen && (
+      {modalOpen ? (
         <CRMLeadModal
+          key={isNewLead ? `new-${newLeadStage}` : selectedLead?.id}
+          open
           lead={isNewLead ? ({ stage: newLeadStage } as CRMLead) : selectedLead}
           isNew={isNewLead}
           onClose={() => setModalOpen(false)}
           onSave={handleSave}
           onDelete={handleDelete}
         />
-      )}
-    </div>
+      ) : null}
+    </PageShell>
   )
 }

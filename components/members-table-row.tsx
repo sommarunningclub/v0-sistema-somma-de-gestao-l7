@@ -3,11 +3,12 @@
 import { memo } from 'react'
 import { MoreHorizontal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { TD, TR } from '@/components/somma'
 import type { CadastroSite } from '@/lib/supabase-client'
 
 interface MembersTableRowProps {
   member: CadastroSite
-  index: number
+  selected?: boolean
   onSelect: (member: CadastroSite) => void
   formatCPF: (cpf: string) => string
   formatDate: (date: string) => string
@@ -15,39 +16,42 @@ interface MembersTableRowProps {
 
 export const MembersTableRow = memo(function MembersTableRow({
   member,
-  index,
+  selected = false,
   onSelect,
   formatCPF,
   formatDate,
 }: MembersTableRowProps) {
   return (
-    <tr
-      className={`border-b border-neutral-800 hover:bg-neutral-800 transition-colors cursor-pointer ${
-        index % 2 === 0 ? 'bg-neutral-900' : 'bg-neutral-850'
-      }`}
-      onClick={() => onSelect(member)}
-    >
-      <td className="py-2 sm:py-3 px-3 sm:px-4 text-white font-medium truncate">{member.nome_completo}</td>
-      <td className="py-2 sm:py-3 px-3 sm:px-4 text-neutral-300 hidden md:table-cell truncate">{member.email}</td>
-      <td className="py-2 sm:py-3 px-3 sm:px-4 text-neutral-300 font-mono hidden lg:table-cell truncate">
-        {formatCPF(member.cpf)}
-      </td>
-      <td className="py-2 sm:py-3 px-3 sm:px-4 text-neutral-300 hidden xl:table-cell">{formatDate(member.data_nascimento)}</td>
-      <td className="py-2 sm:py-3 px-3 sm:px-4 text-neutral-300 hidden sm:table-cell truncate">{member.whatsapp}</td>
-      <td className="py-2 sm:py-3 px-3 sm:px-4">
+    <TR selected={selected} onClick={() => onSelect(member)}>
+      <TD className="font-medium text-ink-strong">
+        <span className="block max-w-[22ch] truncate">{member.nome_completo}</span>
+      </TD>
+      <TD className="hidden text-ink-muted md:table-cell">
+        <span className="block max-w-[26ch] truncate">{member.email || '—'}</span>
+      </TD>
+      <TD className="hidden font-mono tabular-nums text-ink-muted lg:table-cell">
+        {member.cpf ? formatCPF(member.cpf) : '—'}
+      </TD>
+      <TD className="hidden text-ink-muted xl:table-cell">
+        {formatDate(member.data_nascimento)}
+      </TD>
+      <TD className="hidden font-mono tabular-nums text-ink-muted sm:table-cell">
+        {member.whatsapp || '—'}
+      </TD>
+      <TD align="right">
         <Button
           variant="ghost"
-          size="icon"
-          className="text-neutral-400 hover:text-orange-500 p-1"
-          onClick={(e) => {
-            e.stopPropagation()
+          size="icon-sm"
+          aria-label={`Abrir detalhes de ${member.nome_completo}`}
+          onClick={(event) => {
+            event.stopPropagation()
             onSelect(member)
           }}
         >
-          <MoreHorizontal className="w-4 h-4" />
+          <MoreHorizontal aria-hidden="true" />
         </Button>
-      </td>
-    </tr>
+      </TD>
+    </TR>
   )
 })
 

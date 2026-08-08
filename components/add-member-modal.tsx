@@ -1,13 +1,12 @@
 "use client"
 
-import React from "react"
-
-import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import type React from "react"
+import { useId, useState } from "react"
+import { AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { ResponsiveModal, SectionTitle, notify } from "@/components/somma"
 import { createMember } from "@/lib/services/members"
-import { AlertCircle, CheckCircle } from "lucide-react"
 
 interface AddMemberModalProps {
   isOpen: boolean
@@ -15,17 +14,20 @@ interface AddMemberModalProps {
   onMemberAdded: () => void
 }
 
+const EMPTY_FORM = {
+  nome_completo: "",
+  email: "",
+  cpf: "",
+  data_nascimento: "",
+  whatsapp: "",
+}
+
 export function AddMemberModal({ isOpen, onClose, onMemberAdded }: AddMemberModalProps) {
-  const [formData, setFormData] = useState({
-    nome_completo: "",
-    email: "",
-    cpf: "",
-    data_nascimento: "",
-    whatsapp: "",
-  })
+  const formId = useId()
+  const errorId = useId()
+  const [formData, setFormData] = useState(EMPTY_FORM)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
 
   const formatCPF = (value: string) => {
     const cleaned = value.replace(/\D/g, "")
@@ -65,6 +67,8 @@ export function AddMemberModal({ isOpen, onClose, onMemberAdded }: AddMemberModa
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (loading) return
+
     const validationError = validateForm()
     if (validationError) {
       setError(validationError)
@@ -83,148 +87,153 @@ export function AddMemberModal({ isOpen, onClose, onMemberAdded }: AddMemberModa
         whatsapp: formData.whatsapp,
       })
 
-      setSuccess(true)
-      setTimeout(() => {
-        setFormData({
-          nome_completo: "",
-          email: "",
-          cpf: "",
-          data_nascimento: "",
-          whatsapp: "",
-        })
-        setSuccess(false)
-        onMemberAdded()
-        onClose()
-      }, 1500)
+      notify.success("Membro adicionado", {
+        description: `${formData.nome_completo} já aparece na lista de membros.`,
+      })
+      setFormData(EMPTY_FORM)
+      onMemberAdded()
+      onClose()
     } catch (err) {
-      setError(err instanceof Error ? `Erro ao adicionar membro: ${err.message}` : "Erro ao conectar com o servidor")
+      const message =
+        err instanceof Error ? `Erro ao adicionar membro: ${err.message}` : "Erro ao conectar com o servidor"
+      setError(message)
+      notify.error("Não foi possível adicionar o membro", { description: message })
       console.error("[membros] Error adding member:", err)
     } finally {
       setLoading(false)
     }
   }
 
-  if (!isOpen) return null
-
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-      <Card className="bg-neutral-900 border-neutral-700 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <CardHeader className="sticky top-0 bg-neutral-900 border-b border-neutral-700">
-          <CardTitle className="text-base sm:text-lg font-bold text-white tracking-wider">
-            Adicionar Novo Membro
-          </CardTitle>
-        </CardHeader>
+    <ResponsiveModal
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open && !loading) onClose()
+      }}
+      title="Adicionar novo membro"
+      description="Os campos marcados com * são obrigatórios."
+      size="lg"
+      dismissible={!loading}
+      footer={
+        <>
+          <Button type="button" variant="secondary" onClick={onClose} disabled={loading} block className="sm:w-auto">
+            Cancelar
+          </Button>
+          <Button type="submit" form={formId} loading={loading} block className="sm:w-auto">
+            Adicionar membro
+          </Button>
+        </>
+      }
+    >
+      <form id={formId} onSubmit={handleSubmit} className="space-y-6" noValidate>
+        {error ? (
+          <div
+            id={errorId}
+            role="alert"
+            className="flex items-start gap-2 rounded-lg border border-danger-border bg-danger-soft p-3 text-sm text-danger"
+          >
+            <AlertCircle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{error}</span>
+          </div>
+        ) : null}
 
-        <CardContent className="p-4 sm:p-6">
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Error Message */}
-            {error && (
-              <div className="p-3 bg-red-500/20 border border-red-500/30 rounded flex items-center gap-2 text-red-400 text-sm">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                {error}
-              </div>
-            )}
-
-            {/* Success Message */}
-            {success && (
-              <div className="p-3 bg-green-500/20 border border-green-500/30 rounded flex items-center gap-2 text-green-400 text-sm">
-                <CheckCircle className="w-4 h-4 flex-shrink-0" />
-                Membro adicionado com sucesso!
-              </div>
-            )}
-
-            {/* Form Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Full Name */}
-              <div className="sm:col-span-2">
-                <label className="block text-xs text-neutral-400 tracking-wider mb-2">NOME COMPLETO *</label>
-                <Input
-                  type="text"
-                  name="nome_completo"
-                  value={formData.nome_completo}
-                  onChange={handleChange}
-                  placeholder="João Silva"
-                  className="bg-neutral-800 border-neutral-600 text-white placeholder-neutral-500 text-sm"
-                  required
-                />
-              </div>
-
-              {/* Email */}
-              <div className="sm:col-span-2">
-                <label className="block text-xs text-neutral-400 tracking-wider mb-2">E-MAIL *</label>
-                <Input
-                  type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  placeholder="joao@email.com"
-                  className="bg-neutral-800 border-neutral-600 text-white placeholder-neutral-500 text-sm"
-                  required
-                />
-              </div>
-
-              {/* CPF */}
-              <div>
-                <label className="block text-xs text-neutral-400 tracking-wider mb-2">CPF *</label>
-                <Input
-                  type="text"
-                  name="cpf"
-                  value={formData.cpf}
-                  onChange={handleChange}
-                  placeholder="000.000.000-00"
-                  className="bg-neutral-800 border-neutral-600 text-white placeholder-neutral-500 text-sm font-mono"
-                  required
-                />
-              </div>
-
-              {/* Birth Date */}
-              <div>
-                <label className="block text-xs text-neutral-400 tracking-wider mb-2">NASCIMENTO *</label>
-                <Input
-                  type="date"
-                  name="data_nascimento"
-                  value={formData.data_nascimento}
-                  onChange={handleChange}
-                  className="bg-neutral-800 border-neutral-600 text-white text-sm"
-                  required
-                />
-              </div>
-
-              {/* WhatsApp */}
-              <div className="sm:col-span-2">
-                <label className="block text-xs text-neutral-400 tracking-wider mb-2">WHATSAPP *</label>
-                <Input
-                  type="text"
-                  name="whatsapp"
-                  value={formData.whatsapp}
-                  onChange={handleChange}
-                  placeholder="(11) 99999-9999"
-                  className="bg-neutral-800 border-neutral-600 text-white placeholder-neutral-500 text-sm font-mono"
-                  required
-                />
-              </div>
+        <section>
+          <SectionTitle title="Identificação" as="h3" />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label htmlFor={`${formId}-nome`} className="ds-label mb-1.5 block">
+                Nome completo *
+              </label>
+              <Input
+                id={`${formId}-nome`}
+                type="text"
+                name="nome_completo"
+                autoComplete="name"
+                value={formData.nome_completo}
+                onChange={handleChange}
+                placeholder="João Silva"
+                required
+              />
             </div>
 
-            {/* Form Actions */}
-            <div className="flex flex-col sm:flex-row gap-2 pt-4 border-t border-neutral-700">
-              <Button
-                type="button"
-                onClick={onClose}
-                className="bg-neutral-700 hover:bg-neutral-600 text-white flex-1 sm:flex-0"
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                disabled={loading || success}
-                className="bg-orange-500 hover:bg-orange-600 text-white flex-1 sm:flex-0"
-              >
-                {loading ? "Adicionando..." : "Adicionar Membro"}
-              </Button>
+            <div>
+              <label htmlFor={`${formId}-cpf`} className="ds-label mb-1.5 block">
+                CPF *
+              </label>
+              <Input
+                id={`${formId}-cpf`}
+                type="text"
+                inputMode="numeric"
+                name="cpf"
+                value={formData.cpf}
+                onChange={handleChange}
+                placeholder="000.000.000-00"
+                maxLength={14}
+                className="font-mono tabular-nums"
+                required
+              />
             </div>
-          </form>
-        </CardContent>
-      </Card>
-    </div>
+
+            <div>
+              <label htmlFor={`${formId}-nascimento`} className="ds-label mb-1.5 block">
+                Nascimento *
+              </label>
+              <Input
+                id={`${formId}-nascimento`}
+                type="date"
+                name="data_nascimento"
+                autoComplete="bday"
+                value={formData.data_nascimento}
+                onChange={handleChange}
+                required
+              />
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <SectionTitle title="Contato" as="h3" />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label htmlFor={`${formId}-email`} className="ds-label mb-1.5 block">
+                E-mail *
+              </label>
+              <Input
+                id={`${formId}-email`}
+                type="email"
+                inputMode="email"
+                name="email"
+                autoComplete="email"
+                autoCapitalize="none"
+                spellCheck={false}
+                value={formData.email}
+                onChange={handleChange}
+                placeholder="joao@email.com"
+                required
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label htmlFor={`${formId}-whatsapp`} className="ds-label mb-1.5 block">
+                WhatsApp *
+              </label>
+              <Input
+                id={`${formId}-whatsapp`}
+                type="tel"
+                inputMode="tel"
+                name="whatsapp"
+                autoComplete="tel"
+                value={formData.whatsapp}
+                onChange={handleChange}
+                placeholder="(11) 99999-9999"
+                maxLength={15}
+                className="font-mono tabular-nums"
+                required
+              />
+            </div>
+          </div>
+        </section>
+      </form>
+    </ResponsiveModal>
   )
 }

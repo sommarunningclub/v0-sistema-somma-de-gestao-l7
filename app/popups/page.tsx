@@ -1,16 +1,45 @@
 // app/popups/page.tsx
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { Megaphone, Plus, RefreshCw, Search, X } from 'lucide-react'
-import { Input } from '@/components/ui/input'
-import { matchesTextSearch } from '@/lib/search-utils'
+import { useCallback, useEffect, useState } from 'react'
+import { Megaphone, Plus, RefreshCw } from 'lucide-react'
+import {
+  EmptyState,
+  NoResultsState,
+  PageHeader,
+  PageShell,
+  SearchInput,
+  Toolbar,
+  confirmAction,
+  notify,
+} from '@/components/somma'
+import { Button } from '@/components/ui/button'
+import { ErrorBanner } from '@/components/ui/error-banner'
 import PopupsCard from '@/components/popups-card'
 import PopupsModal from '@/components/popups-modal'
-import type { PopupWithStats, CreatePopupInput } from '@/lib/services/popups'
+import { searchAndRank } from '@/lib/search-utils'
 import { apiFetch } from '@/lib/api-client'
-import { ErrorBanner } from '@/components/ui/error-banner'
-import { PageLoading } from '@/components/ui/page-loading'
+import type { CreatePopupInput, PopupWithStats } from '@/lib/services/popups'
+
+function PopupsGridSkeleton() {
+  return (
+    <div
+      aria-hidden="true"
+      className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3"
+    >
+      {Array.from({ length: 6 }).map((_, index) => (
+        <div key={index} className="overflow-hidden rounded-xl border border-line bg-surface-raised">
+          <div className="ds-skeleton aspect-video rounded-none" />
+          <div className="space-y-3 p-4">
+            <div className="ds-skeleton h-4 w-3/5" />
+            <div className="ds-skeleton h-3 w-2/5" />
+            <div className="ds-skeleton h-12 w-full" />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 export default function PopupsPage() {
   const [popups, setPopups] = useState<PopupWithStats[]>([])
@@ -18,7 +47,6 @@ export default function PopupsPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [editingPopup, setEditingPopup] = useState<PopupWithStats | null>(null)
-  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
 
@@ -39,7 +67,9 @@ export default function PopupsPage() {
     }
   }, [])
 
-  useEffect(() => { loadPopups() }, [loadPopups])
+  useEffect(() => {
+    void loadPopups()
+  }, [loadPopups])
 
   const handleSave = async (data: CreatePopupInput) => {
     try {
@@ -53,34 +83,44 @@ export default function PopupsPage() {
       if (!res.ok) throw new Error('Erro ao salvar')
       setShowModal(false)
       setEditingPopup(null)
-      loadPopups(true)
+      notify.success(editingPopup ? 'Pop-up atualizado' : 'Pop-up criado')
+      void loadPopups(true)
     } catch {
-      setError('Erro ao salvar pop-up')
+      notify.error('Erro ao salvar pop-up')
     }
   }
 
   const handleToggle = async (id: string, value: boolean) => {
     setPopups((prev) => prev.map((p) => (p.id === id ? { ...p, is_active: value } : p)))
     try {
-      await apiFetch(`/api/popups/${id}`, {
+      const res = await apiFetch(`/api/popups/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_active: value }),
       })
+      if (!res.ok) throw new Error('Erro ao atualizar')
     } catch {
-      // Revert on error
       setPopups((prev) => prev.map((p) => (p.id === id ? { ...p, is_active: !value } : p)))
+      notify.error('Não foi possível alterar o status do pop-up')
     }
   }
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (popup: PopupWithStats) => {
+    const confirmed = await confirmAction({
+      title: 'Excluir pop-up?',
+      description: 'Esta ação é irreversível. O pop-up e sua imagem serão removidos permanentemente.',
+      detail: popup.title,
+      tone: 'danger',
+    })
+    if (!confirmed) return
+
     try {
-      await apiFetch(`/api/popups/${id}`, { method: 'DELETE' })
-      setPopups((prev) => prev.filter((p) => p.id !== id))
+      const res = await apiFetch(`/api/popups/${popup.id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('Erro ao deletar')
+      setPopups((prev) => prev.filter((p) => p.id !== popup.id))
+      notify.success('Pop-up excluído')
     } catch {
-      setError('Erro ao deletar pop-up')
-    } finally {
-      setDeleteConfirm(null)
+      notify.error('Erro ao excluir pop-up')
     }
   }
 
@@ -94,151 +134,110 @@ export default function PopupsPage() {
     setShowModal(true)
   }
 
-  const filteredPopups = popups.filter((popup) =>
-    matchesTextSearch(searchTerm, [
-      popup.title,
-      popup.redirect_link,
-      popup.pages?.join(' '),
-    ])
-  )
+  const filteredPopups = searchAndRank(popups, searchTerm, (popup) => [
+    popup.title,
+    popup.redirect_link,
+    popup.pages?.join(' '),
+  ])
+
+  const activeCount = popups.filter((popup) => popup.is_active).length
 
   return (
-    <div className="flex flex-col h-full bg-black">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-neutral-800">
-        <div className="flex items-center gap-2">
-          <Megaphone className="w-5 h-5 text-orange-400" />
-          <h1 className="text-lg font-semibold text-white">Pop-ups</h1>
-          {popups.length > 0 && (
-            <span className="text-xs text-neutral-500 bg-neutral-800 px-2 py-0.5 rounded-full">
-              {popups.length}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => loadPopups(true)}
-            disabled={refreshing}
-            className="p-2 text-neutral-500 hover:text-white transition-colors rounded-lg"
+    <PageShell>
+      <PageHeader
+        eyebrow="Gestão"
+        title="Pop-ups"
+        description="Campanhas exibidas sobre as páginas do site, com agendamento e segmentação."
+        meta={
+          popups.length > 0 ? (
+            <>
+              <span>
+                <span className="font-mono tabular-nums text-ink">{popups.length}</span> no total
+              </span>
+              <span>
+                <span className="font-mono tabular-nums text-ink">{activeCount}</span> ativos
+              </span>
+            </>
+          ) : undefined
+        }
+        actions={
+          <Button
+            variant="secondary"
+            size="icon"
+            onClick={() => void loadPopups(true)}
+            loading={refreshing}
+            aria-label="Atualizar lista de pop-ups"
           >
-            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-          </button>
-          <button
-            onClick={openCreate}
-            className="flex items-center gap-1.5 bg-orange-500 hover:bg-orange-400 text-black font-semibold px-3 py-2 rounded-lg text-sm transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Novo Pop-up
-          </button>
-        </div>
-      </div>
-
-      {/* Search */}
-      {popups.length > 0 && (
-        <div className="px-4 pt-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500 pointer-events-none" />
-            <Input
+            <RefreshCw aria-hidden="true" />
+          </Button>
+        }
+        primaryAction={
+          <Button onClick={openCreate}>
+            <Plus aria-hidden="true" />
+            Novo pop-up
+          </Button>
+        }
+      >
+        {popups.length > 0 ? (
+          <Toolbar>
+            <SearchInput
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Buscar por título ou link..."
-              className="pl-10 pr-10 bg-neutral-900 border-neutral-700 text-white"
+              onValueChange={setSearchTerm}
+              placeholder="Buscar por título, link ou página..."
+            placeholderShort="Título ou link"
             />
-            {searchTerm && (
-              <button
-                onClick={() => setSearchTerm('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-white"
-                aria-label="Limpar busca"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+          </Toolbar>
+        ) : null}
+      </PageHeader>
 
-      {/* Error */}
-      {error && (
-        <div className="mx-4 mt-4">
-          <ErrorBanner message={error} onRetry={() => loadPopups()} />
+      {error ? (
+        <div className="mb-4">
+          <ErrorBanner message={error} onRetry={() => void loadPopups()} />
         </div>
-      )}
+      ) : null}
 
-      {/* Content */}
-      <div className="flex-1 overflow-auto p-4">
+      <div aria-busy={loading || refreshing}>
         {loading ? (
-          <PageLoading label="Carregando pop-ups..." />
+          <PopupsGridSkeleton />
         ) : popups.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 gap-4 text-center">
-            <Megaphone className="w-12 h-12 text-neutral-700" />
-            <div>
-              <p className="text-neutral-400 font-medium">Nenhum pop-up criado</p>
-              <p className="text-neutral-600 text-sm mt-1">
-                Crie seu primeiro pop-up para exibir no site
-              </p>
-            </div>
-            <button
-              onClick={openCreate}
-              className="flex items-center gap-1.5 bg-orange-500 hover:bg-orange-400 text-black font-semibold px-4 py-2 rounded-lg text-sm transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              Criar primeiro pop-up
-            </button>
-          </div>
+          <EmptyState
+            icon={Megaphone}
+            title="Nenhum pop-up criado"
+            description="Crie o primeiro pop-up para exibir uma campanha no site."
+            action={
+              <Button onClick={openCreate}>
+                <Plus aria-hidden="true" />
+                Criar primeiro pop-up
+              </Button>
+            }
+          />
         ) : filteredPopups.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 gap-2 text-center">
-            <p className="text-neutral-400 font-medium">Nenhum pop-up encontrado</p>
-            <p className="text-neutral-600 text-sm">Tente outro termo de busca</p>
-          </div>
+          <NoResultsState query={searchTerm} onClear={() => setSearchTerm('')} />
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {filteredPopups.map((popup) => (
               <PopupsCard
                 key={popup.id}
                 popup={popup}
                 onEdit={openEdit}
-                onDelete={(id) => setDeleteConfirm(id)}
-                onToggle={handleToggle}
+                onDelete={(target) => void handleDelete(target)}
+                onToggle={(id, value) => void handleToggle(id, value)}
               />
             ))}
           </div>
         )}
       </div>
 
-      {/* Modal */}
-      {showModal && (
-        <PopupsModal
-          popup={editingPopup}
-          onClose={() => { setShowModal(false); setEditingPopup(null) }}
-          onSave={handleSave}
-        />
-      )}
-
-      {/* Delete confirmation */}
-      {deleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-6 max-w-sm w-full">
-            <h3 className="font-semibold text-white mb-2">Excluir pop-up?</h3>
-            <p className="text-sm text-neutral-400 mb-5">
-              Esta ação é irreversível. O pop-up e sua imagem serão removidos permanentemente.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setDeleteConfirm(null)}
-                className="flex-1 py-2 rounded-lg bg-neutral-800 text-neutral-300 hover:text-white text-sm font-medium transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={() => handleDelete(deleteConfirm)}
-                className="flex-1 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-sm font-semibold transition-colors"
-              >
-                Excluir
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+      <PopupsModal
+        key={editingPopup?.id ?? 'novo'}
+        open={showModal}
+        popup={editingPopup}
+        onClose={() => {
+          setShowModal(false)
+          setEditingPopup(null)
+        }}
+        onSave={handleSave}
+      />
+    </PageShell>
   )
 }

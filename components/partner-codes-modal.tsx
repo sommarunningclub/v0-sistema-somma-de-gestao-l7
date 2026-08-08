@@ -1,20 +1,20 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent } from '@/components/ui/card'
-import { Trash2, Plus, RefreshCw } from 'lucide-react'
+import { KeyRound, RefreshCw, Trash2 } from 'lucide-react'
 import { apiFetch } from '@/lib/api-client'
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
-import { Label } from '@/components/ui/label'
+  CardListSkeleton,
+  EmptyState,
+  ResponsiveModal,
+  SectionTitle,
+  StatusPill,
+  Well,
+  confirmAction,
+  notify,
+} from '@/components/somma'
 
 interface PartnerCode {
   id: string
@@ -39,21 +39,13 @@ export function PartnerCodesModal({ codes: initialCodes, onCodesUpdate, partnerN
   const [isLoading, setIsLoading] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   // Atualizar códigos quando props mudam
   useEffect(() => {
     setCodes(initialCodes)
   }, [initialCodes])
 
-  // Recarregar códigos do Supabase quando modal abre
-  useEffect(() => {
-    if (open) {
-      loadCodesFromSupabase()
-    }
-  }, [open])
-
-  const loadCodesFromSupabase = async () => {
+  const loadCodesFromSupabase = useCallback(async () => {
     try {
       setIsRefreshing(true)
       const response = await apiFetch('/api/partner-codes')
@@ -62,10 +54,18 @@ export function PartnerCodesModal({ codes: initialCodes, onCodesUpdate, partnerN
       setCodes(data.data || [])
     } catch (err) {
       console.error('[v0] Error loading codes from Supabase:', err)
+      notify.error('Erro ao carregar códigos')
     } finally {
       setIsRefreshing(false)
     }
-  }
+  }, [])
+
+  // Recarregar códigos do Supabase quando modal abre
+  useEffect(() => {
+    if (open) {
+      loadCodesFromSupabase()
+    }
+  }, [open, loadCodesFromSupabase])
 
   const handleCreateCode = async () => {
     if (!newCode.trim()) {
@@ -80,7 +80,6 @@ export function PartnerCodesModal({ codes: initialCodes, onCodesUpdate, partnerN
 
     setIsLoading(true)
     setError(null)
-    setSuccessMessage(null)
 
     try {
       const response = await apiFetch('/api/partner-codes', {
@@ -97,27 +96,33 @@ export function PartnerCodesModal({ codes: initialCodes, onCodesUpdate, partnerN
         throw new Error(data.error || 'Erro ao criar código')
       }
 
-      setSuccessMessage('Código criado com sucesso!')
+      notify.success('Código criado com sucesso')
       setNewCode('')
-      
+
       // Recarregar lista de códigos
       await loadCodesFromSupabase()
       onCodesUpdate()
-      
-      setTimeout(() => setSuccessMessage(null), 3000)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao criar código')
+      const message = err instanceof Error ? err.message : 'Erro ao criar código'
+      setError(message)
+      notify.error(message)
       console.error('[v0] Error creating code:', err)
     } finally {
       setIsLoading(false)
     }
   }
 
-  const handleDeleteCode = async (id: string) => {
-    if (!confirm('Tem certeza que deseja deletar este código?')) return
+  const handleDeleteCode = async (code: PartnerCode) => {
+    const confirmed = await confirmAction({
+      title: 'Excluir código de parceiro?',
+      description: 'O código deixa de funcionar imediatamente para quem tentar acessar com ele.',
+      detail: `${code.codigo} — ${code.nome_parceiro}`,
+      tone: 'danger',
+    })
+    if (!confirmed) return
 
     try {
-      const response = await apiFetch(`/api/partner-codes/${id}`, {
+      const response = await apiFetch(`/api/partner-codes/${code.id}`, {
         method: 'DELETE'
       })
 
@@ -128,116 +133,166 @@ export function PartnerCodesModal({ codes: initialCodes, onCodesUpdate, partnerN
       // Recarregar lista de códigos
       await loadCodesFromSupabase()
       onCodesUpdate()
+      notify.success('Código excluído')
     } catch (err) {
       console.error('[v0] Error deleting code:', err)
-      alert('Erro ao deletar código')
+      notify.error('Erro ao deletar código')
     }
   }
 
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2 bg-transparent">
-          <Plus className="w-4 h-4" />
-          Gerenciar Códigos
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-2xl bg-neutral-900 border-neutral-700">
-        <DialogHeader className="flex flex-row items-center justify-between">
-          <DialogTitle className="text-orange-500">Gerenciar Códigos de Parceiro</DialogTitle>
-          <Button
-            onClick={loadCodesFromSupabase}
-            disabled={isRefreshing}
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0"
-          >
-            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-          </Button>
-        </DialogHeader>
+  const canCreate = !!newCode.trim() && !!newPartnerName.trim()
 
+  return (
+    <>
+      <Button variant="secondary" size="sm" onClick={() => setOpen(true)}>
+        <KeyRound aria-hidden="true" />
+        <span className="hidden sm:inline">Gerenciar códigos</span>
+        <span className="sm:hidden">Códigos</span>
+      </Button>
+
+      <ResponsiveModal
+        open={open}
+        onOpenChange={setOpen}
+        size="lg"
+        title="Códigos de parceiro"
+        description="Códigos usados pelos parceiros para acessar a área exclusiva."
+        footer={
+          <Button variant="secondary" onClick={() => setOpen(false)} block className="sm:w-auto">
+            Fechar
+          </Button>
+        }
+      >
         <div className="space-y-6">
-          {/* Create New Code Section */}
-          <div className="space-y-3 p-4 bg-neutral-800 rounded-lg border border-neutral-700">
-            <Label className="text-sm font-medium">Criar Novo Código</Label>
-            <div className="space-y-3">
+          <section aria-label="Criar novo código">
+            <SectionTitle as="h3" title="Criar novo código" />
+            <Well className="space-y-3 p-4">
               <div>
-                <Label htmlFor="partner-name" className="text-xs text-neutral-300 mb-1.5 block">Nome do Parceiro</Label>
+                <label htmlFor="partner-name" className="mb-1.5 block text-meta font-medium text-ink-muted">
+                  Nome do parceiro
+                </label>
                 <Input
                   id="partner-name"
-                  placeholder="Ex: Red Bull, Adidas..."
+                  type="text"
+                  autoComplete="organization"
+                  placeholder="Ex.: Red Bull, Adidas..."
                   value={newPartnerName}
-                  onChange={(e) => setNewPartnerName(e.target.value)}
+                  onChange={(e) => {
+                    setNewPartnerName(e.target.value)
+                    setError(null)
+                  }}
                   disabled={isLoading}
-                  className="bg-neutral-700 border-neutral-600 text-white placeholder-neutral-400"
+                  aria-invalid={!!error || undefined}
+                  aria-describedby={error ? 'partner-code-error' : undefined}
                 />
               </div>
               <div>
-                <Label htmlFor="partner-code" className="text-xs text-neutral-300 mb-1.5 block">Código</Label>
+                <label htmlFor="partner-code" className="mb-1.5 block text-meta font-medium text-ink-muted">
+                  Código
+                </label>
                 <Input
                   id="partner-code"
-                  placeholder="Ex: REDBULL@2026"
+                  type="text"
+                  autoComplete="off"
+                  autoCapitalize="characters"
+                  placeholder="Ex.: REDBULL@2026"
                   value={newCode}
-                  onChange={(e) => setNewCode(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleCreateCode()}
+                  onChange={(e) => {
+                    setNewCode(e.target.value)
+                    setError(null)
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      if (canCreate && !isLoading) handleCreateCode()
+                    }
+                  }}
                   disabled={isLoading}
-                  className="bg-neutral-700 border-neutral-600 text-white placeholder-neutral-400"
+                  aria-invalid={!!error || undefined}
+                  aria-describedby={error ? 'partner-code-error' : undefined}
+                  className="font-mono"
                 />
               </div>
-            </div>
-            <Button
-              onClick={handleCreateCode}
-              disabled={isLoading || !newCode.trim() || !newPartnerName.trim()}
-              className="w-full bg-orange-500 hover:bg-orange-600 text-black font-semibold"
-            >
-              {isLoading ? 'Criando...' : 'Criar Código'}
-            </Button>
-            {error && <p className="text-xs text-red-400">{error}</p>}
-            {successMessage && <p className="text-xs text-green-400">{successMessage}</p>}
-          </div>
+              {error ? (
+                <p id="partner-code-error" role="alert" className="text-meta text-danger">
+                  {error}
+                </p>
+              ) : null}
+              <Button
+                onClick={handleCreateCode}
+                disabled={!canCreate}
+                loading={isLoading}
+                block
+              >
+                Criar código
+              </Button>
+            </Well>
+          </section>
 
-          {/* Codes List */}
-          <div className="space-y-3">
-            <Label className="text-sm font-medium">Códigos Existentes ({codes.length})</Label>
-            <div className="max-h-96 overflow-y-auto space-y-2">
-              {codes.length === 0 ? (
-                <p className="text-sm text-neutral-400 py-4 text-center">Nenhum código criado ainda</p>
+          <section aria-label="Códigos existentes">
+            <SectionTitle
+              as="h3"
+              title="Códigos existentes"
+              meta={
+                <span className="flex items-center gap-2">
+                  <span className="font-mono tabular-nums">{codes.length}</span>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={loadCodesFromSupabase}
+                    disabled={isRefreshing}
+                    aria-label="Recarregar códigos"
+                  >
+                    <RefreshCw aria-hidden="true" className={isRefreshing ? 'animate-spin' : undefined} />
+                  </Button>
+                </span>
+              }
+            />
+            <div className="scroll-touch max-h-96 overflow-y-auto" aria-busy={isRefreshing || undefined}>
+              {isRefreshing && codes.length === 0 ? (
+                <CardListSkeleton count={3} />
+              ) : codes.length === 0 ? (
+                <EmptyState
+                  compact
+                  icon={KeyRound}
+                  title="Nenhum código criado ainda"
+                  description="Crie um código acima para liberar o acesso de um parceiro."
+                />
               ) : (
-                codes.map((code) => (
-                  <Card key={code.id} className="bg-neutral-800 border-neutral-700">
-                    <CardContent className="p-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="font-mono font-semibold text-orange-400">{code.codigo}</p>
-                            <Badge 
-                              className={code.ativo ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}
-                            >
-                              {code.ativo ? 'Ativo' : 'Inativo'}
-                            </Badge>
-                          </div>
-                          <p className="text-xs text-neutral-400 mt-1">{code.nome_parceiro}</p>
-                          <p className="text-xs text-neutral-500 mt-0.5">
-                            Criado em: {new Date(code.created_at).toLocaleDateString('pt-BR')}
-                          </p>
+                <ul className="space-y-2">
+                  {codes.map((code) => (
+                    <li
+                      key={code.id}
+                      className="flex items-center justify-between gap-3 rounded-lg border border-line bg-surface-raised p-3"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-mono text-sm font-semibold text-brand-strong">{code.codigo}</p>
+                          <StatusPill tone={code.ativo ? 'success' : 'danger'}>
+                            {code.ativo ? 'Ativo' : 'Inativo'}
+                          </StatusPill>
                         </div>
-                        <Button
-                          onClick={() => handleDeleteCode(code.id)}
-                          variant="ghost"
-                          size="sm"
-                          className="text-red-400 hover:text-red-300 hover:bg-red-500/10 flex-shrink-0"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        <p className="mt-1 truncate text-meta text-ink-muted">{code.nome_parceiro}</p>
+                        <p className="mt-0.5 text-micro text-ink-subtle">
+                          Criado em {new Date(code.created_at).toLocaleDateString('pt-BR')}
+                        </p>
                       </div>
-                    </CardContent>
-                  </Card>
-                ))
+                      <Button
+                        onClick={() => handleDeleteCode(code)}
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Excluir código ${code.codigo}`}
+                        className="shrink-0 text-danger hover:text-danger"
+                      >
+                        <Trash2 aria-hidden="true" />
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
-          </div>
+          </section>
         </div>
-      </DialogContent>
-    </Dialog>
+      </ResponsiveModal>
+    </>
   )
 }

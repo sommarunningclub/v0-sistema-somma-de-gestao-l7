@@ -1,14 +1,15 @@
 'use client'
 
-import React from "react"
+import React from 'react'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Eye, EyeOff } from 'lucide-react'
-import { Field, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { apiFetch } from '@/lib/api-client'
 import { ErrorBanner } from '@/components/ui/error-banner'
+import { cn } from '@/lib/utils'
 
 export function LoginForm({
   className,
@@ -28,7 +29,6 @@ export function LoginForm({
     setError(null)
 
     try {
-      // Autenticação server-side — password nunca sai do servidor
       const res = await apiFetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -42,7 +42,6 @@ export function LoginForm({
         return
       }
 
-      // Salvar sessão no localStorage (sem password_hash)
       const sessionData = {
         id: data.id,
         email: data.email,
@@ -66,74 +65,69 @@ export function LoginForm({
   return (
     <form
       onSubmit={handleLogin}
-      className={`flex flex-col gap-4 w-full items-center justify-center ${className || ''}`}
+      className={cn('flex w-full flex-col gap-5', className)}
       {...props}
     >
-      <div className="w-full max-w-sm flex flex-col gap-4">
-        <FieldGroup>
-          <div className="flex flex-col items-center gap-2 text-center mb-2">
-            <img
-              src="https://cdn.shopify.com/s/files/1/0788/1932/8253/files/Nova_Logo_Somma_Club.svg?v=1771801981"
-              alt="Somma Logo"
-              className="h-60 sm:h-72 w-auto"
-            />
-            <p className="text-xs sm:text-sm text-white">
-              SSG - Sistema Somma de Gestão
-            </p>
-          </div>
+      {error && <ErrorBanner message={error} />}
 
-          {error && (
-            <ErrorBanner message={error} className="text-xs sm:text-sm" />
-          )}
-
-          <Field>
-            <FieldLabel htmlFor="email" className="text-white text-xs sm:text-sm">Email</FieldLabel>
-            <Input
-              id="email"
-              type="email"
-              placeholder="seu@email.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              disabled={loading}
-              className="bg-neutral-800 border-neutral-700 text-white placeholder-neutral-500 text-xs sm:text-sm py-2"
-            />
-          </Field>
-
-          <Field>
-            <FieldLabel htmlFor="password" className="text-white text-xs sm:text-sm">Senha</FieldLabel>
-            <div className="relative">
-              <Input
-                id="password"
-                type={showPassword ? "text" : "password"}
-                placeholder="Sua senha"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                disabled={loading}
-                className="bg-neutral-800 border-neutral-700 text-white placeholder-neutral-500 text-xs sm:text-sm py-2 pr-10"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-white transition-colors"
-                aria-label={showPassword ? "Ocultar senha" : "Ver senha"}
-                tabIndex={-1}
-              >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-          </Field>
-
-          <Button
-            type="submit"
-            disabled={loading}
-            className="bg-black hover:bg-neutral-900 text-white font-bold tracking-wider mt-2 text-xs sm:text-sm py-2"
-          >
-            {loading ? 'Entrando...' : 'ACESSAR SISTEMA'}
-          </Button>
-        </FieldGroup>
+      <div className="space-y-2">
+        <Label htmlFor="email">E-mail</Label>
+        <Input
+          id="email"
+          name="email"
+          type="email"
+          inputMode="email"
+          autoComplete="email"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          placeholder="seu@email.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+          disabled={loading}
+          aria-invalid={error ? true : undefined}
+        />
       </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="password">Senha</Label>
+        <div className="relative">
+          <Input
+            id="password"
+            name="password"
+            type={showPassword ? 'text' : 'password'}
+            autoComplete="current-password"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            placeholder="Sua senha"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            disabled={loading}
+            aria-invalid={error ? true : undefined}
+            className="pr-12"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            className="ds-tap absolute right-0 top-1/2 flex -translate-y-1/2 items-center justify-center rounded-lg text-ink-muted transition-colors hover:text-ink-strong"
+            aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+            aria-pressed={showPassword}
+          >
+            {showPassword ? (
+              <EyeOff className="h-4 w-4" aria-hidden="true" />
+            ) : (
+              <Eye className="h-4 w-4" aria-hidden="true" />
+            )}
+          </button>
+        </div>
+      </div>
+
+      <Button type="submit" size="lg" block loading={loading} className="mt-1">
+        {loading ? 'Entrando...' : 'Acessar o sistema'}
+      </Button>
     </form>
   )
 }

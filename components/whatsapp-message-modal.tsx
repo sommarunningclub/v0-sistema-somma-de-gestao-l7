@@ -1,10 +1,9 @@
 "use client"
 
 import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
-import { MessageCircle, Send } from "lucide-react"
+import { Send } from "lucide-react"
+import { ResponsiveModal, Well, notify } from "@/components/somma"
 
 interface WhatsAppMessageModalProps {
   isOpen: boolean
@@ -22,8 +21,6 @@ export function WhatsAppMessageModal({
   const [message, setMessage] = useState("")
   const [loading, setLoading] = useState(false)
 
-  if (!isOpen) return null
-
   const formatPhoneNumber = (phone: string) => {
     const cleaned = phone.replace(/\D/g, "")
     return cleaned.startsWith("55") ? cleaned : `55${cleaned}`
@@ -31,7 +28,7 @@ export function WhatsAppMessageModal({
 
   const handleSendMessage = () => {
     if (!message.trim()) {
-      alert("Por favor, escreva uma mensagem")
+      notify.warning("Escreva uma mensagem antes de enviar")
       return
     }
 
@@ -49,72 +46,60 @@ export function WhatsAppMessageModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-      <Card className="bg-neutral-900 border-neutral-700 w-full max-w-md">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div className="flex items-center gap-2">
-            <MessageCircle className="w-5 h-5 text-green-500" />
-            <CardTitle className="text-lg font-bold text-white tracking-wider">
-              Enviar Mensagem WhatsApp
-            </CardTitle>
-          </div>
-          <Button
-            variant="ghost"
-            onClick={onClose}
-            className="text-neutral-400 hover:text-white p-0"
-          >
-            ✕
+    <ResponsiveModal
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose()
+      }}
+      size="md"
+      title="Enviar mensagem no WhatsApp"
+      description="Você será redirecionado para o WhatsApp com a mensagem já escrita."
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} block className="sm:w-auto">
+            Cancelar
           </Button>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Recipient Info */}
-          <div className="p-3 bg-neutral-800 border border-neutral-700 rounded-lg">
-            <p className="text-xs text-neutral-400 mb-1">ENVIANDO PARA</p>
-            <p className="text-sm font-bold text-white">{memberName}</p>
-            <p className="text-xs text-neutral-400 font-mono">{phoneNumber}</p>
-          </div>
+          <Button
+            onClick={handleSendMessage}
+            loading={loading}
+            disabled={!message.trim()}
+            block
+            className="sm:w-auto"
+          >
+            <Send aria-hidden="true" />
+            Enviar via WhatsApp
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <Well className="p-3">
+          <p className="ds-eyebrow">Enviando para</p>
+          <p className="mt-1 text-sm font-semibold text-ink-strong">{memberName}</p>
+          <p className="font-mono text-meta text-ink-muted">{phoneNumber}</p>
+        </Well>
 
-          {/* Message Input */}
-          <div>
-            <label className="text-xs text-neutral-400 tracking-wider block mb-2">
-              MENSAGEM
-            </label>
-            <Textarea
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder="Digite sua mensagem aqui..."
-              className="bg-neutral-800 border-neutral-700 text-white placeholder-neutral-400 text-sm resize-none"
-              rows={5}
-            />
-            <p className="text-xs text-neutral-500 mt-1">
-              {message.length} caracteres
-            </p>
-          </div>
-
-          {/* Actions */}
-          <div className="flex flex-col sm:flex-row gap-2">
-            <Button
-              onClick={handleSendMessage}
-              disabled={loading || !message.trim()}
-              className="bg-green-500 hover:bg-green-600 text-white font-medium flex-1 flex items-center justify-center gap-2"
-            >
-              <Send className="w-4 h-4" />
-              Enviar via WhatsApp
-            </Button>
-            <Button
-              onClick={onClose}
-              className="border-neutral-700 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-300 bg-transparent border flex-1"
-            >
-              Cancelar
-            </Button>
-          </div>
-
-          {/* Info */}
-          <p className="text-xs text-neutral-500">
-            Você será redirecionado para o WhatsApp Web. Se não tiver a conversa aberta, o WhatsApp será aberto automaticamente.
+        <div>
+          <label
+            htmlFor="whatsapp-message"
+            className="mb-1.5 block text-meta font-medium text-ink-muted"
+          >
+            Mensagem
+          </label>
+          <textarea
+            id="whatsapp-message"
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Digite sua mensagem aqui..."
+            rows={5}
+            aria-describedby="whatsapp-message-count"
+            className="w-full resize-none rounded-lg border border-line bg-surface-sunken px-3.5 py-2.5 text-base text-ink transition-colors placeholder:text-ink-subtle hover:border-line-strong focus-visible:border-brand focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand lg:text-sm"
+          />
+          <p id="whatsapp-message-count" className="mt-1 text-meta text-ink-subtle" aria-live="polite">
+            <span className="font-mono tabular-nums">{message.length}</span> caracteres
           </p>
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </div>
+    </ResponsiveModal>
   )
 }

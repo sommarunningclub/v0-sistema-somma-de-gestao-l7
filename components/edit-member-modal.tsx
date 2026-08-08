@@ -1,11 +1,11 @@
 "use client"
 
-import React from "react"
-
-import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import type React from "react"
+import { useId, useState } from "react"
+import { AlertCircle, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { ResponsiveModal, SectionTitle, confirmAction, notify } from "@/components/somma"
 import { updateMember, deleteMember } from "@/lib/services/members"
 import type { CadastroSite } from "@/lib/supabase-client"
 
@@ -16,6 +16,7 @@ interface EditMemberModalProps {
 }
 
 export function EditMemberModal({ member, onClose, onSave }: EditMemberModalProps) {
+  const formId = useId()
   const [formData, setFormData] = useState({
     nome_completo: member.nome_completo || "",
     email: member.email || "",
@@ -24,26 +25,10 @@ export function EditMemberModal({ member, onClose, onSave }: EditMemberModalProp
     data_nascimento: member.data_nascimento || "",
   })
   const [loading, setLoading] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
 
-  const formatCPF = (cpf: string) => {
-    const cleaned = cpf.replace(/\D/g, "")
-    if (cleaned.length <= 11) {
-      return cleaned.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")
-    }
-    return cpf
-  }
-
-  const formatWhatsApp = (phone: string) => {
-    const cleaned = phone.replace(/\D/g, "")
-    if (cleaned.length === 11) {
-      return cleaned.replace(/(\d{2})(\d{5})(\d{4})/, "($1) $2-$3")
-    } else if (cleaned.length === 10) {
-      return cleaned.replace(/(\d{2})(\d{4})(\d{4})/, "($1) $2-$3")
-    }
-    return phone
-  }
+  const busy = loading || deleting
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -85,10 +70,11 @@ export function EditMemberModal({ member, onClose, onSave }: EditMemberModalProp
     return true
   }
 
-  const handleSave = async () => {
-    setError(null)
-    setSuccess(false)
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (busy) return
 
+    setError(null)
     if (!validateForm()) return
 
     setLoading(true)
@@ -102,10 +88,10 @@ export function EditMemberModal({ member, onClose, onSave }: EditMemberModalProp
       })
 
       if (success) {
-        setSuccess(true)
-        setTimeout(() => {
-          onSave()
-        }, 1500)
+        notify.success("Membro atualizado", {
+          description: `As alterações de ${formData.nome_completo.trim()} foram salvas.`,
+        })
+        onSave()
       } else {
         setError("Erro ao atualizar membro")
       }
@@ -118,18 +104,25 @@ export function EditMemberModal({ member, onClose, onSave }: EditMemberModalProp
   }
 
   const handleDelete = async () => {
-    if (!window.confirm("Tem certeza que deseja deletar este membro?")) {
-      return
-    }
+    if (busy) return
 
-    setLoading(true)
+    const confirmed = await confirmAction({
+      title: "Excluir membro?",
+      description:
+        "O cadastro será removido permanentemente da base. Esta ação não pode ser desfeita e o histórico do membro deixa de aparecer nas listagens.",
+      detail: `${member.nome_completo} — ID ${member.id}`,
+      tone: "danger",
+      confirmLabel: "Excluir membro",
+    })
+    if (!confirmed) return
+
+    setError(null)
+    setDeleting(true)
     try {
       const success = await deleteMember(member.id)
       if (success) {
-        setSuccess(true)
-        setTimeout(() => {
-          onSave()
-        }, 1500)
+        notify.success("Membro excluído", { description: `${member.nome_completo} foi removido da base.` })
+        onSave()
       } else {
         setError("Erro ao deletar membro")
       }
@@ -137,136 +130,149 @@ export function EditMemberModal({ member, onClose, onSave }: EditMemberModalProp
       setError("Erro ao deletar membro")
       console.error("[v0] Error deleting member:", err)
     } finally {
-      setLoading(false)
+      setDeleting(false)
     }
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-      <Card className="bg-neutral-900 border-neutral-700 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <CardHeader className="sticky top-0 bg-neutral-900 border-b border-neutral-700">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base sm:text-lg font-bold text-white tracking-wider">
-              Editar Membro
-            </CardTitle>
-            <button
-              onClick={onClose}
-              disabled={loading}
-              className="text-neutral-400 hover:text-white disabled:opacity-50"
-            >
-              ✕
-            </button>
+    <ResponsiveModal
+      open
+      onOpenChange={(open) => {
+        if (!open && !busy) onClose()
+      }}
+      title="Editar membro"
+      description={member.nome_completo}
+      size="lg"
+      dismissible={!busy}
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={handleDelete}
+            loading={deleting}
+            disabled={loading}
+            block
+            className="sm:mr-auto sm:w-auto"
+          >
+            <Trash2 aria-hidden="true" />
+            Excluir
+          </Button>
+          <Button type="button" variant="secondary" onClick={onClose} disabled={busy} block className="sm:w-auto">
+            Cancelar
+          </Button>
+          <Button type="submit" form={formId} loading={loading} disabled={deleting} block className="sm:w-auto">
+            Salvar alterações
+          </Button>
+        </>
+      }
+    >
+      <form id={formId} onSubmit={handleSave} className="space-y-6" noValidate>
+        {error ? (
+          <div
+            role="alert"
+            className="flex items-start gap-2 rounded-lg border border-danger-border bg-danger-soft p-3 text-sm text-danger"
+          >
+            <AlertCircle aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{error}</span>
           </div>
-        </CardHeader>
+        ) : null}
 
-        <CardContent className="space-y-4 p-4 sm:p-6">
-          {error && (
-            <div className="p-3 bg-red-500/20 border border-red-500 rounded text-red-400 text-xs sm:text-sm">
-              {error}
-            </div>
-          )}
-
-          {success && (
-            <div className="p-3 bg-green-500/20 border border-green-500 rounded text-green-400 text-xs sm:text-sm">
-              Membro atualizado com sucesso!
-            </div>
-          )}
-
-          <div className="space-y-4">
-            <div>
-              <label className="text-xs text-neutral-400 tracking-wider">NOME COMPLETO</label>
+        <section>
+          <SectionTitle title="Identificação" as="h3" />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <label htmlFor={`${formId}-nome`} className="ds-label mb-1.5 block">
+                Nome completo
+              </label>
               <Input
+                id={`${formId}-nome`}
                 name="nome_completo"
+                autoComplete="name"
                 value={formData.nome_completo}
                 onChange={handleInputChange}
-                disabled={loading}
-                className="mt-1 bg-neutral-800 border-neutral-600 text-white placeholder-neutral-500"
+                disabled={busy}
                 placeholder="Nome completo"
               />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs text-neutral-400 tracking-wider">EMAIL</label>
-                <Input
-                  name="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  disabled={loading}
-                  className="mt-1 bg-neutral-800 border-neutral-600 text-white placeholder-neutral-500"
-                  placeholder="email@exemplo.com"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs text-neutral-400 tracking-wider">CPF</label>
-                <Input
-                  name="cpf"
-                  value={formData.cpf}
-                  onChange={handleInputChange}
-                  disabled={loading}
-                  className="mt-1 bg-neutral-800 border-neutral-600 text-white placeholder-neutral-500"
-                  placeholder="000.000.000-00"
-                  maxLength={14}
-                />
-              </div>
+            <div>
+              <label htmlFor={`${formId}-cpf`} className="ds-label mb-1.5 block">
+                CPF
+              </label>
+              <Input
+                id={`${formId}-cpf`}
+                name="cpf"
+                inputMode="numeric"
+                value={formData.cpf}
+                onChange={handleInputChange}
+                disabled={busy}
+                placeholder="00000000000"
+                maxLength={14}
+                className="font-mono tabular-nums"
+              />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs text-neutral-400 tracking-wider">WHATSAPP</label>
-                <Input
-                  name="whatsapp"
-                  value={formData.whatsapp}
-                  onChange={handleInputChange}
-                  disabled={loading}
-                  className="mt-1 bg-neutral-800 border-neutral-600 text-white placeholder-neutral-500"
-                  placeholder="(00) 00000-0000"
-                  maxLength={15}
-                />
-              </div>
-
-              <div>
-                <label className="text-xs text-neutral-400 tracking-wider">DATA DE NASCIMENTO</label>
-                <Input
-                  name="data_nascimento"
-                  type="date"
-                  value={formData.data_nascimento}
-                  onChange={handleInputChange}
-                  disabled={loading}
-                  className="mt-1 bg-neutral-800 border-neutral-600 text-white placeholder-neutral-500"
-                />
-              </div>
+            <div>
+              <label htmlFor={`${formId}-nascimento`} className="ds-label mb-1.5 block">
+                Data de nascimento
+              </label>
+              <Input
+                id={`${formId}-nascimento`}
+                name="data_nascimento"
+                type="date"
+                autoComplete="bday"
+                value={formData.data_nascimento}
+                onChange={handleInputChange}
+                disabled={busy}
+              />
             </div>
           </div>
+        </section>
 
-          <div className="flex flex-col sm:flex-row gap-2 pt-4 border-t border-neutral-700">
-            <Button
-              onClick={handleSave}
-              disabled={loading}
-              className="bg-orange-500 hover:bg-orange-600 text-white disabled:opacity-50 flex-1"
-            >
-              {loading ? "Salvando..." : "Salvar Alterações"}
-            </Button>
-            <Button
-              onClick={handleDelete}
-              disabled={loading}
-              className="bg-red-500 hover:bg-red-600 text-white disabled:opacity-50 flex-1"
-            >
-              {loading ? "Deletando..." : "Deletar Membro"}
-            </Button>
-            <Button
-              onClick={onClose}
-              disabled={loading}
-              variant="outline"
-              className="border-neutral-700 text-neutral-400 hover:bg-neutral-800 hover:text-neutral-300 bg-transparent flex-1"
-            >
-              Cancelar
-            </Button>
+        <section>
+          <SectionTitle title="Contato" as="h3" />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor={`${formId}-email`} className="ds-label mb-1.5 block">
+                E-mail
+              </label>
+              <Input
+                id={`${formId}-email`}
+                name="email"
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                autoCapitalize="none"
+                spellCheck={false}
+                value={formData.email}
+                onChange={handleInputChange}
+                disabled={busy}
+                placeholder="email@exemplo.com"
+              />
+            </div>
+
+            <div>
+              <label htmlFor={`${formId}-whatsapp`} className="ds-label mb-1.5 block">
+                WhatsApp
+              </label>
+              <Input
+                id={`${formId}-whatsapp`}
+                name="whatsapp"
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                value={formData.whatsapp}
+                onChange={handleInputChange}
+                disabled={busy}
+                placeholder="00000000000"
+                maxLength={15}
+                className="font-mono tabular-nums"
+              />
+            </div>
           </div>
-        </CardContent>
-      </Card>
-    </div>
+        </section>
+      </form>
+    </ResponsiveModal>
   )
 }

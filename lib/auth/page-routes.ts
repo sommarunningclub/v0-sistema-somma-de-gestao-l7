@@ -64,7 +64,7 @@ const PAGE_PERMISSIONS: Array<{ pattern: RegExp; permission: PermissionKey }> = 
 ]
 
 /** Páginas abertas a todos — com ou sem sessão, sem redirect */
-const OPEN_PAGES: RegExp[] = [/^\/insider$/]
+const OPEN_PAGES: RegExp[] = [/^\/insider(\/|$)/]
 
 export function isOpenPage(pathname: string): boolean {
   return OPEN_PAGES.some((pattern) => pattern.test(pathname))

@@ -90,10 +90,15 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (isAuthenticated === null) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-black">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-white tracking-wider mb-4">SOMMA CLUB</h1>
-          <p className="text-neutral-400">Carregando...</p>
+      <div className="flex h-[100dvh] items-center justify-center bg-canvas">
+        <div className="flex flex-col items-center gap-4">
+          <div
+            className="h-8 w-8 animate-spin rounded-full border-2 border-brand border-t-transparent"
+            aria-hidden="true"
+          />
+          <p className="text-meta text-ink-muted" role="status">
+            Verificando sessão...
+          </p>
         </div>
       </div>
     )

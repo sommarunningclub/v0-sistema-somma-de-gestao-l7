@@ -1,15 +1,52 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { apiFetch } from "@/lib/api-client"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Download, Search, Plus, Eye, Edit, Trash2, X, Filter, MoreHorizontal, Users } from "lucide-react"
 import { Input } from "@/components/ui/input"
-import { matchesTextSearch } from "@/lib/search-utils"
-import { ErrorBanner } from '@/components/ui/error-banner'
-import { PageLoading } from '@/components/ui/page-loading'
+import {
+  AlertCircle,
+  BadgeCheck,
+  Download,
+  Dumbbell,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Star,
+  Ticket,
+  Trash2,
+  Users,
+} from "lucide-react"
+import { searchAndRank } from "@/lib/search-utils"
 import { TAMANHOS_CAMISA } from '@/lib/insider/validation'
+import {
+  CardListSkeleton,
+  EmptyState,
+  MobileRecordCard,
+  NoResultsState,
+  PageHeader,
+  PageShell,
+  ResponsiveModal,
+  SearchInput,
+  SectionTitle,
+  StatGrid,
+  StatGridSkeleton,
+  StatTile,
+  StatusPill,
+  TBody,
+  TD,
+  TH,
+  THead,
+  TR,
+  Table,
+  TableFrame,
+  TablePagination,
+  TableSkeleton,
+  Toolbar,
+  Well,
+  confirmAction,
+  notify,
+} from '@/components/somma'
 
 interface Insider {
   id: string
@@ -24,36 +61,62 @@ interface Insider {
   assessoria_somma: string
 }
 
+type InsiderForm = Omit<Insider, 'id'>
+
+const EMPTY_FORM: InsiderForm = {
+  nome: "",
+  cpf: "",
+  tamanho_camisa: "",
+  evolve: "",
+  dopahmina: "",
+  tex_barbearia: "",
+  big_box: "",
+  cupom_loja_somma: "",
+  assessoria_somma: "",
+}
+
+const BENEFIT_FIELDS: Array<{ key: keyof InsiderForm; label: string; placeholder: string }> = [
+  { key: 'evolve', label: 'Evolve', placeholder: 'ex: VIP, Premium' },
+  { key: 'dopahmina', label: 'Dopamina', placeholder: 'Código ou benefício' },
+  { key: 'tex_barbearia', label: 'Tex Barbearia', placeholder: 'Desconto ou código' },
+  { key: 'big_box', label: 'Big Box', placeholder: 'Desconto ou código' },
+]
+
+const SOMMA_FIELDS: Array<{ key: keyof InsiderForm; label: string; placeholder: string }> = [
+  { key: 'cupom_loja_somma', label: 'Cupom Somma', placeholder: 'Código do cupom' },
+  { key: 'assessoria_somma', label: 'Assessoria Somma', placeholder: 'Descrição do benefício' },
+]
+
+const PAGE_SIZE = 20
+
+const inputLabel = 'mb-1.5 block text-meta font-medium text-ink-muted'
+const selectClass =
+  'flex h-11 w-full rounded-lg border border-line bg-surface-sunken px-3.5 text-base text-ink transition-colors hover:border-line-strong focus-visible:border-brand focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand lg:h-10 lg:text-sm'
+
 export default function InsidersPage() {
   const [insiders, setInsiders] = useState<Insider[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
-  const [showViewModal, setShowViewModal] = useState(false)
-  const [showCreateModal, setShowCreateModal] = useState(false)
   const [selectedInsider, setSelectedInsider] = useState<Insider | null>(null)
+  /*
+   * Um único modal de formulário serve criação e edição. Em modo edição
+   * `editingInsider` guarda o registro original — usado para o id do PATCH e
+   * para saber o que de fato mudou.
+   */
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [editingInsider, setEditingInsider] = useState<Insider | null>(null)
   const [creating, setCreating] = useState(false)
-  const [formData, setFormData] = useState<Partial<Insider>>({
-    nome: "",
-    cpf: "",
-    tamanho_camisa: "",
-    evolve: "",
-    dopahmina: "",
-    tex_barbearia: "",
-    big_box: "",
-    cupom_loja_somma: "",
-    assessoria_somma: "",
-  })
+  const [page, setPage] = useState(1)
+  const [formErrors, setFormErrors] = useState<Partial<Record<keyof InsiderForm, string>>>({})
+  const [formData, setFormData] = useState<InsiderForm>(EMPTY_FORM)
+  /** Valores de partida: vazios na criação, os do registro na edição. */
+  const [formBaseline, setFormBaseline] = useState<InsiderForm>(EMPTY_FORM)
 
-  useEffect(() => {
-    fetchInsiders()
-  }, [])
-
-  const fetchInsiders = async () => {
+  const fetchInsiders = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
-      console.log("[v0] Fetching insiders data...")
       const res = await apiFetch("/api/insiders")
       const body = await res.json().catch(() => ({}))
 
@@ -63,87 +126,189 @@ export default function InsidersPage() {
         return
       }
 
-      console.log("[insiders] Insiders fetched successfully, count:", body.data?.length)
       setInsiders(body.data || [])
-    } catch (err: any) {
-      console.error("[v0] Error fetching insiders:", err)
-      setError(err.message)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erro ao carregar insiders'
+      console.error("[insiders] Error fetching insiders:", err)
+      setError(message)
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Tem certeza que deseja excluir este insider?")) return
+  useEffect(() => {
+    fetchInsiders()
+  }, [fetchInsiders])
+
+  const handleDelete = async (insider: Insider) => {
+    const confirmed = await confirmAction({
+      title: 'Excluir insider?',
+      description: 'Esta ação não pode ser desfeita. Os benefícios associados deixam de valer.',
+      detail: insider.nome,
+      tone: 'danger',
+    })
+    if (!confirmed) return
 
     try {
-      const res = await apiFetch(`/api/insiders/${id}`, { method: "DELETE" })
+      const res = await apiFetch(`/api/insiders/${insider.id}`, { method: "DELETE" })
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
         console.error("[insiders] Error deleting insider:", body)
-        alert(body?.error || "Erro ao deletar insider")
+        notify.error(body?.error || "Erro ao deletar insider")
         return
       }
 
-      setInsiders(insiders.filter((i) => i.id !== id))
-      console.log("[insiders] Insider deleted successfully")
-    } catch (err: any) {
-      console.error("[v0] Error deleting insider:", err)
-      alert("Erro ao deletar insider")
+      setInsiders((current) => current.filter((i) => i.id !== insider.id))
+      setSelectedInsider(null)
+      notify.success('Insider excluído')
+    } catch (err) {
+      console.error("[insiders] Error deleting insider:", err)
+      notify.error("Erro ao deletar insider")
     }
   }
 
-  const handleCreateInsider = async () => {
-    if (!formData.nome || !formData.cpf) {
-      alert("Nome e CPF são obrigatórios")
+  /** Abre o formulário em modo edição, pré-preenchido com o registro. */
+  const openEditInsider = (insider: Insider) => {
+    const valores: InsiderForm = {
+      nome: insider.nome ?? '',
+      cpf: insider.cpf ?? '',
+      tamanho_camisa: insider.tamanho_camisa ?? '',
+      evolve: insider.evolve ?? '',
+      dopahmina: insider.dopahmina ?? '',
+      tex_barbearia: insider.tex_barbearia ?? '',
+      big_box: insider.big_box ?? '',
+      cupom_loja_somma: insider.cupom_loja_somma ?? '',
+      assessoria_somma: insider.assessoria_somma ?? '',
+    }
+    setFormData(valores)
+    setFormBaseline(valores)
+    setFormErrors({})
+    setEditingInsider(insider)
+    setSelectedInsider(null)
+    setShowCreateModal(true)
+  }
+
+  /** Abre o formulário em modo criação. */
+  const openCreateInsider = () => {
+    setFormData(EMPTY_FORM)
+    setFormBaseline(EMPTY_FORM)
+    setFormErrors({})
+    setEditingInsider(null)
+    setShowCreateModal(true)
+  }
+
+  /**
+   * Salva o formulário. Criar e editar compartilham validação e corpo; muda
+   * apenas o verbo e a rota — manter dois handlers separados faria as regras
+   * divergirem com o tempo.
+   */
+  const handleSaveInsider = async () => {
+    const errors: Partial<Record<keyof InsiderForm, string>> = {}
+    if (!formData.nome.trim()) errors.nome = 'Nome é obrigatório'
+    if (!formData.cpf.trim()) errors.cpf = 'CPF é obrigatório'
+    setFormErrors(errors)
+    if (Object.keys(errors).length > 0) {
+      document.getElementById(`insider-${Object.keys(errors)[0]}`)?.focus()
       return
     }
 
+    const editando = editingInsider !== null
     setCreating(true)
     try {
-      console.log("[v0] Creating new insider:", formData)
-      const res = await apiFetch("/api/insiders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      })
+      const res = await apiFetch(
+        editando ? `/api/insiders/${editingInsider.id}` : '/api/insiders',
+        {
+          method: editando ? 'PATCH' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData),
+        },
+      )
       const body = await res.json().catch(() => ({}))
 
       if (!res.ok) {
-        console.error("[insiders] Error creating insider:", body)
-        alert("Erro ao criar insider: " + (body?.error || `HTTP ${res.status}`))
+        console.error('[insiders] Erro ao salvar insider:', body)
+        notify.error(editando ? 'Erro ao salvar alterações' : 'Erro ao criar insider', {
+          description: body?.error || `HTTP ${res.status}`,
+        })
         setCreating(false)
         return
       }
 
-      console.log("[insiders] Insider created successfully:", body.data)
       if (body.data) {
-        setInsiders([...insiders, body.data])
-        setFormData({
-          nome: "",
-          cpf: "",
-          tamanho_camisa: "",
-          evolve: "",
-          dopahmina: "",
-          tex_barbearia: "",
-          big_box: "",
-          cupom_loja_somma: "",
-          assessoria_somma: "",
-        })
+        setInsiders((current) =>
+          editando
+            ? current.map((i) => (i.id === body.data.id ? body.data : i))
+            : [...current, body.data],
+        )
+        setFormData(EMPTY_FORM)
+        setFormBaseline(EMPTY_FORM)
+        setFormErrors({})
+        setEditingInsider(null)
         setShowCreateModal(false)
+        notify.success(editando ? 'Alterações salvas' : 'Insider cadastrado com sucesso')
       }
-    } catch (err: any) {
-      console.error("[v0] Error creating insider:", err)
-      alert("Erro ao criar insider")
+    } catch (err) {
+      console.error('[insiders] Erro ao salvar insider:', err)
+      notify.error(editando ? 'Erro ao salvar alterações' : 'Erro ao criar insider')
     } finally {
       setCreating(false)
     }
   }
 
-  const filteredInsiders = insiders.filter((insider) =>
-    matchesTextSearch(searchTerm, [insider.nome, insider.cpf])
+  /*
+   * Compara com o baseline, não com vazio: na edição o formulário já nasce
+   * preenchido, e o critério antigo o consideraria "sujo" desde o primeiro
+   * instante — pedindo confirmação de descarte mesmo sem nenhuma alteração.
+   */
+  const isFormDirty = useMemo(
+    () =>
+      (Object.keys(EMPTY_FORM) as Array<keyof InsiderForm>).some(
+        (key) => formData[key] !== formBaseline[key],
+      ),
+    [formData, formBaseline],
   )
+
+  const requestCloseCreate = async () => {
+    if (isFormDirty) {
+      const confirmed = await confirmAction({
+        title: editingInsider ? 'Descartar alterações?' : 'Descartar cadastro?',
+        description: editingInsider
+          ? 'As alterações feitas neste insider não foram salvas e serão perdidas.'
+          : 'Os dados preenchidos não foram salvos e serão perdidos.',
+        confirmLabel: 'Descartar',
+        cancelLabel: 'Continuar editando',
+        tone: 'danger',
+      })
+      if (!confirmed) return
+    }
+    setFormData(EMPTY_FORM)
+    setFormBaseline(EMPTY_FORM)
+    setFormErrors({})
+    setEditingInsider(null)
+    setShowCreateModal(false)
+  }
+
+  const filteredInsiders = useMemo(
+    () => searchAndRank(insiders, searchTerm, (insider) => [insider.nome, insider.cpf]),
+    [insiders, searchTerm],
+  )
+
+  useEffect(() => {
+    setPage(1)
+  }, [searchTerm])
+
+  const pagedInsiders = useMemo(
+    () => filteredInsiders.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [filteredInsiders, page],
+  )
+
+  const stats = useMemo(() => ({
+    total: insiders.length,
+    evolve: insiders.filter((i) => i.evolve).length,
+    cupom: insiders.filter((i) => i.cupom_loja_somma).length,
+    assessoria: insiders.filter((i) => i.assessoria_somma).length,
+  }), [insiders])
 
   const exportToCSV = () => {
     const headers = ["Nome", "CPF", "Tamanho Camiseta", "Evolve", "Dopamina", "Tex Barbearia", "Big Box", "Cupom Somma", "Assessoria Somma"]
@@ -167,410 +332,470 @@ export default function InsidersPage() {
     a.download = `insiders-${new Date().toISOString().split("T")[0]}.csv`
     a.click()
     window.URL.revokeObjectURL(url)
+    notify.success('Exportação gerada', { description: `${filteredInsiders.length} registros.` })
   }
 
+  const setField = (key: keyof InsiderForm, value: string) => {
+    setFormData((current) => ({ ...current, [key]: value }))
+    setFormErrors((current) => {
+      if (!current[key]) return current
+      const next = { ...current }
+      delete next[key]
+      return next
+    })
+  }
+
+  const benefitCount = (insider: Insider) =>
+    [insider.evolve, insider.dopahmina, insider.tex_barbearia, insider.big_box,
+      insider.cupom_loja_somma, insider.assessoria_somma].filter(Boolean).length
+
   return (
-    <div className="w-full min-w-0 max-w-full overflow-x-hidden">
-      <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="min-w-0">
-          <h1 className="text-lg sm:text-2xl font-bold text-white tracking-wider">INSIDERS</h1>
-          <p className="text-xs sm:text-sm text-neutral-400 mt-1">Gerencie membros VIP e seus benefícios</p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <Button
-            onClick={exportToCSV}
-            variant="outline"
-            size="sm"
-            className="border-neutral-700 text-neutral-400 hover:text-white h-9 px-3 text-xs"
-          >
-            <Download className="w-3.5 h-3.5 mr-1" />
-            Exportar
+    <PageShell>
+      <PageHeader
+        eyebrow="Relacionamento"
+        title="Insiders"
+        description="Membros VIP do clube e os benefícios liberados para cada um."
+        meta={
+          <>
+            <span>
+              <span className="font-mono tabular-nums text-ink">{filteredInsiders.length}</span>{' '}
+              {filteredInsiders.length === 1 ? 'insider' : 'insiders'} listados
+            </span>
+            <span>
+              <span className="font-mono tabular-nums text-ink">{stats.cupom}</span> com cupom
+            </span>
+          </>
+        }
+        actions={
+          <>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={fetchInsiders}
+              disabled={loading}
+              aria-label="Recarregar insiders"
+            >
+              <RefreshCw aria-hidden="true" className={loading ? 'animate-spin' : undefined} />
+            </Button>
+            <Button variant="secondary" size="sm" onClick={exportToCSV} disabled={filteredInsiders.length === 0}>
+              <Download aria-hidden="true" />
+              <span className="hidden sm:inline">Exportar CSV</span>
+              <span className="sm:hidden">CSV</span>
+            </Button>
+          </>
+        }
+        primaryAction={
+          <Button onClick={openCreateInsider}>
+            <Plus aria-hidden="true" />
+            Novo insider
           </Button>
-          <Button
-            onClick={() => setShowCreateModal(true)}
-            size="sm"
-            className="bg-orange-500 hover:bg-orange-600 text-white h-9 px-3 text-xs"
+        }
+      />
+
+      <div className="space-y-5">
+        {error ? (
+          <div
+            role="alert"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-danger-border bg-danger-soft p-3.5"
           >
-            <Plus className="w-3.5 h-3.5 mr-1" />
-            Novo
-          </Button>
-        </div>
+            <p className="flex min-w-0 items-center gap-2 text-sm text-danger">
+              <AlertCircle aria-hidden="true" className="h-4 w-4 shrink-0" />
+              <span className="truncate">{error}</span>
+            </p>
+            <Button variant="ghost" size="sm" onClick={fetchInsiders} className="text-danger">
+              <RefreshCw aria-hidden="true" />
+              Tentar novamente
+            </Button>
+          </div>
+        ) : null}
+
+        {loading ? (
+          <StatGridSkeleton count={4} />
+        ) : (
+          <StatGrid>
+            <StatTile label="Total" value={stats.total} icon={Users} hint="Insiders cadastrados" />
+            <StatTile label="Com Evolve" value={stats.evolve} icon={Dumbbell} tone="brand" />
+            <StatTile label="Com cupom" value={stats.cupom} icon={Ticket} />
+            <StatTile label="Com assessoria" value={stats.assessoria} icon={Star} />
+          </StatGrid>
+        )}
+
+        <Toolbar>
+          <SearchInput
+            value={searchTerm}
+            onValueChange={setSearchTerm}
+            placeholder="Buscar por nome ou CPF..."
+            label="Buscar insiders"
+          />
+        </Toolbar>
+
+        {loading ? (
+          <>
+            <div className="lg:hidden">
+              <CardListSkeleton count={4} />
+            </div>
+            <div className="hidden lg:block">
+              <TableSkeleton rows={6} columns={5} />
+            </div>
+          </>
+        ) : filteredInsiders.length === 0 ? (
+          insiders.length === 0 ? (
+            <EmptyState
+              icon={BadgeCheck}
+              title="Nenhum insider cadastrado"
+              description="Cadastre o primeiro insider para controlar os benefícios da comunidade VIP."
+              action={
+                <Button onClick={openCreateInsider}>
+                  <Plus aria-hidden="true" />
+                  Cadastrar primeiro insider
+                </Button>
+              }
+            />
+          ) : (
+            <NoResultsState query={searchTerm} onClear={() => setSearchTerm('')} />
+          )
+        ) : (
+          <>
+            {/* Celular: cards */}
+            <ul className="space-y-3 lg:hidden">
+              {pagedInsiders.map((insider) => (
+                <li key={insider.id}>
+                  <MobileRecordCard
+                    title={insider.nome}
+                    subtitle={insider.cpf}
+                    status={
+                      <StatusPill tone={benefitCount(insider) > 0 ? 'success' : 'neutral'}>
+                        {benefitCount(insider)} benefício{benefitCount(insider) === 1 ? '' : 's'}
+                      </StatusPill>
+                    }
+                    fields={[
+                      { label: 'Camiseta', value: insider.tamanho_camisa || '—' },
+                      { label: 'Cupom Somma', value: insider.cupom_loja_somma || '—' },
+                    ]}
+                    onClick={() => setSelectedInsider(insider)}
+                    actions={
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="ml-auto text-danger hover:text-danger"
+                        aria-label={`Excluir ${insider.nome}`}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          handleDelete(insider)
+                        }}
+                      >
+                        <Trash2 aria-hidden="true" />
+                        Excluir
+                      </Button>
+                    }
+                  />
+                </li>
+              ))}
+            </ul>
+
+            {/* Desktop: tabela */}
+            <TableFrame className="hidden lg:block">
+              <Table caption="Insiders cadastrados, com CPF, tamanho de camiseta e benefícios ativos.">
+                <THead>
+                  <TH>Insider</TH>
+                  <TH>Camiseta</TH>
+                  <TH>Cupom Somma</TH>
+                  <TH>Assessoria</TH>
+                  <TH>Benefícios</TH>
+                  <TH align="right">Ações</TH>
+                </THead>
+                <TBody>
+                  {pagedInsiders.map((insider) => (
+                    <TR key={insider.id} onClick={() => setSelectedInsider(insider)}>
+                      <TD>
+                        <span className="block truncate font-medium text-ink-strong">{insider.nome}</span>
+                        <span className="block font-mono text-micro text-ink-subtle">{insider.cpf}</span>
+                      </TD>
+                      <TD>{insider.tamanho_camisa || <span className="text-ink-subtle">—</span>}</TD>
+                      <TD>
+                        {insider.cupom_loja_somma || <span className="text-ink-subtle">—</span>}
+                      </TD>
+                      <TD>
+                        {insider.assessoria_somma || <span className="text-ink-subtle">—</span>}
+                      </TD>
+                      <TD>
+                        <StatusPill tone={benefitCount(insider) > 0 ? 'success' : 'neutral'}>
+                          {benefitCount(insider)} de 6
+                        </StatusPill>
+                      </TD>
+                      <TD align="right">
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={`Excluir ${insider.nome}`}
+                          className="text-danger hover:text-danger"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            handleDelete(insider)
+                          }}
+                        >
+                          <Trash2 aria-hidden="true" />
+                        </Button>
+                      </TD>
+                    </TR>
+                  ))}
+                </TBody>
+              </Table>
+              <TablePagination
+                page={page}
+                pageSize={PAGE_SIZE}
+                total={filteredInsiders.length}
+                onPageChange={setPage}
+              />
+            </TableFrame>
+
+            <div className="lg:hidden">
+              <TablePagination
+                page={page}
+                pageSize={PAGE_SIZE}
+                total={filteredInsiders.length}
+                onPageChange={setPage}
+                className="rounded-xl border border-line bg-surface-raised"
+              />
+            </div>
+          </>
+        )}
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Card className="bg-neutral-900 border-neutral-700">
-          <CardContent className="p-3 sm:p-4">
-            <p className="text-[10px] text-neutral-400 tracking-wider mb-1">TOTAL</p>
-            <p className="text-2xl font-bold text-white font-mono">{insiders.length}</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-neutral-900 border-neutral-700">
-          <CardContent className="p-3 sm:p-4">
-            <p className="text-[10px] text-neutral-400 tracking-wider mb-1">COM EVOLVE</p>
-            <p className="text-2xl font-bold text-orange-500 font-mono">
-              {insiders.filter((i) => i.evolve).length}
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="bg-neutral-900 border-neutral-700">
-          <CardContent className="p-3 sm:p-4">
-            <p className="text-[10px] text-neutral-400 tracking-wider mb-1">COM CUPOM</p>
-            <p className="text-2xl font-bold text-green-500 font-mono">
-              {insiders.filter((i) => i.cupom_loja_somma).length}
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="bg-neutral-900 border-neutral-700">
-          <CardContent className="p-3 sm:p-4">
-            <p className="text-[10px] text-neutral-400 tracking-wider mb-1">ASSESSORIA</p>
-            <p className="text-2xl font-bold text-blue-500 font-mono">
-              {insiders.filter((i) => i.assessoria_somma).length}
-            </p>
-          </CardContent>
-        </Card>
-      </div>
 
-      {/* Search */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400 pointer-events-none" />
-        <Input
-          placeholder="Buscar por nome ou CPF..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-9 bg-neutral-900 border-neutral-700 text-white placeholder-neutral-500 text-sm h-10"
-        />
-      </div>
-
-      {/* Content */}
-      {loading ? (
-        <PageLoading label="Carregando insiders..." />
-      ) : error ? (
-        <ErrorBanner message={error} onRetry={fetchInsiders} />
-      ) : filteredInsiders.length === 0 ? (
-        <div className="text-center py-12">
-          <Users className="w-10 h-10 text-neutral-700 mx-auto mb-3" />
-          <p className="text-neutral-400">{searchTerm ? "Nenhum insider encontrado" : "Nenhum insider cadastrado"}</p>
-        </div>
-      ) : (
-        <>
-          {/* Grid View - Mobile Optimized */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredInsiders.map((insider) => (
-              <div
-                key={insider.id}
-                className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 hover:border-orange-500/40 transition-colors"
+      {/* Detalhe */}
+      <ResponsiveModal
+        open={!!selectedInsider}
+        onOpenChange={(open) => {
+          if (!open) setSelectedInsider(null)
+        }}
+        size="lg"
+        title={selectedInsider?.nome ?? 'Insider'}
+        description={selectedInsider?.cpf}
+        footer={
+          selectedInsider ? (
+            <>
+              <Button
+                variant="destructive"
+                block
+                className="sm:w-auto"
+                onClick={() => handleDelete(selectedInsider)}
               >
-                {/* Card Header */}
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-bold text-white truncate">{insider.nome.toUpperCase()}</h3>
-                    <p className="text-xs text-neutral-400 mt-0.5">
-                      {insider.cpf}
-                      {insider.tamanho_camisa ? ` · Camiseta ${insider.tamanho_camisa}` : ''}
-                    </p>
+                <Trash2 aria-hidden="true" />
+                Excluir
+              </Button>
+              <Button
+                variant="secondary"
+                block
+                className="sm:w-auto"
+                onClick={() => setSelectedInsider(null)}
+              >
+                Fechar
+              </Button>
+              <Button block className="sm:w-auto" onClick={() => openEditInsider(selectedInsider)}>
+                <Pencil aria-hidden="true" />
+                Editar
+              </Button>
+            </>
+          ) : null
+        }
+      >
+        {selectedInsider ? (
+          <div className="space-y-5">
+            <section>
+              <SectionTitle as="h3" title="Identificação" />
+              <Well className="p-4">
+                <dl className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <dt className="ds-eyebrow">Nome</dt>
+                    <dd className="mt-0.5 text-sm text-ink">{selectedInsider.nome}</dd>
                   </div>
-                  <button
-                    onClick={() => {
-                      setSelectedInsider(insider)
-                      setShowViewModal(true)
-                    }}
-                    className="p-1.5 text-neutral-400 hover:text-orange-500 active:scale-90 transition-all shrink-0 ml-2"
-                  >
-                    <MoreHorizontal className="w-4 h-4" />
-                  </button>
-                </div>
+                  <div>
+                    <dt className="ds-eyebrow">CPF</dt>
+                    <dd className="mt-0.5 font-mono text-sm text-ink">{selectedInsider.cpf}</dd>
+                  </div>
+                  <div>
+                    <dt className="ds-eyebrow">Tamanho da camiseta</dt>
+                    <dd className="mt-0.5 text-sm text-ink">{selectedInsider.tamanho_camisa || '—'}</dd>
+                  </div>
+                </dl>
+              </Well>
+            </section>
 
-                {/* Benefits Grid */}
-                <div className="space-y-2 mb-4 py-3 border-t border-b border-neutral-800">
-                  {[
-                    { label: "Evolve", value: insider.evolve, color: "orange" },
-                    { label: "Dopamina", value: insider.dopahmina, color: "red" },
-                    { label: "Tex Barbearia", value: insider.tex_barbearia, color: "purple" },
-                    { label: "Big Box", value: insider.big_box, color: "cyan" },
-                  ].map((benefit, idx) => (
-                    <div key={idx} className="flex items-center justify-between">
-                      <span className="text-xs text-neutral-400">{benefit.label}</span>
-                      <span className="text-xs font-mono text-white">
-                        {benefit.value ? "✓" : "—"}
-                      </span>
+            <section>
+              <SectionTitle as="h3" title="Benefícios de parceiros" />
+              <Well className="p-4">
+                <dl className="grid gap-4 sm:grid-cols-2">
+                  {BENEFIT_FIELDS.map((field) => (
+                    <div key={field.key}>
+                      <dt className="ds-eyebrow">{field.label}</dt>
+                      <dd className="mt-0.5 text-sm text-ink">{selectedInsider[field.key] || '—'}</dd>
                     </div>
                   ))}
-                </div>
+                </dl>
+              </Well>
+            </section>
 
-                {/* Somma Benefits */}
-                <div className="space-y-1 mb-4">
-                  {insider.cupom_loja_somma && (
-                    <div className="flex items-center gap-1 text-xs bg-green-500/10 text-green-400 px-2 py-1 rounded">
-                      <span className="inline-block w-1.5 h-1.5 bg-green-500 rounded-full" />
-                      Cupom: {insider.cupom_loja_somma}
+            <section>
+              <SectionTitle as="h3" title="Benefícios Somma" />
+              <Well className="p-4">
+                <dl className="grid gap-4 sm:grid-cols-2">
+                  {SOMMA_FIELDS.map((field) => (
+                    <div key={field.key}>
+                      <dt className="ds-eyebrow">{field.label}</dt>
+                      <dd className="mt-0.5 text-sm text-ink">{selectedInsider[field.key] || '—'}</dd>
                     </div>
-                  )}
-                  {insider.assessoria_somma && (
-                    <div className="flex items-center gap-1 text-xs bg-blue-500/10 text-blue-400 px-2 py-1 rounded">
-                      <span className="inline-block w-1.5 h-1.5 bg-blue-500 rounded-full" />
-                      Assessoria: {insider.assessoria_somma}
-                    </div>
-                  )}
-                </div>
-
-                {/* Actions */}
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => {
-                      setSelectedInsider(insider)
-                      setShowViewModal(true)
-                    }}
-                    className="flex-1 py-1.5 px-2 rounded-lg border border-neutral-700 text-neutral-400 hover:text-white hover:border-neutral-600 text-xs font-medium active:scale-95 transition-all"
-                  >
-                    <Eye className="w-3.5 h-3.5 inline mr-1" />
-                    Ver
-                  </button>
-                  <button
-                    onClick={() => handleDelete(insider.id)}
-                    className="py-1.5 px-2 rounded-lg border border-neutral-700 text-neutral-400 hover:text-red-500 hover:border-red-700/50 text-xs font-medium active:scale-95 transition-all"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            ))}
+                  ))}
+                </dl>
+              </Well>
+            </section>
           </div>
-        </>
-      )}
+        ) : null}
+      </ResponsiveModal>
 
-      </div>
-
-      {/* View Modal */}
-      {showViewModal && selectedInsider && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <Card className="bg-neutral-800 border-neutral-700 w-full max-w-2xl my-4">
-            <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <CardTitle className="text-white text-lg">{selectedInsider.nome.toUpperCase()}</CardTitle>
-              <button
-                onClick={() => setShowViewModal(false)}
-                className="text-neutral-400 hover:text-white active:scale-90 transition-all"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Grid Layout */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="text-neutral-400 text-xs block mb-1 tracking-wide">NOME</label>
-                  <div className="text-white font-medium">{selectedInsider.nome}</div>
-                </div>
-                <div>
-                  <label className="text-neutral-400 text-xs block mb-1 tracking-wide">CPF</label>
-                  <div className="text-white font-mono">{selectedInsider.cpf}</div>
-                </div>
-                <div>
-                  <label className="text-neutral-400 text-xs block mb-1 tracking-wide">TAMANHO DA CAMISETA</label>
-                  <div className="text-white">{selectedInsider.tamanho_camisa || "—"}</div>
-                </div>
-                <div>
-                  <label className="text-neutral-400 text-xs block mb-1 tracking-wide">EVOLVE</label>
-                  <div className="text-white">{selectedInsider.evolve || "—"}</div>
-                </div>
-                <div>
-                  <label className="text-neutral-400 text-xs block mb-1 tracking-wide">DOPAMINA</label>
-                  <div className="text-white">{selectedInsider.dopahmina || "—"}</div>
-                </div>
-                <div>
-                  <label className="text-neutral-400 text-xs block mb-1 tracking-wide">TEX BARBEARIA</label>
-                  <div className="text-white">{selectedInsider.tex_barbearia || "—"}</div>
-                </div>
-                <div>
-                  <label className="text-neutral-400 text-xs block mb-1 tracking-wide">BIG BOX</label>
-                  <div className="text-white">{selectedInsider.big_box || "—"}</div>
-                </div>
-                <div>
-                  <label className="text-neutral-400 text-xs block mb-1 tracking-wide">CUPOM SOMMA</label>
-                  <div className="text-white">{selectedInsider.cupom_loja_somma || "—"}</div>
-                </div>
-                <div>
-                  <label className="text-neutral-400 text-xs block mb-1 tracking-wide">ASSESSORIA SOMMA</label>
-                  <div className="text-white">{selectedInsider.assessoria_somma || "—"}</div>
-                </div>
+      {/* Cadastro */}
+      <ResponsiveModal
+        open={showCreateModal}
+        onOpenChange={(open) => {
+          if (!open) requestCloseCreate()
+        }}
+        size="lg"
+        dismissible={false}
+        title={editingInsider ? 'Editar insider' : 'Novo insider'}
+        description={
+          editingInsider
+            ? 'Atualize os dados e os benefícios liberados para este insider.'
+            : 'Cadastre o membro VIP e os benefícios liberados para ele.'
+        }
+        footer={
+          <>
+            <Button variant="secondary" block className="sm:w-auto" onClick={requestCloseCreate}>
+              Cancelar
+            </Button>
+            <Button
+              block
+              className="sm:w-auto"
+              loading={creating}
+              disabled={Boolean(editingInsider) && !isFormDirty}
+              onClick={handleSaveInsider}
+            >
+              {editingInsider ? 'Salvar alterações' : 'Criar insider'}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-6">
+          <section>
+            <SectionTitle as="h3" title="Identificação" meta="Obrigatório" />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <label htmlFor="insider-nome" className={inputLabel}>
+                  Nome <span className="text-danger">*</span>
+                </label>
+                <Input
+                  id="insider-nome"
+                  type="text"
+                  autoComplete="name"
+                  placeholder="Nome completo"
+                  value={formData.nome}
+                  aria-invalid={formErrors.nome ? true : undefined}
+                  aria-describedby={formErrors.nome ? 'insider-nome-error' : undefined}
+                  onChange={(e) => setField('nome', e.target.value)}
+                />
+                {formErrors.nome ? (
+                  <p id="insider-nome-error" className="mt-1.5 flex items-center gap-1.5 text-meta text-danger">
+                    <AlertCircle aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+                    {formErrors.nome}
+                  </p>
+                ) : null}
               </div>
-
-              {/* Actions */}
-              <div className="flex gap-2 pt-4 border-t border-neutral-700">
-                <Button
-                  onClick={() => setShowViewModal(false)}
-                  variant="outline"
-                  className="flex-1 border-neutral-700 text-neutral-400 hover:text-white"
-                >
-                  Fechar
-                </Button>
-                <Button
-                  onClick={() => handleDelete(selectedInsider.id)}
-                  variant="destructive"
-                  className="flex-1"
-                >
-                  Deletar
-                </Button>
+              <div>
+                <label htmlFor="insider-cpf" className={inputLabel}>
+                  CPF <span className="text-danger">*</span>
+                </label>
+                <Input
+                  id="insider-cpf"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  placeholder="000.000.000-00"
+                  value={formData.cpf}
+                  aria-invalid={formErrors.cpf ? true : undefined}
+                  aria-describedby={formErrors.cpf ? 'insider-cpf-error' : undefined}
+                  onChange={(e) => setField('cpf', e.target.value)}
+                  className="font-mono"
+                />
+                {formErrors.cpf ? (
+                  <p id="insider-cpf-error" className="mt-1.5 flex items-center gap-1.5 text-meta text-danger">
+                    <AlertCircle aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+                    {formErrors.cpf}
+                  </p>
+                ) : null}
               </div>
-            </CardContent>
-          </Card>
+              <div>
+                <label htmlFor="insider-tamanho" className={inputLabel}>
+                  Tamanho da camiseta
+                </label>
+                <select
+                  id="insider-tamanho"
+                  value={formData.tamanho_camisa}
+                  onChange={(e) => setField('tamanho_camisa', e.target.value)}
+                  className={selectClass}
+                >
+                  <option value="">Selecione uma opção</option>
+                  {TAMANHOS_CAMISA.map((tamanho) => (
+                    <option key={tamanho} value={tamanho}>
+                      {tamanho}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <SectionTitle as="h3" title="Benefícios de parceiros" meta="Opcional" />
+            <div className="grid gap-4 sm:grid-cols-2">
+              {BENEFIT_FIELDS.map((field) => (
+                <div key={field.key}>
+                  <label htmlFor={`insider-${field.key}`} className={inputLabel}>
+                    {field.label}
+                  </label>
+                  <Input
+                    id={`insider-${field.key}`}
+                    type="text"
+                    autoComplete="off"
+                    placeholder={field.placeholder}
+                    value={formData[field.key]}
+                    onChange={(e) => setField(field.key, e.target.value)}
+                  />
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section>
+            <SectionTitle as="h3" title="Benefícios Somma" meta="Opcional" />
+            <div className="grid gap-4 sm:grid-cols-2">
+              {SOMMA_FIELDS.map((field) => (
+                <div key={field.key}>
+                  <label htmlFor={`insider-${field.key}`} className={inputLabel}>
+                    {field.label}
+                  </label>
+                  <Input
+                    id={`insider-${field.key}`}
+                    type="text"
+                    autoComplete="off"
+                    placeholder={field.placeholder}
+                    value={formData[field.key]}
+                    onChange={(e) => setField(field.key, e.target.value)}
+                  />
+                </div>
+              ))}
+            </div>
+          </section>
         </div>
-      )}
-
-      {/* Create Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <Card className="bg-neutral-800 border-neutral-700 w-full max-w-2xl my-4">
-            <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <CardTitle className="text-white text-lg">NOVO INSIDER</CardTitle>
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="text-neutral-400 hover:text-white active:scale-90 transition-all"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Grid Layout */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Nome */}
-                <div className="sm:col-span-2">
-                  <label className="text-neutral-400 text-xs block mb-2 tracking-wide font-medium">NOME *</label>
-                  <Input
-                    type="text"
-                    placeholder="Nome completo"
-                    value={formData.nome || ""}
-                    onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
-                    className="bg-neutral-700 border-neutral-600 text-white placeholder-neutral-500"
-                  />
-                </div>
-
-                {/* CPF */}
-                <div className="sm:col-span-2">
-                  <label className="text-neutral-400 text-xs block mb-2 tracking-wide font-medium">CPF *</label>
-                  <Input
-                    type="text"
-                    placeholder="000.000.000-00"
-                    value={formData.cpf || ""}
-                    onChange={(e) => setFormData({ ...formData, cpf: e.target.value })}
-                    className="bg-neutral-700 border-neutral-600 text-white placeholder-neutral-500"
-                  />
-                </div>
-
-                {/* Tamanho da camiseta */}
-                <div className="sm:col-span-2">
-                  <label className="text-neutral-400 text-xs block mb-2 tracking-wide font-medium">TAMANHO DA CAMISETA</label>
-                  <select
-                    value={formData.tamanho_camisa || ""}
-                    onChange={(e) => setFormData({ ...formData, tamanho_camisa: e.target.value })}
-                    className="flex h-10 w-full rounded-md border border-neutral-600 bg-neutral-700 px-3 py-2 text-sm text-white placeholder-neutral-500"
-                  >
-                    <option value="">Selecione uma opção</option>
-                    {TAMANHOS_CAMISA.map((tamanho) => (
-                      <option key={tamanho} value={tamanho}>
-                        {tamanho}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Evolve */}
-                <div>
-                  <label className="text-neutral-400 text-xs block mb-2 tracking-wide font-medium">EVOLVE</label>
-                  <Input
-                    type="text"
-                    placeholder="ex: VIP, Premium"
-                    value={formData.evolve || ""}
-                    onChange={(e) => setFormData({ ...formData, evolve: e.target.value })}
-                    className="bg-neutral-700 border-neutral-600 text-white placeholder-neutral-500"
-                  />
-                </div>
-
-                {/* Dopamina */}
-                <div>
-                  <label className="text-neutral-400 text-xs block mb-2 tracking-wide font-medium">DOPAMINA</label>
-                  <Input
-                    type="text"
-                    placeholder="Código ou benefício"
-                    value={formData.dopahmina || ""}
-                    onChange={(e) => setFormData({ ...formData, dopahmina: e.target.value })}
-                    className="bg-neutral-700 border-neutral-600 text-white placeholder-neutral-500"
-                  />
-                </div>
-
-                {/* Tex Barbearia */}
-                <div>
-                  <label className="text-neutral-400 text-xs block mb-2 tracking-wide font-medium">TEX BARBEARIA</label>
-                  <Input
-                    type="text"
-                    placeholder="Desconto ou código"
-                    value={formData.tex_barbearia || ""}
-                    onChange={(e) => setFormData({ ...formData, tex_barbearia: e.target.value })}
-                    className="bg-neutral-700 border-neutral-600 text-white placeholder-neutral-500"
-                  />
-                </div>
-
-                {/* Big Box */}
-                <div>
-                  <label className="text-neutral-400 text-xs block mb-2 tracking-wide font-medium">BIG BOX</label>
-                  <Input
-                    type="text"
-                    placeholder="Desconto ou código"
-                    value={formData.big_box || ""}
-                    onChange={(e) => setFormData({ ...formData, big_box: e.target.value })}
-                    className="bg-neutral-700 border-neutral-600 text-white placeholder-neutral-500"
-                  />
-                </div>
-
-                {/* Cupom Somma */}
-                <div>
-                  <label className="text-neutral-400 text-xs block mb-2 tracking-wide font-medium">CUPOM SOMMA</label>
-                  <Input
-                    type="text"
-                    placeholder="Código do cupom"
-                    value={formData.cupom_loja_somma || ""}
-                    onChange={(e) => setFormData({ ...formData, cupom_loja_somma: e.target.value })}
-                    className="bg-neutral-700 border-neutral-600 text-white placeholder-neutral-500"
-                  />
-                </div>
-
-                {/* Assessoria Somma */}
-                <div>
-                  <label className="text-neutral-400 text-xs block mb-2 tracking-wide font-medium">ASSESSORIA SOMMA</label>
-                  <Input
-                    type="text"
-                    placeholder="Descrição do benefício"
-                    value={formData.assessoria_somma || ""}
-                    onChange={(e) => setFormData({ ...formData, assessoria_somma: e.target.value })}
-                    className="bg-neutral-700 border-neutral-600 text-white placeholder-neutral-500"
-                  />
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="flex gap-2 pt-4 border-t border-neutral-700">
-                <Button
-                  onClick={() => setShowCreateModal(false)}
-                  variant="outline"
-                  className="flex-1 border-neutral-700 text-neutral-400 hover:text-white"
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  onClick={handleCreateInsider}
-                  disabled={creating}
-                  className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
-                >
-                  {creating ? "Criando..." : "Criar Insider"}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-    </div>
+      </ResponsiveModal>
+    </PageShell>
   )
 }

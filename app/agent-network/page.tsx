@@ -1,30 +1,66 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Download,
+  Mail,
+  MessageCircle,
+  Phone,
+  Receipt,
+  Trash2,
+  UserPlus,
+  Users,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { MoreHorizontal, Mail, Phone, Trash2, MessageCircle, Plus, ChevronDown, ChevronUp } from "lucide-react"
 import type { CadastroSite } from "@/lib/supabase-client"
 import { TagManager } from "@/components/tag-manager"
 import { getMembers, getMembersCount, searchMembers, deleteMember, PAGE_SIZE_EXPORT } from "@/lib/services/members"
 import { AddMemberModal } from "@/components/add-member-modal"
 import { EditMemberModal } from "@/components/edit-member-modal"
 import { WhatsAppMessageModal } from "@/components/whatsapp-message-modal"
-import { CreateChargeModal } from "@/components/create-charge-modal"
-import { MemberChargesList } from "@/components/member-charges-list"
 import { MembersStatsCollapsible } from "@/components/members-stats-collapsible"
 import { MembersCardList } from "@/components/members-card-list"
 import { MembersSearchBar } from "@/components/members-search-bar"
 import { MembersTableRow } from "@/components/members-table-row"
-import { ErrorBanner } from '@/components/ui/error-banner'
-import { PageLoading } from '@/components/ui/page-loading'
+import { ErrorBanner } from "@/components/ui/error-banner"
+import {
+  EmptyState,
+  FilterButton,
+  FilterChip,
+  NoResultsState,
+  PageHeader,
+  PageShell,
+  Panel,
+  ResponsiveModal,
+  SectionTitle,
+  StatGrid,
+  StatTile,
+  TBody,
+  TH,
+  THead,
+  Table,
+  TableFrame,
+  TableSkeleton,
+  Toolbar,
+  confirmAction,
+  notify,
+  type SortDirection,
+} from "@/components/somma"
+
+type ContactFilter = "todos" | "com-whatsapp" | "sem-whatsapp"
+type SortKey = "nome_completo" | "email" | "data_nascimento"
+
+const CONTACT_FILTER_LABEL: Record<ContactFilter, string> = {
+  todos: "Todos",
+  "com-whatsapp": "Com WhatsApp",
+  "sem-whatsapp": "Sem WhatsApp",
+}
 
 export default function AgentNetworkPage() {
   const [query, setQuery] = useState("")
   const [selectedMember, setSelectedMember] = useState<CadastroSite | null>(null)
   const [editingMember, setEditingMember] = useState<CadastroSite | null>(null)
   const [showWhatsAppModal, setShowWhatsAppModal] = useState(false)
-  const [showChargeModal, setShowChargeModal] = useState(false)
   const [members, setMembers] = useState<CadastroSite[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddMember, setShowAddMember] = useState(false)
@@ -35,8 +71,11 @@ export default function AgentNetworkPage() {
   const [searchMode, setSearchMode] = useState(false)
   const [isSearching, setIsSearching] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showFilters, setShowFilters] = useState(false)
+  const [contactFilter, setContactFilter] = useState<ContactFilter>("todos")
+  const [sortKey, setSortKey] = useState<SortKey>("nome_completo")
+  const [sortDirection, setSortDirection] = useState<SortDirection>(null)
 
-  // Buscar membros inicial
   useEffect(() => {
     async function initMembers() {
       setLoading(true)
@@ -60,13 +99,10 @@ export default function AgentNetworkPage() {
     initMembers()
   }, [])
 
-  // Termo já "debounced" vindo do campo de busca isolado.
   const handleSearch = useCallback((term: string) => {
     setQuery(term)
   }, [])
 
-  // Reage a mudanças de termo de busca. A carga inicial fica por conta do
-  // efeito de mount (initMembers), então pulamos a primeira execução aqui.
   const didMount = useRef(false)
   useEffect(() => {
     if (!didMount.current) {
@@ -82,7 +118,6 @@ export default function AgentNetworkPage() {
         const isSearch = query.trim().length > 0
         setSearchMode(isSearch)
         const results = isSearch ? await searchMembers(query, 0) : await getMembers(0)
-        // Ignora respostas obsoletas (usuário continuou digitando).
         if (cancelled) return
         setMembers(results)
         setHasMore(results.length === PAGE_SIZE_EXPORT)
@@ -100,7 +135,6 @@ export default function AgentNetworkPage() {
     }
   }, [query])
 
-  // Carregar próxima página
   const loadMore = useCallback(async () => {
     if (loading || isSearching || !hasMore) return
 
@@ -122,8 +156,50 @@ export default function AgentNetworkPage() {
     }
   }, [currentPage, loading, isSearching, hasMore, searchMode, query])
 
-  // Memoizar membros visíveis
-  const displayedMembers = useMemo(() => members, [members])
+  const displayedMembers = useMemo(() => {
+    const filtered = members.filter((member) => {
+      const digits = (member.whatsapp || "").replace(/\D/g, "")
+      if (contactFilter === "com-whatsapp") return digits.length >= 10
+      if (contactFilter === "sem-whatsapp") return digits.length < 10
+      return true
+    })
+
+    if (!sortDirection) return filtered
+
+    const factor = sortDirection === "asc" ? 1 : -1
+    return [...filtered].sort((a, b) => {
+      const left = (a[sortKey] || "").toString()
+      const right = (b[sortKey] || "").toString()
+      if (sortKey === "data_nascimento") return left.localeCompare(right) * factor
+      return left.localeCompare(right, "pt-BR", { sensitivity: "base" }) * factor
+    })
+  }, [members, contactFilter, sortKey, sortDirection])
+
+  const activeFilterCount = contactFilter === "todos" ? 0 : 1
+  const isEmptyResult = displayedMembers.length === 0
+  const isFirstLoad = (loading || isSearching) && members.length === 0
+  const hasQueryOrFilter = query.trim().length > 0 || activeFilterCount > 0
+
+  const toggleSort = useCallback(
+    (key: SortKey) => {
+      if (sortKey !== key) {
+        setSortKey(key)
+        setSortDirection("asc")
+        return
+      }
+      setSortDirection((previous) =>
+        previous === "asc" ? "desc" : previous === "desc" ? null : "asc",
+      )
+    },
+    [sortKey],
+  )
+
+  const directionFor = (key: SortKey): SortDirection => (sortKey === key ? sortDirection : null)
+
+  const clearSearchAndFilters = useCallback(() => {
+    setContactFilter("todos")
+    setQuery("")
+  }, [])
 
   const formatCPF = (cpf: string) => {
     const cleaned = cpf.replace(/\D/g, "")
@@ -183,301 +259,346 @@ export default function AgentNetworkPage() {
     setEditingMember(member)
   }
 
-  const handleDeleteMember = async (id: number) => {
-    if (!confirm("Tem certeza que deseja deletar este membro? Esta ação não pode ser desfeita.")) {
-      return
-    }
+  const handleDeleteMember = async (member: CadastroSite) => {
+    const confirmed = await confirmAction({
+      title: "Excluir membro?",
+      description:
+        "O cadastro sai da base permanentemente, junto com o vínculo dele nas listagens. Esta ação não pode ser desfeita.",
+      detail: `${member.nome_completo} — ID ${member.id}`,
+      tone: "danger",
+      confirmLabel: "Excluir membro",
+    })
+    if (!confirmed) return
 
     setDeleting(true)
-    const success = await deleteMember(id)
+    const success = await deleteMember(member.id)
     setDeleting(false)
 
     if (success) {
       setSelectedMember(null)
-      setMembers((prev) => prev.filter((m) => m.id !== id))
+      setMembers((prev) => prev.filter((m) => m.id !== member.id))
       setTotalMembers((prev) => Math.max(0, prev - 1))
+      notify.success("Membro excluído", { description: `${member.nome_completo} foi removido da base.` })
     } else {
-      alert("Erro ao deletar membro. Tente novamente.")
+      notify.error("Erro ao deletar membro", { description: "Tente novamente em alguns instantes." })
     }
   }
 
   const handleOpenWhatsAppModal = () => {
     if (!selectedMember?.whatsapp) {
-      alert("Este membro não possui número de WhatsApp")
+      notify.warning("Sem WhatsApp cadastrado", {
+        description: "Edite o membro e informe um número para enviar mensagens.",
+      })
       return
     }
     setShowWhatsAppModal(true)
   }
 
-  const handleOpenChargeModal = () => {
-    if (!selectedMember) {
-      alert("Selecione um membro primeiro")
-      return
-    }
-    setShowChargeModal(true)
-  }
-
-  const handleChargeCreated = () => {
-    setSelectedMember(null)
-  }
+  const primaryAction = (
+    <Button onClick={() => setShowAddMember(true)}>
+      <UserPlus aria-hidden="true" />
+      Novo membro
+    </Button>
+  )
 
   return (
-    <div className="w-full h-full flex flex-col p-3 sm:p-6 lg:p-8 gap-3 sm:gap-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-        <div>
-          <h1 className="text-lg sm:text-2xl font-bold text-white tracking-wider">MEMBROS SOMMA</h1>
-          <p className="text-xs sm:text-sm text-neutral-400">
-            {searchMode ? `Resultados: ${displayedMembers.length}` : `Total: ${totalMembers} membros`}
-          </p>
-        </div>
-        <Button 
-          onClick={() => setShowAddMember(true)}
-          className="bg-orange-500 hover:bg-orange-600 text-white font-medium w-full sm:w-auto active:scale-95 md:active:scale-100"
-        >
-          + Adicionar Membro
-        </Button>
-      </div>
+    <PageShell>
+      <PageHeader
+        eyebrow="Relacionamento"
+        title="Membros"
+        description="Base de cadastros do site: contatos e tags de cada membro."
+        meta={
+          <>
+            <span>
+              <span className="font-mono tabular-nums text-ink">{totalMembers}</span> na base
+            </span>
+            <span aria-hidden="true">·</span>
+            <span>
+              <span className="font-mono tabular-nums text-ink">{displayedMembers.length}</span> na tela
+            </span>
+            {searchMode ? <span className="text-brand">busca ativa</span> : null}
+          </>
+        }
+        primaryAction={primaryAction}
+      >
+        <Toolbar>
+          <MembersSearchBar onSearch={handleSearch} isSearching={isSearching} className="min-w-0 flex-1" />
+          <FilterButton count={activeFilterCount} onClick={() => setShowFilters(true)} />
+        </Toolbar>
 
-      {/* Mobile Collapsible Stats */}
-      <MembersStatsCollapsible 
-        totalMembers={totalMembers}
-        activeMembers={totalMembers}
-        foundMembers={displayedMembers.length}
-      />
+        {activeFilterCount > 0 ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <FilterChip
+              label="Contato"
+              value={CONTACT_FILTER_LABEL[contactFilter]}
+              onRemove={() => setContactFilter("todos")}
+            />
+          </div>
+        ) : null}
+      </PageHeader>
 
-      {error && (
-        <ErrorBanner
-          message={error}
-          onRetry={async () => {
-            setLoading(true)
-            setError(null)
-            try {
-              const [membersData, count] = await Promise.all([getMembers(0), getMembersCount()])
-              setMembers(membersData)
-              setTotalMembers(count)
-              setCurrentPage(0)
-              setHasMore(membersData.length === PAGE_SIZE_EXPORT)
-            } catch {
-              setError('Erro ao carregar membros')
-            } finally {
-              setLoading(false)
-            }
-          }}
+      <div className="space-y-4">
+        <MembersStatsCollapsible
+          totalMembers={totalMembers}
+          activeMembers={totalMembers}
+          foundMembers={displayedMembers.length}
+          loading={isFirstLoad}
         />
-      )}
 
-      {/* Search Bar - isolada para não travar a digitação */}
-      <MembersSearchBar onSearch={handleSearch} isSearching={isSearching} />
+        <StatGrid className="hidden lg:grid lg:grid-cols-3">
+          <StatTile
+            label="Total de membros"
+            value={totalMembers.toLocaleString("pt-BR")}
+            hint="cadastros no site"
+            icon={Users}
+            loading={isFirstLoad}
+          />
+          <StatTile
+            label="Carregados"
+            value={displayedMembers.length.toLocaleString("pt-BR")}
+            hint={searchMode ? "resultados da busca" : "nesta sessão"}
+            icon={Download}
+            tone="brand"
+            loading={isFirstLoad}
+          />
+          <StatTile
+            label="Página atual"
+            value={(currentPage + 1).toLocaleString("pt-BR")}
+            hint={hasMore ? "há mais registros" : "fim da lista"}
+            icon={Receipt}
+            loading={isFirstLoad}
+          />
+        </StatGrid>
 
-      {/* Desktop Stats Grid */}
-      <div className="hidden lg:grid lg:grid-cols-3 gap-3 sm:gap-4">
-        <Card className="bg-neutral-900 border-neutral-700">
-          <CardContent className="p-3 sm:p-4">
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <p className="text-xs text-neutral-400 tracking-wider">TOTAL DE MEMBROS</p>
-                <p className="text-lg sm:text-2xl font-bold text-white font-mono">{totalMembers}</p>
-              </div>
-              <div className="text-lg sm:text-2xl">👥</div>
+        {error && (
+          <ErrorBanner
+            message={error}
+            onRetry={async () => {
+              setLoading(true)
+              setError(null)
+              try {
+                const [membersData, count] = await Promise.all([getMembers(0), getMembersCount()])
+                setMembers(membersData)
+                setTotalMembers(count)
+                setCurrentPage(0)
+                setHasMore(membersData.length === PAGE_SIZE_EXPORT)
+              } catch {
+                setError('Erro ao carregar membros')
+              } finally {
+                setLoading(false)
+              }
+            }}
+          />
+        )}
+
+        {isFirstLoad ? (
+          <>
+            <div className="lg:hidden">
+              <MembersCardList members={[]} onSelectMember={setSelectedMember} loading />
             </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-neutral-900 border-neutral-700">
-          <CardContent className="p-3 sm:p-4">
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <p className="text-xs text-neutral-400 tracking-wider">CARREGADOS</p>
-                <p className="text-lg sm:text-2xl font-bold text-orange-500 font-mono">{displayedMembers.length}</p>
-              </div>
-              <div className="text-lg sm:text-2xl">⬇️</div>
+            <div className="hidden lg:block">
+              <TableSkeleton rows={8} columns={6} />
             </div>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-neutral-900 border-neutral-700">
-          <CardContent className="p-3 sm:p-4">
-            <div className="flex items-center justify-between gap-2">
-              <div>
-                <p className="text-xs text-neutral-400 tracking-wider">PÁGINA</p>
-                <p className="text-lg sm:text-2xl font-bold text-green-500 font-mono">{currentPage + 1}</p>
-              </div>
-              <div className="text-lg sm:text-2xl">📄</div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Mobile Card List View */}
-      <MembersCardList
-        members={displayedMembers}
-        onSelectMember={setSelectedMember}
-        loading={(loading || isSearching) && !error && displayedMembers.length === 0}
-      />
-
-      {/* Desktop Table View */}
-      <Card className="hidden lg:flex bg-neutral-900 border-neutral-700 flex-1 flex-col overflow-hidden">
-        <CardHeader className="border-b border-neutral-700">
-          <CardTitle className="text-xs sm:text-sm font-medium text-neutral-300 tracking-wider">LISTA DE MEMBROS</CardTitle>
-        </CardHeader>
-        <CardContent className="flex-1 overflow-hidden flex flex-col p-0">
-          {loading && displayedMembers.length === 0 ? (
-            <PageLoading label="Carregando membros..." />
-          ) : displayedMembers.length === 0 ? (
-            <div className="flex items-center justify-center h-full">
-              <p className="text-neutral-400">
-                {totalMembers === 0 ? "Nenhum membro encontrado" : "Nenhum membro corresponde à sua busca"}
-              </p>
-            </div>
+          </>
+        ) : isEmptyResult ? (
+          hasQueryOrFilter ? (
+            <NoResultsState query={query || CONTACT_FILTER_LABEL[contactFilter]} onClear={clearSearchAndFilters} />
           ) : (
-            <div className="overflow-x-auto overflow-y-auto">
-              <table className="w-full text-xs sm:text-sm">
-                <thead className="sticky top-0 bg-neutral-800">
-                  <tr className="border-b border-neutral-700">
-                    <th className="text-left py-2 sm:py-3 px-3 sm:px-4 font-medium text-neutral-400 tracking-wider">NOME</th>
-                    <th className="text-left py-2 sm:py-3 px-3 sm:px-4 font-medium text-neutral-400 tracking-wider hidden md:table-cell">E-MAIL</th>
-                    <th className="text-left py-2 sm:py-3 px-3 sm:px-4 font-medium text-neutral-400 tracking-wider hidden lg:table-cell">CPF</th>
-                    <th className="text-left py-2 sm:py-3 px-3 sm:px-4 font-medium text-neutral-400 tracking-wider hidden xl:table-cell">NASCIMENTO</th>
-                    <th className="text-left py-2 sm:py-3 px-3 sm:px-4 font-medium text-neutral-400 tracking-wider hidden sm:table-cell">WHATSAPP</th>
-                    <th className="text-left py-2 sm:py-3 px-3 sm:px-4 font-medium text-neutral-400 tracking-wider">AÇÕES</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {displayedMembers.map((member, index) => (
+            <EmptyState
+              icon={Users}
+              title="Nenhum membro cadastrado"
+              description="Assim que alguém se cadastrar no site — ou você adicionar manualmente — o registro aparece aqui."
+              action={primaryAction}
+            />
+          )
+        ) : (
+          <>
+            <MembersCardList
+              members={displayedMembers}
+              onSelectMember={setSelectedMember}
+              selectedId={selectedMember?.id ?? null}
+            />
+
+            <TableFrame className="hidden lg:block" busy={loading || isSearching}>
+              <Table caption="Lista de membros da Somma com nome, contato, CPF e data de nascimento">
+                <THead>
+                  <TH
+                    sortable
+                    direction={directionFor("nome_completo")}
+                    onSort={() => toggleSort("nome_completo")}
+                  >
+                    Nome
+                  </TH>
+                  <TH
+                    className="hidden md:table-cell"
+                    sortable
+                    direction={directionFor("email")}
+                    onSort={() => toggleSort("email")}
+                  >
+                    E-mail
+                  </TH>
+                  <TH className="hidden lg:table-cell">CPF</TH>
+                  <TH
+                    className="hidden xl:table-cell"
+                    sortable
+                    direction={directionFor("data_nascimento")}
+                    onSort={() => toggleSort("data_nascimento")}
+                  >
+                    Nascimento
+                  </TH>
+                  <TH className="hidden sm:table-cell">WhatsApp</TH>
+                  <TH align="right" width="88px">
+                    Ações
+                  </TH>
+                </THead>
+                <TBody>
+                  {displayedMembers.map((member) => (
                     <MembersTableRow
                       key={member.id}
                       member={member}
-                      index={index}
+                      selected={selectedMember?.id === member.id}
                       onSelect={setSelectedMember}
                       formatCPF={formatCPF}
                       formatDate={formatDate}
                     />
                   ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                </TBody>
+              </Table>
+            </TableFrame>
+          </>
+        )}
 
-      {/* Load More Button */}
-      {hasMore && !loading && (
-        <div className="flex justify-center pt-2">
-          <Button
-            onClick={loadMore}
-            disabled={loading}
-            className="bg-neutral-700 hover:bg-neutral-600 text-white w-full sm:w-auto"
-          >
-            {loading ? "Carregando..." : `Carregar Mais (${displayedMembers.length}/${totalMembers})`}
-          </Button>
-        </div>
-      )}
+        {hasMore && !isFirstLoad && !isEmptyResult && (
+          <div className="flex justify-center pt-1">
+            <Button
+              variant="secondary"
+              onClick={loadMore}
+              loading={loading || isSearching}
+              className="w-full sm:w-auto"
+            >
+              Carregar mais ({displayedMembers.length}/{totalMembers})
+            </Button>
+          </div>
+        )}
+      </div>
 
-      {/* Member Detail Modal */}
+      <ResponsiveModal
+        open={showFilters}
+        onOpenChange={setShowFilters}
+        title="Filtros"
+        description="Refina a lista já carregada, sem alterar a busca no servidor."
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setContactFilter("todos")} block className="sm:w-auto">
+              Limpar
+            </Button>
+            <Button onClick={() => setShowFilters(false)} block className="sm:w-auto">
+              Aplicar
+            </Button>
+          </>
+        }
+      >
+        <fieldset className="space-y-2">
+          <legend className="ds-eyebrow mb-2">Contato</legend>
+          {(Object.keys(CONTACT_FILTER_LABEL) as ContactFilter[]).map((option) => (
+            <label
+              key={option}
+              className="ds-tap flex cursor-pointer items-center gap-3 rounded-lg border border-line px-3.5 text-sm text-ink transition-colors hover:border-line-strong has-[:checked]:border-brand-border has-[:checked]:bg-brand-soft"
+            >
+              <input
+                type="radio"
+                name="contact-filter"
+                value={option}
+                checked={contactFilter === option}
+                onChange={() => setContactFilter(option)}
+                className="h-4 w-4 accent-brand"
+              />
+              {CONTACT_FILTER_LABEL[option]}
+            </label>
+          ))}
+        </fieldset>
+      </ResponsiveModal>
+
       {selectedMember && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <Card className="bg-neutral-900 border-neutral-700 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <CardHeader className="flex flex-row items-center justify-between sticky top-0 bg-neutral-900">
-              <div>
-                <CardTitle className="text-base sm:text-lg font-bold text-white tracking-wider">
-                  {selectedMember.nome_completo}
-                </CardTitle>
-                <p className="text-xs sm:text-sm text-neutral-400">ID: {selectedMember.id}</p>
-              </div>
+        <ResponsiveModal
+          open={!showWhatsAppModal}
+          onOpenChange={(open) => {
+            if (!open) setSelectedMember(null)
+          }}
+          title={selectedMember.nome_completo}
+          description={`ID ${selectedMember.id}`}
+          size="lg"
+          footer={
+            <>
               <Button
-                variant="ghost"
-                onClick={() => setSelectedMember(null)}
-                className="text-neutral-400 hover:text-white"
+                variant="destructive"
+                onClick={() => handleDeleteMember(selectedMember)}
+                loading={deleting}
+                block
+                className="sm:mr-auto sm:w-auto"
               >
-                ✕
+                <Trash2 aria-hidden="true" />
+                Excluir
               </Button>
-            </CardHeader>
-            <CardContent className="space-y-4 p-4 sm:p-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs text-neutral-400 tracking-wider mb-1">NOME COMPLETO</p>
-                  <p className="text-sm text-white">{selectedMember.nome_completo}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-neutral-400 tracking-wider mb-1">CPF</p>
-                  <p className="text-sm text-white font-mono">{formatCPF(selectedMember.cpf)}</p>
-                </div>
-                <div className="sm:col-span-2">
-                  <p className="text-xs text-neutral-400 tracking-wider mb-1">E-MAIL</p>
-                  <div className="flex items-center gap-2">
-                    <Mail className="w-4 h-4 text-neutral-400 flex-shrink-0" />
-                    <p className="text-sm text-white break-all">{selectedMember.email}</p>
+              <Button variant="secondary" onClick={handleOpenWhatsAppModal} block className="sm:w-auto">
+                <MessageCircle aria-hidden="true" />
+                WhatsApp
+              </Button>
+              <Button onClick={() => handleEditClick(selectedMember)} block className="sm:w-auto">
+                Editar membro
+              </Button>
+            </>
+          }
+        >
+          <div className="space-y-6">
+            <section>
+              <SectionTitle title="Dados cadastrais" as="h3" />
+              <Panel inset>
+                <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
+                    <dt className="ds-eyebrow">Nome completo</dt>
+                    <dd className="mt-1 text-sm text-ink-strong">{selectedMember.nome_completo}</dd>
                   </div>
-                </div>
-                <div className="sm:col-span-2">
-                  <p className="text-xs text-neutral-400 tracking-wider mb-1">WHATSAPP</p>
-                  <div className="flex items-center gap-2">
-                    <Phone className="w-4 h-4 text-neutral-400 flex-shrink-0" />
-                    <p className="text-sm text-white">{selectedMember.whatsapp}</p>
+                  <div>
+                    <dt className="ds-eyebrow">CPF</dt>
+                    <dd className="mt-1 font-mono text-sm tabular-nums text-ink">
+                      {selectedMember.cpf ? formatCPF(selectedMember.cpf) : "—"}
+                    </dd>
                   </div>
-                </div>
-                <div>
-                  <p className="text-xs text-neutral-400 tracking-wider mb-1">DATA DE NASCIMENTO</p>
-                  <p className="text-sm text-white">{formatDate(selectedMember.data_nascimento)}</p>
-                </div>
-              </div>
-              <div className="flex flex-col sm:flex-row gap-2 pt-4">
-                <Button 
-                  onClick={() => handleEditClick(selectedMember)}
-                  className="bg-orange-500 hover:bg-orange-600 text-white flex-1"
-                >
-                  Editar Membro
-                </Button>
-                <Button
-                  onClick={handleOpenChargeModal}
-                  className="bg-blue-500 hover:bg-blue-600 text-white flex-1"
-                >
-                  <Plus className="w-4 h-4 mr-1" />
-                  Criar Cobrança
-                </Button>
-                <Button
-                  onClick={handleOpenWhatsAppModal}
-                  className="bg-green-500 hover:bg-green-600 text-white flex-1 flex items-center justify-center gap-2"
-                >
-                  <MessageCircle className="w-4 h-4" />
-                  WhatsApp
-                </Button>
-                <Button
-                  onClick={() => handleDeleteMember(selectedMember.id)}
-                  disabled={deleting}
-                  className="bg-red-500 hover:bg-red-600 text-white flex-1 flex items-center justify-center gap-2"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  {deleting ? "Deletando..." : "Deletar"}
-                </Button>
-              </div>
-              
-              {/* Tags Section */}
-              <div className="pt-4 border-t border-neutral-700">
-                <TagManager entityType="membro" entityId={selectedMember.id} />
-              </div>
+                  <div>
+                    <dt className="ds-eyebrow">Data de nascimento</dt>
+                    <dd className="mt-1 text-sm text-ink">{formatDate(selectedMember.data_nascimento)}</dd>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <dt className="ds-eyebrow">E-mail</dt>
+                    <dd className="mt-1 flex items-center gap-2 text-sm text-ink">
+                      <Mail aria-hidden="true" className="h-4 w-4 shrink-0 text-ink-subtle" />
+                      <span className="break-all">{selectedMember.email || "—"}</span>
+                    </dd>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <dt className="ds-eyebrow">WhatsApp</dt>
+                    <dd className="mt-1 flex items-center gap-2 text-sm text-ink">
+                      <Phone aria-hidden="true" className="h-4 w-4 shrink-0 text-ink-subtle" />
+                      <span className="font-mono tabular-nums">{selectedMember.whatsapp || "—"}</span>
+                    </dd>
+                  </div>
+                </dl>
+              </Panel>
+            </section>
 
-              {/* Charges Section */}
-              <div className="pt-4 border-t border-neutral-700">
-                <h3 className="text-sm font-semibold text-white mb-4 tracking-wider">COBRANÇAS</h3>
-                <MemberChargesList memberId={selectedMember.id} />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+            <TagManager entityType="membro" entityId={String(selectedMember.id)} />
+          </div>
+        </ResponsiveModal>
       )}
 
-      {/* Add Member Modal */}
-      {showAddMember && (
-        <AddMemberModal 
-          isOpen={showAddMember}
-          onClose={() => setShowAddMember(false)}
-          onMemberAdded={handleMemberAdded}
-        />
-      )}
+      <AddMemberModal
+        isOpen={showAddMember}
+        onClose={() => setShowAddMember(false)}
+        onMemberAdded={handleMemberAdded}
+      />
 
-      {/* Edit Member Modal */}
       {editingMember && (
         <EditMemberModal
           member={editingMember}
@@ -486,7 +607,6 @@ export default function AgentNetworkPage() {
         />
       )}
 
-      {/* WhatsApp Message Modal */}
       {selectedMember && (
         <WhatsAppMessageModal
           isOpen={showWhatsAppModal}
@@ -496,15 +616,6 @@ export default function AgentNetworkPage() {
         />
       )}
 
-      {/* Create Charge Modal */}
-      {selectedMember && (
-        <CreateChargeModal
-          isOpen={showChargeModal}
-          onClose={() => setShowChargeModal(false)}
-          member={selectedMember}
-          onChargeCreated={handleChargeCreated}
-        />
-      )}
-    </div>
+    </PageShell>
   )
 }

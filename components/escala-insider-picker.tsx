@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Search } from 'lucide-react'
-import { matchesTextSearch } from '@/lib/search-utils'
+import { searchAndRank } from '@/lib/search-utils'
+import { SearchInput } from '@/components/somma'
 import type { InsiderOption } from '@/lib/types/escala'
 
 interface EscalaInsiderPickerProps {
@@ -19,45 +19,63 @@ export function EscalaInsiderPicker({
 }: EscalaInsiderPickerProps) {
   const [busca, setBusca] = useState('')
 
-  const filtrados = insiders
-    .filter((i) => matchesTextSearch(busca, [i.nome]))
-    .slice(0, 50)
+  // Ordenado por relevância antes de cortar em 50: sem isso, o corte poderia
+  // descartar justamente o insider procurado.
+  const filtrados = searchAndRank(insiders, busca, (i) => [i.nome]).slice(0, 50)
 
   return (
     <div className="space-y-2">
-      <div className="relative">
-        <Search className="w-4 h-4 text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2" />
-        <input
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-          placeholder="Buscar insider pelo nome"
-          className="w-full bg-neutral-800 border border-neutral-700 rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder:text-neutral-500 focus:outline-none focus:border-orange-500"
-        />
-      </div>
+      <SearchInput
+        value={busca}
+        onValueChange={setBusca}
+        label="Buscar insider pelo nome"
+        placeholder="Buscar insider pelo nome"
+        className="sm:max-w-none"
+      />
 
-      <div className="max-h-56 overflow-auto space-y-1">
+      <ul
+        aria-label="Insiders disponíveis"
+        className="scroll-touch max-h-64 space-y-1 overflow-y-auto"
+      >
         {filtrados.map((insider) => {
           const escalado = jaEscalados.includes(insider.id)
           return (
-            <button
-              key={insider.id}
-              disabled={escalado}
-              onClick={() => onSelecionar(insider)}
-              className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                escalado
-                  ? 'text-neutral-600 cursor-not-allowed'
-                  : 'text-neutral-200 hover:bg-neutral-800'
-              }`}
-            >
-              {insider.nome}
-              {escalado && <span className="text-xs text-neutral-600 ml-2">já escalado</span>}
-            </button>
+            <li key={insider.id}>
+              <button
+                type="button"
+                disabled={escalado}
+                onClick={() => onSelecionar(insider)}
+                aria-label={
+                  escalado
+                    ? `${insider.nome} — já escalado neste evento`
+                    : `Escalar ${insider.nome}`
+                }
+                className={[
+                  'ds-tap flex w-full items-center justify-between gap-2 rounded-lg px-3 text-left text-sm transition-colors',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-canvas',
+                  escalado
+                    ? 'cursor-not-allowed text-ink-disabled'
+                    : 'text-ink hover:bg-surface-hover hover:text-ink-strong',
+                ].join(' ')}
+              >
+                <span className="truncate">{insider.nome}</span>
+                {escalado ? (
+                  <span className="shrink-0 text-micro uppercase tracking-wide text-ink-subtle">
+                    já escalado
+                  </span>
+                ) : null}
+              </button>
+            </li>
           )
         })}
-        {filtrados.length === 0 && (
-          <p className="text-sm text-neutral-500 px-3 py-2">Nenhum insider encontrado.</p>
-        )}
-      </div>
+        {filtrados.length === 0 ? (
+          <li className="px-3 py-2 text-meta text-ink-muted">
+            {busca
+              ? `Nenhum insider corresponde a “${busca}”.`
+              : 'Nenhum insider disponível.'}
+          </li>
+        ) : null}
+      </ul>
     </div>
   )
 }

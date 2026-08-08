@@ -1,44 +1,94 @@
 'use client'
 
-import React, { useState, useMemo } from 'react'
+import * as React from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { addDays, startOfWeek, formatISO } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
+import { addDays, formatISO, startOfWeek } from 'date-fns'
+import { Panel } from '@/components/somma'
+import { Button } from '@/components/ui/button'
+import {
+  PriorityPill,
+  formatLongDate,
+  initialsOf,
+  isOverdue,
+  priorityMeta,
+} from '@/components/tarefas-card'
+import { cn } from '@/lib/utils'
 import type { TarefasTask } from '@/lib/services/tarefas'
+
+/**
+ * Visão de semana.
+ *
+ * No desktop são sete colunas; no celular a mesma semana vira uma lista
+ * vertical por dia — mais legível que sete colunas de 50px e mantendo o
+ * mesmo cabeçalho de navegação.
+ */
 
 interface TarefasCalendarWeekProps {
   tasks: TarefasTask[]
   onTaskClick: (taskId: string) => void
 }
 
-const PRIORITY_COLORS: Record<string, string> = {
-  urgente: 'bg-red-100 border-red-400 text-red-800',
-  alta: 'bg-orange-100 border-orange-400 text-orange-800',
-  media: 'bg-purple-100 border-purple-400 text-purple-800',
-  baixa: 'bg-blue-100 border-blue-400 text-blue-800',
-}
+function TaskButton({
+  task,
+  onTaskClick,
+  compact = false,
+}: {
+  task: TarefasTask
+  onTaskClick: (taskId: string) => void
+  compact?: boolean
+}) {
+  const overdue = isOverdue(task.data_entrega) && !task.concluida
 
-const PRIORITY_DOT: Record<string, string> = {
-  urgente: 'bg-red-600',
-  alta: 'bg-orange-500',
-  media: 'bg-purple-500',
-  baixa: 'bg-blue-500',
+  return (
+    <button
+      type="button"
+      onClick={() => onTaskClick(task.id)}
+      className={cn(
+        'flex w-full items-start gap-2 rounded-lg border border-line bg-surface-raised p-2.5 text-left transition-colors hover:border-line-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
+        !compact && 'ds-tap',
+        task.concluida && 'opacity-70',
+      )}
+    >
+      <span
+        aria-hidden="true"
+        className={cn('mt-0.5 h-full min-h-[1.75rem] w-1 shrink-0 rounded-full', priorityMeta(task.prioridade).bar)}
+      />
+      <span className="min-w-0 flex-1">
+        <span
+          className={cn(
+            'block text-[0.8125rem] font-medium leading-snug',
+            task.concluida ? 'text-ink-muted line-through' : 'text-ink-strong',
+          )}
+        >
+          {task.titulo}
+        </span>
+        <span className="mt-1 flex flex-wrap items-center gap-1.5">
+          <PriorityPill prioridade={task.prioridade} />
+          {overdue ? <span className="text-micro font-semibold text-danger">Vencida</span> : null}
+        </span>
+        {task.responsavel_nome ? (
+          <span className="mt-1 block truncate text-micro text-ink-muted">
+            {initialsOf(task.responsavel_nome)} · {task.responsavel_nome}
+          </span>
+        ) : null}
+      </span>
+    </button>
+  )
 }
 
 export const TarefasCalendarWeek: React.FC<TarefasCalendarWeekProps> = ({ tasks, onTaskClick }) => {
-  const [weekStart, setWeekStart] = useState(() =>
-    startOfWeek(new Date(), { weekStartsOn: 0 })
+  const [weekStart, setWeekStart] = React.useState(() => startOfWeek(new Date(), { weekStartsOn: 0 }))
+
+  const weekDays = React.useMemo(
+    () => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)),
+    [weekStart],
   )
 
-  const weekDays = useMemo(() => {
-    return Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))
-  }, [weekStart])
-
-  const tasksByDay = useMemo(() => {
+  const tasksByDay = React.useMemo(() => {
     const grouped: Record<string, TarefasTask[]> = {}
-    weekDays.forEach(day => {
+    weekDays.forEach((day) => {
       const key = formatISO(day, { representation: 'date' })
-      grouped[key] = tasks.filter(t => {
+      grouped[key] = tasks.filter((t) => {
         if (!t.data_entrega) return false
         const taskDateStr = t.data_entrega.includes('T')
           ? t.data_entrega.split('T')[0]
@@ -49,151 +99,154 @@ export const TarefasCalendarWeek: React.FC<TarefasCalendarWeekProps> = ({ tasks,
     return grouped
   }, [weekDays, tasks])
 
-  const prevWeek = () => setWeekStart(addDays(weekStart, -7))
-  const nextWeek = () => setWeekStart(addDays(weekStart, 7))
-
   const weekLabel = `${weekDays[0].toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })} – ${weekDays[6].toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' })}`
-
   const isToday = (day: Date) => new Date().toDateString() === day.toDateString()
 
   return (
-    <div className="w-full h-full flex flex-col bg-white">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 md:px-6 py-3 border-b border-gray-200">
-        <h2 className="text-base md:text-lg font-semibold text-gray-900">{weekLabel}</h2>
-        <div className="flex gap-1">
-          <button
-            onClick={prevWeek}
+    <div className="flex h-full w-full flex-col gap-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="truncate text-base font-semibold text-ink-strong sm:text-lg">{weekLabel}</h2>
+          <p className="text-meta text-ink-muted">Semana de domingo a sábado</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Button
+            variant="secondary"
+            size="icon"
+            onClick={() => setWeekStart(addDays(weekStart, -7))}
             aria-label="Semana anterior"
-            className="p-2 hover:bg-gray-100 rounded-lg transition"
           >
-            <ChevronLeft className="w-5 h-5 text-gray-700" />
-          </button>
-          <button
-            onClick={nextWeek}
+            <ChevronLeft aria-hidden="true" />
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setWeekStart(startOfWeek(new Date(), { weekStartsOn: 0 }))}
+          >
+            Hoje
+          </Button>
+          <Button
+            variant="secondary"
+            size="icon"
+            onClick={() => setWeekStart(addDays(weekStart, 7))}
             aria-label="Próxima semana"
-            className="p-2 hover:bg-gray-100 rounded-lg transition"
           >
-            <ChevronRight className="w-5 h-5 text-gray-700" />
-          </button>
+            <ChevronRight aria-hidden="true" />
+          </Button>
         </div>
       </div>
 
-      {/* Day columns - desktop: side by side, mobile: stacked */}
-      <div className="flex-1 overflow-auto">
-        {/* Desktop: 7-column grid */}
-        <div className="hidden md:grid md:grid-cols-7 h-full">
-          {weekDays.map((day, idx) => {
+      {/* Desktop: sete colunas */}
+      <Panel className="hidden min-h-0 flex-1 overflow-hidden md:block">
+        <div className="grid h-full grid-cols-7">
+          {weekDays.map((day) => {
             const key = formatISO(day, { representation: 'date' })
             const dayTasks = tasksByDay[key] || []
-            const today = isToday(day)
+            const marked = isToday(day)
 
             return (
-              <div key={idx} className="flex flex-col border-r border-gray-200 last:border-r-0">
-                {/* Day header */}
+              <section
+                key={key}
+                aria-label={`${formatLongDate(day)}${marked ? ', hoje' : ''}, ${dayTasks.length} tarefa${dayTasks.length === 1 ? '' : 's'}`}
+                className="flex min-w-0 flex-col border-r border-line last:border-r-0"
+              >
                 <div
-                  className={`px-2 py-3 text-center border-b border-gray-200 ${today ? 'bg-orange-50' : 'bg-gray-50'}`}
+                  className={cn(
+                    'border-b border-line px-2 py-3 text-center',
+                    marked ? 'bg-brand-soft' : 'bg-surface-sunken',
+                  )}
                 >
                   <div
-                    className={`text-xs font-semibold uppercase tracking-wide ${today ? 'text-orange-600' : 'text-gray-500'}`}
+                    className={cn(
+                      'text-micro font-semibold uppercase tracking-wide',
+                      marked ? 'text-brand-strong' : 'text-ink-muted',
+                    )}
                   >
                     {day.toLocaleDateString('pt-BR', { weekday: 'short' })}
                   </div>
                   <div
-                    className={`mt-0.5 text-xl font-bold w-8 h-8 flex items-center justify-center mx-auto rounded-full ${
-                      today ? 'bg-orange-500 text-white' : 'text-gray-900'
-                    }`}
+                    className={cn(
+                      'mx-auto mt-1 flex h-9 w-9 items-center justify-center rounded-full text-lg font-bold tabular-nums',
+                      marked
+                        ? 'bg-brand text-white ring-2 ring-brand-border ring-offset-2 ring-offset-surface-sunken'
+                        : 'text-ink-strong',
+                    )}
                   >
                     {day.getDate()}
                   </div>
-                  {dayTasks.length > 0 && (
-                    <div className="text-xs text-gray-500 mt-1">{dayTasks.length} tarefa{dayTasks.length > 1 ? 's' : ''}</div>
-                  )}
+                  {marked ? (
+                    <div className="mt-1 text-micro font-semibold uppercase text-brand">Hoje</div>
+                  ) : null}
+                  <div className="mt-1 text-micro text-ink-muted">
+                    {dayTasks.length > 0
+                      ? `${dayTasks.length} tarefa${dayTasks.length === 1 ? '' : 's'}`
+                      : 'Sem tarefas'}
+                  </div>
                 </div>
 
-                {/* Tasks */}
-                <div className="flex-1 p-2 space-y-1.5 overflow-y-auto">
-                  {dayTasks.map(task => (
-                    <div
-                      key={task.id}
-                      onClick={() => onTaskClick(task.id)}
-                      className={`p-2 rounded-lg border cursor-pointer hover:shadow-sm transition text-xs ${
-                        PRIORITY_COLORS[task.prioridade] || 'bg-gray-50 border-gray-300 text-gray-800'
-                      } ${task.concluida ? 'opacity-60' : ''}`}
-                    >
-                      <div className="flex items-start gap-1">
-                        <div className={`w-1.5 h-1.5 rounded-full mt-0.5 flex-shrink-0 ${PRIORITY_DOT[task.prioridade] || 'bg-gray-400'}`} />
-                        <div className="flex-1 min-w-0">
-                          <div className={`font-medium truncate ${task.concluida ? 'line-through' : ''}`}>
-                            {task.titulo}
-                          </div>
-                          {task.responsavel_nome && (
-                            <div className="opacity-70 mt-0.5 truncate">{task.responsavel_nome}</div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
+                <div className="scroll-touch flex-1 space-y-1.5 overflow-y-auto p-2">
+                  {dayTasks.map((task) => (
+                    <TaskButton key={task.id} task={task} onTaskClick={onTaskClick} compact />
                   ))}
                 </div>
-              </div>
+              </section>
             )
           })}
         </div>
+      </Panel>
 
-        {/* Mobile: stacked list */}
-        <div className="md:hidden divide-y divide-gray-200">
-          {weekDays.map((day, idx) => {
-            const key = formatISO(day, { representation: 'date' })
-            const dayTasks = tasksByDay[key] || []
-            const today = isToday(day)
+      {/* Mobile: lista vertical por dia */}
+      <div className="scroll-touch min-h-0 flex-1 space-y-3 overflow-y-auto md:hidden">
+        {weekDays.map((day) => {
+          const key = formatISO(day, { representation: 'date' })
+          const dayTasks = tasksByDay[key] || []
+          const marked = isToday(day)
 
-            return (
-              <div key={idx}>
-                <div className={`px-4 py-2 flex items-center gap-3 ${today ? 'bg-orange-50' : 'bg-gray-50'}`}>
-                  <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${
-                      today ? 'bg-orange-500 text-white' : 'bg-white border border-gray-300 text-gray-900'
-                    }`}
-                  >
-                    {day.getDate()}
-                  </div>
-                  <div>
-                    <div className={`text-sm font-medium capitalize ${today ? 'text-orange-700' : 'text-gray-900'}`}>
-                      {day.toLocaleDateString('pt-BR', { weekday: 'long' })}
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      {dayTasks.length > 0 ? `${dayTasks.length} tarefa${dayTasks.length > 1 ? 's' : ''}` : 'Sem tarefas'}
-                    </div>
-                  </div>
-                </div>
-
-                {dayTasks.length > 0 && (
-                  <div className="px-4 py-2 space-y-2">
-                    {dayTasks.map(task => (
-                      <div
-                        key={task.id}
-                        onClick={() => onTaskClick(task.id)}
-                        className={`p-3 rounded-lg border cursor-pointer active:scale-[0.98] transition ${
-                          PRIORITY_COLORS[task.prioridade] || 'bg-gray-50 border-gray-300'
-                        } ${task.concluida ? 'opacity-60' : ''}`}
-                      >
-                        <div className="flex items-start gap-2">
-                          <div className={`w-2 h-2 rounded-full mt-1 flex-shrink-0 ${PRIORITY_DOT[task.prioridade] || 'bg-gray-400'}`} />
-                          <div className="flex-1 min-w-0">
-                            <div className={`text-sm font-medium ${task.concluida ? 'line-through' : ''}`}>{task.titulo}</div>
-                            {task.responsavel_nome && (
-                              <div className="text-xs opacity-70 mt-0.5">{task.responsavel_nome}</div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+          return (
+            <Panel
+              key={key}
+              aria-label={`${formatLongDate(day)}${marked ? ', hoje' : ''}`}
+              className={cn('overflow-hidden', marked && 'border-brand-border')}
+            >
+              <div
+                className={cn(
+                  'flex items-center gap-3 border-b border-line px-3 py-2.5',
+                  marked ? 'bg-brand-soft' : 'bg-surface-sunken',
                 )}
+              >
+                <span
+                  className={cn(
+                    'flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold tabular-nums',
+                    marked
+                      ? 'bg-brand text-white'
+                      : 'border border-line bg-surface text-ink-strong',
+                  )}
+                >
+                  {day.getDate()}
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-semibold text-ink-strong first-letter:uppercase">
+                    {day.toLocaleDateString('pt-BR', { weekday: 'long' })}
+                    {marked ? <span className="ml-1.5 text-brand">· Hoje</span> : null}
+                  </span>
+                  <span className="block text-micro text-ink-muted">
+                    {dayTasks.length > 0
+                      ? `${dayTasks.length} tarefa${dayTasks.length === 1 ? '' : 's'}`
+                      : 'Sem tarefas'}
+                  </span>
+                </span>
               </div>
-            )
-          })}
-        </div>
+
+              {dayTasks.length > 0 ? (
+                <div className="space-y-2 p-2">
+                  {dayTasks.map((task) => (
+                    <TaskButton key={task.id} task={task} onTaskClick={onTaskClick} />
+                  ))}
+                </div>
+              ) : null}
+            </Panel>
+          )
+        })}
       </div>
     </div>
   )

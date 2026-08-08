@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { Ban, ChevronDown, ChevronUp, Edit2, Mail, Trash2 } from 'lucide-react'
 import { apiFetch } from '@/lib/api-client'
 import type { CampaignStats, CampaignStatus, EmailCampaign } from '@/lib/email/types'
@@ -95,8 +96,14 @@ export default function EmailCampaignCard({ campaign, onEdit, onDelete, onCancel
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <Mail className="w-4 h-4 text-orange-400 flex-shrink-0" />
-          <h3 className="font-semibold text-white text-sm leading-snug truncate" title={campaign.nome}>
-            {campaign.nome}
+          <h3 className="font-semibold text-sm leading-snug truncate min-w-0">
+            <Link
+              href={`/email-marketing/${campaign.id}`}
+              title={`Ver status detalhado de ${campaign.nome}`}
+              className="text-white hover:text-orange-400 hover:underline transition-colors"
+            >
+              {campaign.nome}
+            </Link>
           </h3>
         </div>
         <span className={`text-xs px-2 py-0.5 rounded-full font-medium border flex-shrink-0 ${meta.className}`}>

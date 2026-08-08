@@ -14,10 +14,20 @@ export async function GET(request: NextRequest) {
   if (auth instanceof NextResponse) return auth
 
   try {
+    /*
+     * `dados_insiders` é a tabela canônica dos insiders — a mesma que a Escala
+     * consulta (`lib/services/escala.ts`) e que o cadastro público alimenta.
+     *
+     * Sem `.limit(100)`: o teto era arbitrário e truncava em silêncio. Hoje há
+     * 34 insiders, então ninguém notaria — mas ao passar de 100 o módulo
+     * simplesmente deixaria de mostrar o restante, sem aviso nenhum. A
+     * ordenação por nome estava ausente (a ordem vinha indefinida do Postgres)
+     * e agora acompanha a da Escala, para as duas telas listarem igual.
+     */
     const { data, error } = await getAdminClient()
       .from('dados_insiders')
       .select('*')
-      .limit(100)
+      .order('nome')
 
     if (error) {
       console.error('[insiders] Erro ao buscar insiders:', error)

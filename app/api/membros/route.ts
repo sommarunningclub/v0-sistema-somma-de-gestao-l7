@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAdminClient, requirePermission } from '@/lib/auth/api-auth'
-import { escapeIlike, normalizeSearchQuery } from '@/lib/search-utils'
+import { stripNonDigits, toAccentInsensitiveRegex, toSearchTerms } from '@/lib/search-utils'
 import { MEMBROS_PAGE_SIZE, pickMemberFields } from '@/lib/api/writable-fields'
 
 export const dynamic = 'force-dynamic'
@@ -14,12 +14,48 @@ export const revalidate = 0
 
 const LIST_COLUMNS = 'id, nome_completo, email, cpf, whatsapp, data_nascimento'
 
-/** Aplica o filtro de busca por nome/email/cpf/whatsapp, quando houver termo. */
+/**
+ * Filtro de busca de membros — a única busca do painel que roda no banco, sobre
+ * milhares de registros. Três decisões importam aqui:
+ *
+ * 1. **`imatch` (`~*`) no lugar de `ilike`.** O banco não tem a extensão
+ *    `unaccent`, e `ilike` não normaliza diacríticos: buscar "jose" jamais
+ *    acharia "José". O termo vira um regex onde cada vogal aceita suas
+ *    variantes acentuadas (ver `toAccentInsensitiveRegex`).
+ * 2. **Um `.or()` por termo.** O PostgREST une parâmetros repetidos com AND,
+ *    então "maria silva" exige que AMBOS apareçam — em qualquer campo e em
+ *    qualquer ordem. Antes a frase inteira era comparada como uma substring
+ *    única, e "silva maria" não achava "Maria da Silva".
+ * 3. **Documento e telefone comparados por dígitos.** Quem cola um CPF traz a
+ *    pontuação junto; quem digita, não. Se o termo é uma sequência de dígitos,
+ *    ela também é procurada de forma tolerante à formatação do campo.
+ */
 function applySearch<T extends { or: (filter: string) => T }>(query: T, term: string): T {
-  const safe = escapeIlike(normalizeSearchQuery(term))
-  return query.or(
-    `nome_completo.ilike.%${safe}%,email.ilike.%${safe}%,cpf.ilike.%${safe}%,whatsapp.ilike.%${safe}%`
-  )
+  let q = query
+
+  for (const termo of toSearchTerms(term)) {
+    const regex = toAccentInsensitiveRegex(termo)
+    const condicoes = [
+      `nome_completo.imatch.${regex}`,
+      `email.imatch.${regex}`,
+      `cpf.imatch.${regex}`,
+      `whatsapp.imatch.${regex}`,
+    ]
+
+    /*
+     * Para dígitos, monta um padrão que aceita qualquer pontuação entre eles:
+     * "05326833743" casa com "053.268.337-43" e vice-versa.
+     */
+    const digitos = stripNonDigits(termo)
+    if (digitos.length >= 3) {
+      const comPontuacao = digitos.split('').join('[^0-9]*')
+      condicoes.push(`cpf.imatch.${comPontuacao}`, `whatsapp.imatch.${comPontuacao}`)
+    }
+
+    q = q.or(condicoes.join(','))
+  }
+
+  return q
 }
 
 // GET /api/membros?page=0&q=termo        -> { data }

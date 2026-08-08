@@ -1,10 +1,16 @@
-"use client"
+'use client'
 
-import { useState } from "react"
-import { X, Save, Camera } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { apiFetch } from "@/lib/api-client"
+import { useState } from 'react'
+import { Camera, CheckCircle2, Save } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { ErrorBanner } from '@/components/ui/error-banner'
+// Import direto (e não pelo barrel) porque `components/somma/index.ts` reexporta
+// o `UserMenu`, que por sua vez importa este modal — o ciclo quebraria a
+// avaliação do módulo no bundle de client.
+import { ResponsiveModal } from '@/components/somma/responsive-modal'
+import { apiFetch } from '@/lib/api-client'
 
 interface ProfileModalProps {
   user: {
@@ -18,8 +24,14 @@ interface ProfileModalProps {
   onSave: () => void
 }
 
+const ROLE_LABEL: Record<string, string> = {
+  admin: 'Administrador',
+  manager: 'Gerenciador',
+  user: 'Usuário',
+}
+
 export function ProfileModal({ user, onClose, onSave }: ProfileModalProps) {
-  const [fullName, setFullName] = useState(user.full_name || "")
+  const [fullName, setFullName] = useState(user.full_name || '')
   const [avatar, setAvatar] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -42,16 +54,16 @@ export function ProfileModal({ user, onClose, onSave }: ProfileModalProps) {
     setSuccess(false)
 
     try {
-      const res = await apiFetch("/api/auth/me", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+      const res = await apiFetch('/api/auth/me', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ full_name: fullName }),
       })
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
-        setError(body?.error || "Erro ao atualizar perfil")
-        console.error("[perfil] Update error:", body)
+        setError(body?.error || 'Erro ao atualizar perfil')
+        console.error('[perfil] Update error:', body)
         return
       }
 
@@ -61,140 +73,110 @@ export function ProfileModal({ user, onClose, onSave }: ProfileModalProps) {
         onClose()
       }, 1000)
     } catch (err) {
-      setError("Erro ao salvar alterações")
-      console.error("[v0] Save error:", err)
+      setError('Erro ao salvar alterações')
+      console.error('[v0] Save error:', err)
     } finally {
       setLoading(false)
     }
   }
 
-  const displayName = user.full_name?.trim() || user.email?.split("@")[0] || "Usuário"
-  const roleLabel = user.role 
-    ? user.role === "admin" ? "Administrador" : user.role === "manager" ? "Gerenciador" : "Usuário" 
-    : "Usuário"
+  const displayName = user.full_name?.trim() || user.email?.split('@')[0] || 'Usuário'
+  const roleLabel = ROLE_LABEL[user.role ?? 'user'] ?? 'Usuário'
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-neutral-900 border border-neutral-700 rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="sticky top-0 bg-gradient-to-r from-neutral-900 to-neutral-800 border-b border-neutral-700 p-6 flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-bold text-white tracking-wider">EDITAR PERFIL</h2>
-            <p className="text-sm text-neutral-400 mt-1">Gerencie suas informações pessoais</p>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-neutral-700 rounded-lg transition-colors"
-            aria-label="Fechar"
+    <ResponsiveModal
+      open
+      onOpenChange={(open) => {
+        if (!open && !loading) onClose()
+      }}
+      size="md"
+      title="Editar perfil"
+      description="Gerencie suas informações pessoais"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={loading} block className="sm:w-auto">
+            Cancelar
+          </Button>
+          <Button onClick={handleSave} loading={loading} block className="sm:w-auto">
+            <Save aria-hidden="true" />
+            {loading ? 'Salvando...' : 'Salvar alterações'}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-5">
+        {error && <ErrorBanner message={error} />}
+
+        {success && (
+          <div
+            role="status"
+            className="flex items-center gap-2 rounded-lg border border-success-border bg-success-soft p-3 text-sm text-success"
           >
-            <X className="w-6 h-6 text-neutral-400 hover:text-white" />
-          </button>
+            <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+            Perfil atualizado com sucesso!
+          </div>
+        )}
+
+        <div className="flex items-center gap-4 border-b border-line pb-5">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-brand-border bg-brand-soft">
+            {avatar ? (
+              <img src={avatar} alt="Pré-visualização do avatar" className="h-full w-full object-cover" />
+            ) : (
+              <span className="text-xl font-semibold text-brand" aria-hidden="true">
+                {displayName.charAt(0).toUpperCase()}
+              </span>
+            )}
+          </div>
+          <div className="min-w-0">
+            <h3 className="truncate text-base font-semibold text-ink-strong">{displayName}</h3>
+            <p className="ds-eyebrow mt-0.5 text-brand">{roleLabel}</p>
+            <p className="mt-1 text-meta text-ink-muted">
+              Membro desde {new Date(user.created_at).toLocaleDateString('pt-BR')}
+            </p>
+          </div>
         </div>
 
-        {/* Content */}
-        <div className="p-6 space-y-6">
-          {/* Status Messages */}
-          {error && (
-            <div className="p-4 bg-red-500/20 border border-red-500/30 rounded-lg text-red-400 text-sm">
-              {error}
-            </div>
-          )}
-
-          {success && (
-            <div className="p-4 bg-green-500/20 border border-green-500/30 rounded-lg text-green-400 text-sm">
-              Perfil atualizado com sucesso!
-            </div>
-          )}
-
-          {/* Profile Header */}
-          <div className="flex items-center gap-6 pb-6 border-b border-neutral-700">
-            <div className="w-24 h-24 rounded-full bg-orange-500/20 flex items-center justify-center flex-shrink-0 overflow-hidden border-2 border-orange-500">
-              {avatar ? (
-                <img src={avatar} alt="Avatar" className="w-full h-full object-cover" />
-              ) : (
-                <span className="text-4xl font-bold text-orange-500">
-                  {displayName.charAt(0).toUpperCase()}
-                </span>
-              )}
-            </div>
-            <div className="flex-1">
-              <h3 className="text-xl font-bold text-white">{displayName}</h3>
-              <p className="text-orange-500 font-medium uppercase tracking-wide text-sm">{roleLabel}</p>
-              <p className="text-neutral-400 text-sm mt-2">Membro desde {new Date(user.created_at).toLocaleDateString("pt-BR")}</p>
-            </div>
-          </div>
-
-          {/* Form Fields */}
-          <div className="space-y-5">
-            {/* Avatar Upload */}
-            <div>
-              <label className="text-sm font-semibold text-white block mb-3">Foto de Perfil</label>
-              <div className="flex items-center gap-4">
-                <label className="flex items-center justify-center gap-2 px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg hover:border-orange-500 cursor-pointer transition-colors">
-                  <Camera className="w-4 h-4 text-orange-500" />
-                  <span className="text-sm text-neutral-300">Selecionar imagem</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleAvatarChange}
-                    className="hidden"
-                  />
-                </label>
-                <p className="text-xs text-neutral-500">PNG, JPG até 5MB</p>
-              </div>
-            </div>
-
-            {/* Full Name */}
-            <div>
-              <label className="text-sm font-semibold text-white block mb-2">Nome Completo</label>
-              <Input
-                type="text"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="Seu nome completo"
-                className="bg-neutral-800 border-neutral-700 text-white placeholder-neutral-500 text-sm py-3"
+        <div className="space-y-2">
+          <span className="block text-[0.8125rem] font-medium text-ink">Foto de perfil</span>
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="ds-tap inline-flex cursor-pointer items-center gap-2 rounded-lg border border-line bg-surface-raised px-4 text-[0.8125rem] text-ink transition-colors hover:border-line-strong hover:bg-surface-hover focus-within:ring-2 focus-within:ring-brand">
+              <Camera className="h-4 w-4 text-brand" aria-hidden="true" />
+              <span>Selecionar imagem</span>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarChange}
+                className="sr-only"
               />
-            </div>
-
-            {/* Email (Read-only) */}
-            <div>
-              <label className="text-sm font-semibold text-white block mb-2">Email</label>
-              <div className="px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-neutral-400">
-                {user.email}
-              </div>
-              <p className="text-xs text-neutral-500 mt-1">Email não pode ser alterado</p>
-            </div>
-
-            {/* Role (Read-only) */}
-            <div>
-              <label className="text-sm font-semibold text-white block mb-2">Função</label>
-              <div className="px-4 py-3 bg-neutral-800 border border-neutral-700 rounded-lg text-sm text-orange-500 capitalize font-medium">
-                {roleLabel}
-              </div>
-            </div>
+            </label>
+            <p className="text-meta text-ink-subtle">PNG ou JPG até 5MB</p>
           </div>
+        </div>
 
-          {/* Footer Actions */}
-          <div className="flex gap-3 pt-6 border-t border-neutral-700">
-            <Button
-              onClick={handleSave}
-              disabled={loading}
-              className="flex-1 bg-orange-500 hover:bg-orange-600 text-white font-bold py-3 rounded-lg transition-colors"
-            >
-              <Save className="w-4 h-4 mr-2" />
-              {loading ? "Salvando..." : "Salvar Alterações"}
-            </Button>
-            <Button
-              onClick={onClose}
-              disabled={loading}
-              variant="outline"
-              className="flex-1 border-neutral-700 text-neutral-400 hover:text-white hover:border-neutral-500 bg-transparent py-3 rounded-lg"
-            >
-              Cancelar
-            </Button>
-          </div>
+        <div className="space-y-2">
+          <Label htmlFor="profile-full-name">Nome completo</Label>
+          <Input
+            id="profile-full-name"
+            type="text"
+            autoComplete="name"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            placeholder="Seu nome completo"
+            disabled={loading}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <span className="block text-[0.8125rem] font-medium text-ink">E-mail</span>
+          <p className="ds-well px-3 py-2.5 text-sm text-ink-muted">{user.email}</p>
+          <p className="text-meta text-ink-subtle">O e-mail não pode ser alterado.</p>
+        </div>
+
+        <div className="space-y-2">
+          <span className="block text-[0.8125rem] font-medium text-ink">Função</span>
+          <p className="ds-well px-3 py-2.5 text-sm font-medium text-brand">{roleLabel}</p>
         </div>
       </div>
-    </div>
+    </ResponsiveModal>
   )
 }

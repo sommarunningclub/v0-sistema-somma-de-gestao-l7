@@ -1,10 +1,20 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import { X, Plus, Trash2 } from 'lucide-react'
+import { useCallback, useEffect, useId, useState } from 'react'
+import { Plus, Trash2 } from 'lucide-react'
 import { apiFetch } from '@/lib/api-client'
 import { ErrorBanner } from '@/components/ui/error-banner'
-import { PageLoading } from '@/components/ui/page-loading'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import {
+  CardListSkeleton,
+  EmptyState,
+  ResponsiveModal,
+  SectionTitle,
+  Well,
+  confirmAction,
+  notify,
+} from '@/components/somma'
 import { ATIVIDADE_CORES, ATIVIDADE_COR_PADRAO } from '@/lib/escala-constants'
 import type { EscalaAtividade } from '@/lib/types/escala'
 
@@ -16,6 +26,9 @@ export function EscalaAtividadesManager({ onFechar }: { onFechar: () => void }) 
   const [descricao, setDescricao] = useState('')
   const [cor, setCor] = useState<string>(ATIVIDADE_COR_PADRAO)
   const [salvando, setSalvando] = useState(false)
+
+  const uid = useId()
+  const id = (name: string) => `${uid}-${name}`
 
   const carregar = useCallback(async () => {
     setLoading(true)
@@ -46,6 +59,7 @@ export function EscalaAtividadesManager({ onFechar }: { onFechar: () => void }) 
       })
       const body = await res.json()
       if (!res.ok) throw new Error(body.error || 'Erro ao criar atividade')
+      notify.success('Atividade criada.', { description: nome })
       setNome('')
       setDescricao('')
       setCor(ATIVIDADE_COR_PADRAO)
@@ -69,118 +83,189 @@ export function EscalaAtividadesManager({ onFechar }: { onFechar: () => void }) 
         setErro('Erro ao atualizar a atividade')
         return
       }
+      notify.success(atividade.ativo ? 'Atividade inativada.' : 'Atividade reativada.', {
+        description: atividade.nome,
+      })
       await carregar()
     } catch (err) {
       setErro(err instanceof Error ? err.message : 'Erro ao atualizar a atividade')
     }
   }
 
-  const remover = async (id: string) => {
+  const remover = async (atividade: EscalaAtividade) => {
+    const ok = await confirmAction({
+      title: 'Excluir esta atividade?',
+      description:
+        'Se a atividade já tiver sido usada em alguma escala, ela é apenas inativada em vez de excluída.',
+      detail: atividade.nome,
+      tone: 'danger',
+      confirmLabel: 'Excluir atividade',
+    })
+    if (!ok) return
+
     setErro(null)
-    const res = await apiFetch(`/api/escala/atividades/${id}`, { method: 'DELETE' })
+    const res = await apiFetch(`/api/escala/atividades/${atividade.id}`, { method: 'DELETE' })
     const body = await res.json()
     if (!res.ok) {
-      setErro(body.error || 'Erro ao remover atividade')
+      const mensagem = body.error || 'Erro ao remover atividade'
+      setErro(mensagem)
+      notify.error(mensagem)
       return
     }
     if (body.resultado === 'inativada') {
-      setErro('A atividade já foi usada na escala, então foi apenas inativada.')
+      notify.info('A atividade já foi usada na escala, então foi apenas inativada.', {
+        description: atividade.nome,
+      })
+    } else {
+      notify.success('Atividade excluída.', { description: atividade.nome })
     }
     await carregar()
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-end md:items-center md:justify-center" onClick={onFechar}>
-      <div
-        className="w-full md:max-w-lg max-h-[90vh] overflow-auto bg-neutral-900 border border-neutral-700 rounded-t-2xl md:rounded-2xl p-4 space-y-4"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between">
-          <h2 className="text-white font-bold">Atividades</h2>
-          <button onClick={onFechar} className="p-1 text-neutral-400 hover:text-white" aria-label="Fechar">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+    <ResponsiveModal
+      open
+      onOpenChange={(aberto) => {
+        if (!aberto && !salvando) onFechar()
+      }}
+      dismissible={!salvando}
+      size="md"
+      title="Atividades"
+      description="Etiquetas que descrevem o que cada insider faz no dia — montagem, foto, apoio de percurso."
+    >
+      <div className="space-y-5">
+        {erro ? <ErrorBanner message={erro} /> : null}
 
-        {erro && <ErrorBanner message={erro} />}
+        <Well className="space-y-3 p-3">
+          <SectionTitle as="h3" title="Nova atividade" className="mb-0" />
 
-        <div className="bg-neutral-800 border border-neutral-700 rounded-lg p-3 space-y-2">
-          <input
-            value={nome}
-            onChange={(e) => setNome(e.target.value)}
-            placeholder="Nome da atividade (ex.: Montagem)"
-            className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-neutral-500"
-          />
-          <input
-            value={descricao}
-            onChange={(e) => setDescricao(e.target.value)}
-            placeholder="Descrição (opcional)"
-            className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-neutral-500"
-          />
-          <div className="flex items-center gap-2">
-            {ATIVIDADE_CORES.map((c) => (
-              <button
-                key={c}
-                onClick={() => setCor(c)}
-                aria-label={`Cor ${c}`}
-                className={`w-6 h-6 rounded-full border-2 transition-all ${
-                  cor === c ? 'border-white scale-110' : 'border-transparent'
-                }`}
-                style={{ backgroundColor: c }}
-              />
-            ))}
+          <div>
+            <label htmlFor={id('nome')} className="mb-1.5 block text-meta font-medium text-ink-muted">
+              Nome *
+            </label>
+            <Input
+              id={id('nome')}
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              placeholder="Ex.: Montagem"
+              required
+              aria-required="true"
+            />
           </div>
-          <button
-            onClick={criar}
-            disabled={salvando || !nome.trim()}
-            className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white text-sm font-bold py-2 rounded-lg flex items-center justify-center gap-1.5 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            {salvando ? 'Criando...' : 'Criar atividade'}
-          </button>
-        </div>
 
-        {loading ? (
-          <PageLoading label="Carregando atividades..." />
-        ) : (
-          <div className="space-y-1.5">
-            {atividades.map((a) => (
-              <div
-                key={a.id}
-                className="flex items-center justify-between gap-2 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2"
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: a.cor }} />
-                  <div className="min-w-0">
-                    <p className={`text-sm truncate ${a.ativo ? 'text-white' : 'text-neutral-500 line-through'}`}>
-                      {a.nome}
-                    </p>
-                    {a.descricao && <p className="text-xs text-neutral-500 truncate">{a.descricao}</p>}
+          <div>
+            <label htmlFor={id('descricao')} className="mb-1.5 block text-meta font-medium text-ink-muted">
+              Descrição
+            </label>
+            <Input
+              id={id('descricao')}
+              value={descricao}
+              onChange={(e) => setDescricao(e.target.value)}
+              placeholder="Opcional"
+            />
+          </div>
+
+          <fieldset>
+            <legend className="mb-1.5 text-meta font-medium text-ink-muted">Cor</legend>
+            <div role="radiogroup" aria-label="Cor da atividade" className="flex flex-wrap items-center gap-1">
+              {ATIVIDADE_CORES.map((c) => {
+                const selecionada = cor === c
+                return (
+                  <button
+                    key={c}
+                    type="button"
+                    role="radio"
+                    aria-checked={selecionada}
+                    onClick={() => setCor(c)}
+                    aria-label={`Cor ${c}${selecionada ? ' (selecionada)' : ''}`}
+                    className="ds-tap flex items-center justify-center rounded-lg transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={`flex h-6 w-6 items-center justify-center rounded-full border-2 text-[0.625rem] font-bold text-white ${
+                        selecionada ? 'border-ink-strong' : 'border-transparent'
+                      }`}
+                      style={{ backgroundColor: c }}
+                    >
+                      {selecionada ? '✓' : ''}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </fieldset>
+
+          <Button block onClick={criar} loading={salvando} disabled={!nome.trim()}>
+            {salvando ? null : <Plus aria-hidden="true" />}
+            Criar atividade
+          </Button>
+        </Well>
+
+        <section>
+          <SectionTitle as="h3" title="Cadastradas" meta={loading ? undefined : `${atividades.length}`} />
+
+          {loading ? (
+            <div aria-busy="true">
+              <CardListSkeleton count={3} />
+            </div>
+          ) : atividades.length === 0 ? (
+            <EmptyState
+              compact
+              title="Nenhuma atividade cadastrada"
+              description="Crie a primeira acima para poder marcá-la nas escalações do dia."
+            />
+          ) : (
+            <ul className="space-y-1.5">
+              {atividades.map((a) => (
+                <li
+                  key={a.id}
+                  className="flex items-center justify-between gap-2 rounded-lg border border-line bg-surface-raised px-3 py-2"
+                >
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span
+                      aria-hidden="true"
+                      className="h-3 w-3 shrink-0 rounded-full"
+                      style={{ backgroundColor: a.cor }}
+                    />
+                    <div className="min-w-0">
+                      <p
+                        className={`truncate text-sm ${
+                          a.ativo ? 'font-medium text-ink-strong' : 'text-ink-subtle line-through'
+                        }`}
+                      >
+                        {a.nome}
+                        {a.ativo ? null : <span className="sr-only"> (inativa)</span>}
+                      </p>
+                      {a.descricao ? (
+                        <p className="truncate text-meta text-ink-muted">{a.descricao}</p>
+                      ) : null}
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  <button
-                    onClick={() => alternarAtivo(a)}
-                    className="text-xs text-neutral-400 hover:text-white px-2 py-1"
-                  >
-                    {a.ativo ? 'Inativar' : 'Reativar'}
-                  </button>
-                  <button
-                    onClick={() => remover(a.id)}
-                    className="p-1.5 text-neutral-500 hover:text-red-400"
-                    aria-label={`Remover ${a.nome}`}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
-            {atividades.length === 0 && (
-              <p className="text-sm text-neutral-500">Nenhuma atividade cadastrada ainda.</p>
-            )}
-          </div>
-        )}
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => alternarAtivo(a)}
+                      aria-label={`${a.ativo ? 'Inativar' : 'Reativar'} ${a.nome}`}
+                    >
+                      {a.ativo ? 'Inativar' : 'Reativar'}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => remover(a)}
+                      aria-label={`Excluir ${a.nome}`}
+                      className="hover:bg-danger-soft hover:text-danger"
+                    >
+                      <Trash2 aria-hidden="true" />
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       </div>
-    </div>
+    </ResponsiveModal>
   )
 }

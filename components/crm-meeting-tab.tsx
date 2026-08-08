@@ -1,27 +1,34 @@
 'use client'
 
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { apiFetch } from '@/lib/api-client'
 import {
+  AlertCircle,
+  ArrowRight,
   Calendar,
   Clock,
-  Video,
-  MapPin,
-  Users,
   Link2,
-  Check,
-  AlertCircle,
-  Loader2,
-  X,
+  MapPin,
+  Moon,
   Plus,
-  ArrowRight,
   Sun,
   Sunset,
-  Moon,
+  Users,
+  Video,
+  X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { SectionTitle, StatusPill, Well, notify, type StatusTone } from '@/components/somma'
 import type { MeetingData, MeetingStatus, MeetingType } from '@/lib/services/crm'
+
+/**
+ * Aba de reunião do lead.
+ *
+ * Vive dentro do `ResponsiveModal` do lead — por isso não abre um modal próprio.
+ * O feedback de salvar deixou de ser um banner artesanal e passou a usar o
+ * canal único de `notify`.
+ */
 
 interface CRMMeetingTabProps {
   leadId: string
@@ -30,12 +37,12 @@ interface CRMMeetingTabProps {
   onSaved?: (meeting: MeetingData) => void
 }
 
-const STATUS_OPTIONS: { value: MeetingStatus; label: string; color: string }[] = [
-  { value: 'pendente', label: 'Pendente', color: 'bg-neutral-600' },
-  { value: 'agendado', label: 'Agendado', color: 'bg-cyan-600' },
-  { value: 'reagendado', label: 'Reagendado', color: 'bg-yellow-600' },
-  { value: 'cancelado', label: 'Cancelado', color: 'bg-red-600' },
-  { value: 'realizado', label: 'Realizado', color: 'bg-green-600' },
+const STATUS_OPTIONS: { value: MeetingStatus; label: string; tone: StatusTone }[] = [
+  { value: 'pendente', label: 'Pendente', tone: 'neutral' },
+  { value: 'agendado', label: 'Agendado', tone: 'info' },
+  { value: 'reagendado', label: 'Reagendado', tone: 'warning' },
+  { value: 'cancelado', label: 'Cancelado', tone: 'danger' },
+  { value: 'realizado', label: 'Realizado', tone: 'success' },
 ]
 
 // Generate time slots every 15 minutes (07:00 – 22:00)
@@ -48,9 +55,9 @@ for (let h = 7; h <= 22; h++) {
 }
 
 const PERIOD_PRESETS = [
-  { label: 'Manhã', Icon: Sun, time: '09:00', color: 'text-amber-400 bg-amber-500/10 border-amber-500/20' },
-  { label: 'Tarde', Icon: Sunset, time: '14:00', color: 'text-orange-400 bg-orange-500/10 border-orange-500/20' },
-  { label: 'Noite', Icon: Moon, time: '19:00', color: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/20' },
+  { label: 'Manhã', Icon: Sun, time: '09:00' },
+  { label: 'Tarde', Icon: Sunset, time: '14:00' },
+  { label: 'Noite', Icon: Moon, time: '19:00' },
 ]
 
 const DEFAULT_MEETING: MeetingData = {
@@ -68,30 +75,31 @@ const DEFAULT_MEETING: MeetingData = {
   google_synced_at: null,
 }
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+const SELECT_CLASS =
+  'ds-tap h-11 w-full min-w-0 flex-1 cursor-pointer appearance-none rounded-lg border border-line bg-surface-sunken px-3 text-base text-ink transition-colors hover:border-line-strong focus-visible:border-brand focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand lg:h-10 lg:min-h-0'
+
 export function CRMMeetingTab({
   leadId,
   leadEmail,
   initialMeeting,
   onSaved,
 }: CRMMeetingTabProps) {
+  const fieldId = useId()
   const [meeting, setMeeting] = useState<MeetingData>(initialMeeting || DEFAULT_MEETING)
   const [saving, setSaving] = useState(false)
-  const [saveError, setSaveError] = useState<string | null>(null)
-  const [saveSuccess, setSaveSuccess] = useState(false)
   const [newAttendee, setNewAttendee] = useState('')
   const [attendeeError, setAttendeeError] = useState('')
 
   const update = <K extends keyof MeetingData>(key: K, value: MeetingData[K]) => {
     setMeeting((prev) => ({ ...prev, [key]: value }))
-    setSaveSuccess(false)
-    setSaveError(null)
   }
 
   const addAttendee = () => {
     const email = newAttendee.trim().toLowerCase()
     if (!email) return
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(email)) {
+    if (!EMAIL_RE.test(email)) {
       setAttendeeError('E-mail inválido')
       return
     }
@@ -140,8 +148,6 @@ export function CRMMeetingTab({
     const newStart = currentStartTime ? combineDateAndTime(dateStr, currentStartTime) : null
     const newEnd = currentEndTime ? combineDateAndTime(dateStr, currentEndTime) : null
     setMeeting(prev => ({ ...prev, start_at: newStart, end_at: newEnd }))
-    setSaveSuccess(false)
-    setSaveError(null)
   }
 
   const handleStartTimeChange = (timeStr: string) => {
@@ -194,8 +200,6 @@ export function CRMMeetingTab({
       start_at: newStart,
       end_at: newEnd,
     }))
-    setSaveSuccess(false)
-    setSaveError(null)
   }
 
   // Calculate duration label
@@ -218,8 +222,6 @@ export function CRMMeetingTab({
 
   const handleSave = async () => {
     setSaving(true)
-    setSaveError(null)
-    setSaveSuccess(false)
 
     try {
       const res = await apiFetch(`/api/crm/${leadId}/meeting`, {
@@ -231,302 +233,334 @@ export function CRMMeetingTab({
       const data = await res.json()
 
       if (!res.ok) {
-        setSaveError(data.error || 'Erro ao salvar reunião')
+        notify.error(data.error || 'Erro ao salvar reunião')
         return
       }
 
       const saved = data.meeting as MeetingData
       setMeeting(saved)
-      setSaveSuccess(true)
+      notify.success('Reunião salva')
 
       onSaved?.(saved)
     } catch {
-      setSaveError('Erro de conexão ao salvar reunião')
+      notify.error('Erro de conexão ao salvar reunião')
     } finally {
       setSaving(false)
     }
   }
 
-  const hasLeadEmail = leadEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(leadEmail)
+  const hasLeadEmail = Boolean(leadEmail) && EMAIL_RE.test(leadEmail)
 
   return (
-    <div className="space-y-4">
-      {/* Status */}
-      <div>
-        <label className="block text-xs font-medium text-neutral-400 mb-2">Status</label>
-        <div className="flex flex-wrap gap-2">
-          {STATUS_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              onClick={() => update('status', opt.value)}
-              className={`text-xs px-3 py-2 rounded-lg font-medium border-2 transition-all min-h-[36px] ${
-                meeting.status === opt.value
-                  ? `${opt.color} text-white border-transparent`
-                  : 'bg-neutral-800 text-neutral-400 border-neutral-700 hover:border-neutral-500'
-              }`}
+    <div className="space-y-6">
+      <section>
+        <SectionTitle
+          title="Status da reunião"
+          meta={
+            <StatusPill
+              tone={STATUS_OPTIONS.find((o) => o.value === meeting.status)?.tone ?? 'neutral'}
             >
-              {opt.label}
-            </button>
-          ))}
+              {STATUS_OPTIONS.find((o) => o.value === meeting.status)?.label ?? meeting.status}
+            </StatusPill>
+          }
+        />
+        <div role="radiogroup" aria-label="Status da reunião" className="flex flex-wrap gap-2">
+          {STATUS_OPTIONS.map((opt) => {
+            const selected = meeting.status === opt.value
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                onClick={() => update('status', opt.value)}
+                className={`ds-tap rounded-lg border px-3 text-[0.8125rem] font-medium transition-colors ${
+                  selected
+                    ? 'border-brand-border bg-brand-soft text-brand-strong'
+                    : 'border-line bg-surface-sunken text-ink-muted hover:border-line-strong hover:text-ink'
+                }`}
+              >
+                {opt.label}
+              </button>
+            )
+          })}
         </div>
-      </div>
+      </section>
 
-      {/* Type */}
-      <div>
-        <label className="block text-xs font-medium text-neutral-400 mb-2">Tipo</label>
-        <div className="grid grid-cols-2 gap-2">
+      <section>
+        <SectionTitle title="Formato" />
+        <div role="radiogroup" aria-label="Formato da reunião" className="grid grid-cols-2 gap-2">
           {(
             [
               { value: 'online' as MeetingType, label: 'Online', Icon: Video },
               { value: 'presencial' as MeetingType, label: 'Presencial', Icon: MapPin },
             ] as { value: MeetingType; label: string; Icon: React.ElementType }[]
-          ).map(({ value, label, Icon }) => (
-            <button
-              key={value}
-              onClick={() => update('type', value)}
-              className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border-2 transition-all min-h-[44px] text-sm font-medium ${
-                meeting.type === value
-                  ? 'bg-cyan-600 text-white border-transparent'
-                  : 'bg-neutral-800 text-neutral-400 border-neutral-700 hover:border-neutral-500'
-              }`}
-            >
-              <Icon className="w-4 h-4 flex-shrink-0" />
-              {label}
-            </button>
-          ))}
+          ).map(({ value, label, Icon }) => {
+            const selected = meeting.type === value
+            return (
+              <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                onClick={() => update('type', value)}
+                className={`ds-tap flex items-center justify-center gap-2 rounded-lg border px-3 text-sm font-medium transition-colors ${
+                  selected
+                    ? 'border-brand-border bg-brand-soft text-brand-strong'
+                    : 'border-line bg-surface-sunken text-ink-muted hover:border-line-strong hover:text-ink'
+                }`}
+              >
+                <Icon aria-hidden="true" className="h-4 w-4 shrink-0" />
+                {label}
+              </button>
+            )
+          })}
         </div>
-      </div>
+      </section>
 
-      {/* Date & Time - Redesigned */}
-      <div className="bg-neutral-800/50 border border-neutral-700/50 rounded-xl p-3.5 space-y-3">
-        {/* Period presets */}
-        <div className="flex gap-2">
-          {PERIOD_PRESETS.map((preset) => (
-            <button
-              key={preset.label}
-              onClick={() => applyPreset(preset.time)}
-              className={`flex-1 flex items-center justify-center gap-1.5 text-xs px-2 py-2 rounded-lg border font-medium transition-all ${
-                currentStartTime === preset.time
-                  ? preset.color + ' border-current'
-                  : 'bg-neutral-900 border-neutral-700 text-neutral-500 hover:text-neutral-300 hover:border-neutral-600'
-              }`}
-            >
-              <preset.Icon className="w-3.5 h-3.5" />
-              {preset.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Date */}
-        <div>
-          <label className="flex items-center gap-1.5 text-xs font-medium text-neutral-400 mb-1.5">
-            <Calendar className="w-3.5 h-3.5" />
-            Data
-          </label>
-          <Input
-            type="date"
-            value={currentDate}
-            onChange={(e) => handleDateChange(e.target.value)}
-            className="bg-neutral-900 border-neutral-700 text-white text-sm h-11 sm:h-10 px-3.5 [color-scheme:dark] w-full"
-          />
-        </div>
-
-        {/* Time selects */}
-        <div>
-          <label className="flex items-center gap-1.5 text-xs font-medium text-neutral-400 mb-1.5">
-            <Clock className="w-3.5 h-3.5" />
-            Horário
-          </label>
-          <div className="flex items-center gap-2">
-            <select
-              value={currentStartTime}
-              onChange={(e) => handleStartTimeChange(e.target.value)}
-              className="flex-1 bg-neutral-900 border border-neutral-700 text-white text-sm h-11 sm:h-10 px-3 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition-colors"
-            >
-              <option value="" className="text-neutral-500">Início</option>
-              {TIME_SLOTS.map((t) => (
-                <option key={`s-${t}`} value={t}>{t}</option>
-              ))}
-            </select>
-            <ArrowRight className="w-4 h-4 text-neutral-600 flex-shrink-0" />
-            <select
-              value={currentEndTime}
-              onChange={(e) => handleEndTimeChange(e.target.value)}
-              className="flex-1 bg-neutral-900 border border-neutral-700 text-white text-sm h-11 sm:h-10 px-3 rounded-lg appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition-colors"
-            >
-              <option value="" className="text-neutral-500">Término</option>
-              {TIME_SLOTS.map((t) => (
-                <option key={`e-${t}`} value={t}>{t}</option>
-              ))}
-            </select>
-            {durationLabel && (
-              <span className="text-xs text-cyan-400 font-medium bg-cyan-500/10 border border-cyan-500/20 rounded-lg px-2.5 py-1.5 flex-shrink-0 whitespace-nowrap">
-                {durationLabel}
-              </span>
-            )}
+      <section>
+        <SectionTitle title="Data e horário" meta={durationLabel ?? undefined} />
+        <Well className="space-y-3.5 p-3.5">
+          <div className="flex gap-2">
+            {PERIOD_PRESETS.map((preset) => {
+              const selected = currentStartTime === preset.time
+              return (
+                <button
+                  key={preset.label}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => applyPreset(preset.time)}
+                  className={`ds-tap flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-2 text-[0.8125rem] font-medium transition-colors ${
+                    selected
+                      ? 'border-brand-border bg-brand-soft text-brand-strong'
+                      : 'border-line bg-surface text-ink-muted hover:border-line-strong hover:text-ink'
+                  }`}
+                >
+                  <preset.Icon aria-hidden="true" className="h-3.5 w-3.5" />
+                  {preset.label}
+                </button>
+              )
+            })}
           </div>
-        </div>
 
-        {/* Quick duration chips */}
-        <div className="flex flex-wrap gap-1.5">
-          {[
-            { label: '30min', mins: 30 },
-            { label: '1h', mins: 60 },
-            { label: '1h30', mins: 90 },
-            { label: '2h', mins: 120 },
-          ].map((d) => (
-            <button
-              key={d.mins}
-              onClick={() => applyDuration(d.mins)}
-              className={`text-xs px-2.5 py-1 rounded-md font-medium transition-all border ${
-                activeDuration === d.mins
-                  ? 'border-cyan-500/50 bg-cyan-500/10 text-cyan-400'
-                  : 'border-neutral-700 bg-neutral-900 text-neutral-500 hover:border-neutral-600 hover:text-neutral-300'
-              }`}
-            >
-              {d.label}
-            </button>
-          ))}
-        </div>
-      </div>
+          <div>
+            <label htmlFor={`${fieldId}-date`} className="flex items-center gap-1.5 text-meta font-medium text-ink-muted">
+              <Calendar aria-hidden="true" className="h-3.5 w-3.5" />
+              Data
+            </label>
+            <Input
+              id={`${fieldId}-date`}
+              type="date"
+              value={currentDate}
+              onChange={(e) => handleDateChange(e.target.value)}
+              className="mt-1.5 w-full"
+            />
+          </div>
 
-      {/* Conditional: address or link */}
-      {meeting.type === 'presencial' && (
-        <div>
-          <label className="block text-xs font-medium text-neutral-400 mb-2">
-            <MapPin className="w-3 h-3 inline mr-1" />
-            Endereço
-          </label>
-          <Input
-            value={meeting.address || ''}
-            onChange={(e) => update('address', e.target.value || null)}
-            placeholder="Rua, número, bairro, cidade"
-            className="bg-neutral-800 border-neutral-700 text-white text-sm h-11 sm:h-10 px-3.5"
-          />
-        </div>
-      )}
+          <div>
+            <span className="flex items-center gap-1.5 text-meta font-medium text-ink-muted">
+              <Clock aria-hidden="true" className="h-3.5 w-3.5" />
+              Horário
+            </span>
+            <div className="mt-1.5 flex items-center gap-2">
+              <label htmlFor={`${fieldId}-start`} className="sr-only">
+                Horário de início
+              </label>
+              <select
+                id={`${fieldId}-start`}
+                value={currentStartTime}
+                onChange={(e) => handleStartTimeChange(e.target.value)}
+                className={SELECT_CLASS}
+              >
+                <option value="">Início</option>
+                {TIME_SLOTS.map((t) => (
+                  <option key={`s-${t}`} value={t}>{t}</option>
+                ))}
+              </select>
+              <ArrowRight aria-hidden="true" className="h-4 w-4 shrink-0 text-ink-subtle" />
+              <label htmlFor={`${fieldId}-end`} className="sr-only">
+                Horário de término
+              </label>
+              <select
+                id={`${fieldId}-end`}
+                value={currentEndTime}
+                onChange={(e) => handleEndTimeChange(e.target.value)}
+                className={SELECT_CLASS}
+              >
+                <option value="">Término</option>
+                {TIME_SLOTS.map((t) => (
+                  <option key={`e-${t}`} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+          </div>
 
-      {meeting.type === 'online' && (
-        <div>
-          <label className="block text-xs font-medium text-neutral-400 mb-2">
-            <Link2 className="w-3 h-3 inline mr-1" />
-            Link da reunião
-          </label>
-          <Input
-            value={meeting.meeting_url || ''}
-            onChange={(e) => update('meeting_url', e.target.value || null)}
-            placeholder="https://meet.google.com/..."
-            className="bg-neutral-800 border-neutral-700 text-white text-sm h-11 sm:h-10 px-3.5"
-          />
-        </div>
-      )}
+          <div role="group" aria-label="Duração rápida" className="flex flex-wrap gap-1.5">
+            {[
+              { label: '30min', mins: 30 },
+              { label: '1h', mins: 60 },
+              { label: '1h30', mins: 90 },
+              { label: '2h', mins: 120 },
+            ].map((d) => {
+              const selected = activeDuration === d.mins
+              return (
+                <button
+                  key={d.mins}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => applyDuration(d.mins)}
+                  className={`rounded-md border px-2.5 py-1.5 text-meta font-medium transition-colors ${
+                    selected
+                      ? 'border-brand-border bg-brand-soft text-brand-strong'
+                      : 'border-line bg-surface text-ink-muted hover:border-line-strong hover:text-ink'
+                  }`}
+                >
+                  {d.label}
+                </button>
+              )
+            })}
+          </div>
+        </Well>
+      </section>
 
-      {/* Notes */}
-      <div>
-        <label className="block text-xs font-medium text-neutral-400 mb-2">Observações</label>
+      <section>
+        <SectionTitle title={meeting.type === 'presencial' ? 'Local' : 'Acesso'} />
+        {meeting.type === 'presencial' ? (
+          <div>
+            <label htmlFor={`${fieldId}-address`} className="flex items-center gap-1.5 text-meta font-medium text-ink-muted">
+              <MapPin aria-hidden="true" className="h-3.5 w-3.5" />
+              Endereço
+            </label>
+            <Input
+              id={`${fieldId}-address`}
+              className="mt-1.5"
+              value={meeting.address || ''}
+              onChange={(e) => update('address', e.target.value || null)}
+              placeholder="Rua, número, bairro, cidade"
+              type="text"
+              autoComplete="street-address"
+            />
+          </div>
+        ) : (
+          <div>
+            <label htmlFor={`${fieldId}-url`} className="flex items-center gap-1.5 text-meta font-medium text-ink-muted">
+              <Link2 aria-hidden="true" className="h-3.5 w-3.5" />
+              Link da reunião
+            </label>
+            <Input
+              id={`${fieldId}-url`}
+              className="mt-1.5"
+              value={meeting.meeting_url || ''}
+              onChange={(e) => update('meeting_url', e.target.value || null)}
+              placeholder="https://meet.google.com/..."
+              type="url"
+              inputMode="url"
+              autoComplete="url"
+            />
+          </div>
+        )}
+      </section>
+
+      <section>
+        <SectionTitle title="Pauta" />
+        <label htmlFor={`${fieldId}-notes`} className="sr-only">
+          Observações da reunião
+        </label>
         <textarea
+          id={`${fieldId}-notes`}
           value={meeting.notes || ''}
           onChange={(e) => update('notes', e.target.value)}
           placeholder="Pauta, objetivos, pontos a discutir..."
           rows={3}
-          className="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3.5 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition-colors"
+          className="w-full resize-none rounded-lg border border-line bg-surface-sunken px-3.5 py-2.5 text-base text-ink transition-colors placeholder:text-ink-subtle hover:border-line-strong focus-visible:border-brand focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand"
         />
-      </div>
+      </section>
 
-      {/* Attendees */}
-      <div>
-        <label className="block text-xs font-medium text-neutral-400 mb-2">
-          <Users className="w-3 h-3 inline mr-1" />
-          Participantes
-        </label>
+      <section>
+        <SectionTitle
+          title="Participantes"
+          meta={
+            <span className="inline-flex items-center gap-1.5">
+              <Users aria-hidden="true" className="h-3.5 w-3.5" />
+              {meeting.extra_attendees.length + (hasLeadEmail ? 1 : 0)}
+            </span>
+          }
+        />
 
-        {/* Lead primary email (read-only) */}
         {hasLeadEmail ? (
-          <div className="flex items-center gap-2 bg-neutral-800/50 border border-neutral-700/50 rounded-lg px-3 py-2 mb-2">
-            <span className="text-xs text-neutral-400 flex-1 truncate">{leadEmail}</span>
-            <span className="text-xs text-neutral-600 flex-shrink-0">principal</span>
-          </div>
+          <Well className="mb-2 flex items-center gap-2 px-3 py-2">
+            <span className="min-w-0 flex-1 truncate text-meta text-ink">{leadEmail}</span>
+            <span className="shrink-0 text-micro text-ink-subtle">principal</span>
+          </Well>
         ) : (
-          <div className="flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-3 py-2 mb-2">
-            <AlertCircle className="w-3.5 h-3.5 text-yellow-500 flex-shrink-0" />
-            <span className="text-xs text-yellow-400">Lead sem e-mail — convite não será enviado automaticamente</span>
+          <div className="mb-2 flex items-center gap-2 rounded-lg border border-warning-border bg-warning-soft px-3 py-2">
+            <AlertCircle aria-hidden="true" className="h-4 w-4 shrink-0 text-warning" />
+            <p className="text-meta text-warning">
+              Lead sem e-mail — o convite não será enviado automaticamente.
+            </p>
           </div>
         )}
 
-        {/* Extra attendees */}
-        {meeting.extra_attendees.map((email) => (
-          <div
-            key={email}
-            className="flex items-center gap-2 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 mb-2"
-          >
-            <span className="text-xs text-neutral-300 flex-1 truncate">{email}</span>
-            <button
-              onClick={() => removeAttendee(email)}
-              className="text-neutral-500 hover:text-red-400 transition-colors flex-shrink-0 p-1"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        ))}
+        {meeting.extra_attendees.length > 0 ? (
+          <ul className="mb-2 space-y-2">
+            {meeting.extra_attendees.map((attendeeEmail) => (
+              <li key={attendeeEmail}>
+                <Well className="flex items-center gap-2 px-3 py-2">
+                  <span className="min-w-0 flex-1 truncate text-meta text-ink">{attendeeEmail}</span>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => removeAttendee(attendeeEmail)}
+                    aria-label={`Remover ${attendeeEmail}`}
+                  >
+                    <X aria-hidden="true" />
+                  </Button>
+                </Well>
+              </li>
+            ))}
+          </ul>
+        ) : null}
 
-        {/* Add attendee */}
         <div className="flex gap-2">
+          <label htmlFor={`${fieldId}-attendee`} className="sr-only">
+            Adicionar participante
+          </label>
           <Input
+            id={`${fieldId}-attendee`}
             value={newAttendee}
             onChange={(e) => {
               setNewAttendee(e.target.value)
               setAttendeeError('')
             }}
-            onKeyDown={(e) => e.key === 'Enter' && addAttendee()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                addAttendee()
+              }
+            }}
             placeholder="convidado@email.com"
-            className="bg-neutral-800 border-neutral-700 text-white text-sm flex-1 h-10 px-3.5"
+            type="email"
+            inputMode="email"
+            autoComplete="email"
+            className="flex-1"
+            aria-invalid={attendeeError ? true : undefined}
+            aria-describedby={attendeeError ? `${fieldId}-attendee-error` : undefined}
           />
-          <Button
-            onClick={addAttendee}
-            size="sm"
-            className="bg-neutral-700 hover:bg-neutral-600 text-white min-h-[40px] flex-shrink-0"
-          >
-            <Plus className="w-4 h-4" />
+          <Button variant="secondary" size="icon" onClick={addAttendee} aria-label="Adicionar participante">
+            <Plus aria-hidden="true" />
           </Button>
         </div>
-        {attendeeError && <p className="text-xs text-red-400 mt-1">{attendeeError}</p>}
-      </div>
+        {attendeeError ? (
+          <p id={`${fieldId}-attendee-error`} className="mt-1.5 text-meta text-danger">
+            {attendeeError}
+          </p>
+        ) : null}
+      </section>
 
-
-      {/* Feedback */}
-      {saveError && (
-        <div className="flex items-start gap-2 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2.5">
-          <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
-          <p className="text-xs text-red-300">{saveError}</p>
-        </div>
-      )}
-
-      {saveSuccess && !saveError && (
-        <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/20 rounded-lg px-3 py-2.5">
-          <Check className="w-4 h-4 text-green-400 flex-shrink-0" />
-          <p className="text-xs text-green-300">Reunião salva com sucesso</p>
-        </div>
-      )}
-
-      {/* Save button */}
-      <Button
-        onClick={handleSave}
-        disabled={saving}
-        className="w-full bg-cyan-600 hover:bg-cyan-700 text-white min-h-[44px] font-medium"
-      >
-        {saving ? (
-          <>
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            Salvando...
-          </>
-        ) : (
-          <>
-            <Calendar className="w-4 h-4 mr-2" />
-            Salvar Reunião
-          </>
-        )}
+      <Button block onClick={handleSave} loading={saving}>
+        <Calendar aria-hidden="true" />
+        Salvar reunião
       </Button>
-
     </div>
   )
 }

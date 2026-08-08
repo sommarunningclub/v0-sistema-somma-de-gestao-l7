@@ -1,181 +1,181 @@
 import React from 'react'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { TarefasFiltersProvider } from '@/lib/context/tarefas-filters-context'
-import { TarefasFiltersPanel, TarefasFiltersPanelMobile } from '../tarefas-filters-panel'
-import type { TarefasColumn } from '@/lib/services/tarefas'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
+import { TarefasFiltersProvider, useTarefasFilters } from '@/lib/context/tarefas-filters-context'
+import { TarefasFiltersFields } from '../tarefas-filters-panel'
+import type { TarefasColumn, TarefasUser } from '@/lib/services/tarefas'
 
-// Mock getTeamUsers
+/**
+ * `TarefasFiltersFields` é o bloco de filtros que o módulo Tarefas realmente
+ * renderiza — na barra lateral do desktop e dentro do bottom sheet no celular.
+ *
+ * Os testes anteriores cobriam dois wrappers (`TarefasFiltersPanel` e
+ * `TarefasFiltersPanelMobile`) que deixaram de ser usados no redesign, e várias
+ * asserções eram vazias (`expect(document.body).toBeTruthy()`), passando
+ * independentemente do comportamento. Aqui cada caso verifica o estado do
+ * filtro de fato.
+ */
+
 jest.mock('@/lib/services/tarefas', () => ({
   getTeamUsers: jest.fn(() =>
     Promise.resolve([
       { id: 'user-1', full_name: 'John Doe', email: 'john@example.com' },
       { id: 'user-2', full_name: 'Jane Smith', email: 'jane@example.com' },
-    ])
+    ]),
   ),
 }))
 
 const mockColumns: TarefasColumn[] = [
-  { id: 'col-1', board_id: 'board-1', nome: 'To Do', cor: '#3b82f6', posicao: 0, criado_por: 'user-1', criado_em: '2026-03-18T00:00:00Z' },
-  { id: 'col-2', board_id: 'board-1', nome: 'In Progress', cor: '#f59e0b', posicao: 1, criado_por: 'user-1', criado_em: '2026-03-18T00:00:00Z' },
+  { id: 'col-1', board_id: 'board-1', nome: 'A Fazer', cor: '#3b82f6', posicao: 0, criado_por: 'user-1', criado_em: '2026-03-18T00:00:00Z' },
+  { id: 'col-2', board_id: 'board-1', nome: 'Em Progresso', cor: '#f59e0b', posicao: 1, criado_por: 'user-1', criado_em: '2026-03-18T00:00:00Z' },
 ]
 
-const renderWithProvider = (component: React.ReactElement) => {
+const mockUsers: TarefasUser[] = [
+  { id: 'user-1', full_name: 'John Doe', email: 'john@example.com' },
+  { id: 'user-2', full_name: 'Jane Smith', email: 'jane@example.com' },
+] as TarefasUser[]
+
+/** Expõe o estado do contexto para as asserções. */
+let ultimoEstado: ReturnType<typeof useTarefasFilters> | null = null
+
+function Espiao() {
+  ultimoEstado = useTarefasFilters()
+  return null
+}
+
+function renderFields(props: Partial<React.ComponentProps<typeof TarefasFiltersFields>> = {}) {
   return render(
     <TarefasFiltersProvider>
-      {component}
-    </TarefasFiltersProvider>
+      <Espiao />
+      <TarefasFiltersFields columns={mockColumns} users={mockUsers} {...props} />
+    </TarefasFiltersProvider>,
   )
 }
 
-describe('TarefasFiltersPanel (Desktop)', () => {
-  it('should render the filter panel', async () => {
-    renderWithProvider(<TarefasFiltersPanel columns={mockColumns} />)
+/** Encontra o checkbox cujo rótulo contém o texto dado. */
+function checkboxPorRotulo(texto: string | RegExp): HTMLInputElement {
+  const rotulo = screen.getByText(texto).closest('label')
+  if (!rotulo) throw new Error(`Rótulo não encontrado para: ${texto}`)
+  return within(rotulo).getByRole('checkbox') as HTMLInputElement
+}
 
-    await waitFor(() => {
-      expect(document.body).toBeTruthy()
-    })
-  })
-
-  it('should render priority checkboxes', async () => {
-    renderWithProvider(<TarefasFiltersPanel columns={mockColumns} />)
-
-    await waitFor(() => {
-      const baixaCheckbox = document.querySelector('input[type="checkbox"]')
-      expect(baixaCheckbox).toBeTruthy()
-    })
-  })
-
-  it('should toggle priority checkbox', async () => {
-    renderWithProvider(<TarefasFiltersPanel columns={mockColumns} />)
-
-    await waitFor(() => {
-      const checkbox = document.querySelector('input[type="checkbox"]') as HTMLInputElement
-      expect(checkbox.checked).toBe(false)
-      fireEvent.click(checkbox)
-      expect(checkbox.checked).toBe(true)
-    })
-  })
-
-  it('should render date inputs', async () => {
-    renderWithProvider(<TarefasFiltersPanel columns={mockColumns} />)
-
-    fireEvent.click(screen.getByText('Data de Entrega'))
-
-    await waitFor(() => {
-      const dateInputs = document.querySelectorAll('input[type="date"]')
-      expect(dateInputs.length).toBeGreaterThan(0)
-    })
-  })
-
-  it('should render column checkboxes', async () => {
-    renderWithProvider(<TarefasFiltersPanel columns={mockColumns} />)
-
-    await waitFor(() => {
-      const checkboxes = document.querySelectorAll('input[type="checkbox"]')
-      expect(checkboxes.length).toBeGreaterThan(0)
-    })
-  })
-
-  it('should render Clear Filters button', async () => {
-    renderWithProvider(<TarefasFiltersPanel columns={mockColumns} />)
-
-    await waitFor(() => {
-      // After we select a filter, clear button should appear
-      const checkboxes = document.querySelectorAll('input[type="checkbox"]')
-      if (checkboxes.length > 0) {
-        fireEvent.click(checkboxes[0])
-      }
-    })
-  })
-
-  it('should call onFiltersChange when filter changes', async () => {
-    const onFiltersChange = jest.fn()
-    renderWithProvider(
-      <TarefasFiltersPanel columns={mockColumns} onFiltersChange={onFiltersChange} />
-    )
-
-    await waitFor(() => {
-      const checkbox = document.querySelector('input[type="checkbox"]') as HTMLInputElement
-      fireEvent.click(checkbox)
-      // onFiltersChange should be called
-      expect(typeof onFiltersChange).toBe('function')
-    })
-  })
+beforeEach(() => {
+  ultimoEstado = null
+  // O contexto persiste os filtros em localStorage, que o jsdom compartilha
+  // entre os testes do arquivo. Sem limpar, um teste herda a seleção do
+  // anterior e as asserções de estado inicial passam a mentir.
+  window.localStorage.clear()
 })
 
-describe('TarefasFiltersPanelMobile', () => {
-  it('should not render when isOpen is false', () => {
-    renderWithProvider(
-      <TarefasFiltersPanelMobile columns={mockColumns} isOpen={false} onClose={() => {}} />
-    )
+describe('TarefasFiltersFields', () => {
+  it('renderiza uma seção para cada critério de filtro', () => {
+    renderFields()
 
-    const panels = document.querySelectorAll('[class*="fixed"]')
-    expect(panels).toBeTruthy()
+    for (const titulo of ['Prioridade', 'Status', 'Responsável', 'Coluna', 'Data de Entrega']) {
+      expect(screen.getByRole('heading', { name: titulo })).toBeInTheDocument()
+    }
   })
 
-  it('should render when isOpen is true', async () => {
-    renderWithProvider(
-      <TarefasFiltersPanelMobile columns={mockColumns} isOpen={true} onClose={() => {}} />
-    )
+  it('usa headings de nível 3, preservando a hierarquia da página', () => {
+    renderFields()
 
-    await waitFor(() => {
-      const panel = document.querySelector('[class*="fixed"][class*="left-0"]')
-      expect(panel).toBeTruthy()
-    })
+    const headings = screen.getAllByRole('heading', { level: 3 })
+    expect(headings.length).toBeGreaterThanOrEqual(5)
   })
 
-  it('should render Aplicar button when open', async () => {
-    renderWithProvider(
-      <TarefasFiltersPanelMobile columns={mockColumns} isOpen={true} onClose={() => {}} />
-    )
+  it('marca e desmarca uma prioridade, refletindo no estado do filtro', () => {
+    renderFields()
 
-    await waitFor(() => {
-      const buttons = document.querySelectorAll('button')
-      const aplicarBtn = Array.from(buttons).some(btn =>
-        btn.textContent && btn.textContent.includes('Aplicar')
-      )
-      expect(aplicarBtn || buttons.length > 0).toBeTruthy()
-    })
+    const alta = checkboxPorRotulo('Alta')
+    expect(alta.checked).toBe(false)
+
+    fireEvent.click(alta)
+    expect(ultimoEstado?.filters.priorities).toContain('alta')
+
+    fireEvent.click(alta)
+    expect(ultimoEstado?.filters.priorities).not.toContain('alta')
   })
 
-  it('should call onClose when Cancelar is clicked', async () => {
-    const onClose = jest.fn()
-    renderWithProvider(
-      <TarefasFiltersPanelMobile columns={mockColumns} isOpen={true} onClose={onClose} />
-    )
+  it('acumula múltiplos status selecionados', () => {
+    renderFields()
 
-    await waitFor(() => {
-      const buttons = document.querySelectorAll('button')
-      const cancelBtn = Array.from(buttons).find(btn =>
-        btn.textContent && btn.textContent.includes('Cancelar')
-      )
-      if (cancelBtn) {
-        fireEvent.click(cancelBtn)
-      }
-    })
+    fireEvent.click(checkboxPorRotulo('Pendente'))
+    fireEvent.click(checkboxPorRotulo('Concluída'))
+
+    expect(ultimoEstado?.filters.statuses).toEqual(
+      expect.arrayContaining(['pending', 'completed']),
+    )
   })
 
-  it('should render all filter sections in mobile', async () => {
-    renderWithProvider(
-      <TarefasFiltersPanelMobile columns={mockColumns} isOpen={true} onClose={() => {}} />
-    )
+  it('filtra por coluna usando o id, não o nome', () => {
+    renderFields()
 
-    await waitFor(() => {
-      const checkboxes = document.querySelectorAll('input[type="checkbox"]')
-      const dateInputs = document.querySelectorAll('input[type="date"]')
-      expect(checkboxes.length + dateInputs.length).toBeGreaterThan(0)
-    })
+    fireEvent.click(checkboxPorRotulo('Em Progresso'))
+    expect(ultimoEstado?.filters.columnIds).toEqual(['col-2'])
   })
 
-  it('should allow filter changes in mobile view', async () => {
-    renderWithProvider(
-      <TarefasFiltersPanelMobile columns={mockColumns} isOpen={true} onClose={() => {}} />
-    )
+  it('filtra por responsável', async () => {
+    renderFields()
 
-    await waitFor(() => {
-      const checkbox = document.querySelector('input[type="checkbox"]') as HTMLInputElement
-      fireEvent.click(checkbox)
-      expect(checkbox.checked).toBe(true)
-    })
+    await waitFor(() => expect(screen.getByText('Jane Smith')).toBeInTheDocument())
+    fireEvent.click(checkboxPorRotulo('Jane Smith'))
+
+    expect(ultimoEstado?.filters.responsavelIds).toEqual(['user-2'])
+  })
+
+  it('define o intervalo de datas pelos campos De e Até', () => {
+    renderFields()
+
+    fireEvent.change(screen.getByLabelText('De'), { target: { value: '2026-08-01' } })
+    fireEvent.change(screen.getByLabelText('Até'), { target: { value: '2026-08-31' } })
+
+    expect(ultimoEstado?.filters.dateRange).toEqual({ start: '2026-08-01', end: '2026-08-31' })
+  })
+
+  it('limpar um campo de data volta o valor para null, não para string vazia', () => {
+    renderFields()
+
+    const de = screen.getByLabelText('De')
+    fireEvent.change(de, { target: { value: '2026-08-01' } })
+    fireEvent.change(de, { target: { value: '' } })
+
+    expect(ultimoEstado?.filters.dateRange.start).toBeNull()
+  })
+
+  it('avisa o consumidor a cada mudança de filtro', () => {
+    const onFiltersChange = jest.fn()
+    renderFields({ onFiltersChange })
+
+    fireEvent.click(checkboxPorRotulo('Alta'))
+    expect(onFiltersChange).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(checkboxPorRotulo('Pendente'))
+    expect(onFiltersChange).toHaveBeenCalledTimes(2)
+  })
+
+  it('sinaliza que há filtros ativos', () => {
+    renderFields()
+
+    expect(ultimoEstado?.hasActiveFilters).toBe(false)
+    fireEvent.click(checkboxPorRotulo('Alta'))
+    expect(ultimoEstado?.hasActiveFilters).toBe(true)
+  })
+
+  it('explica a ausência de colunas em vez de mostrar uma seção vazia', () => {
+    renderFields({ columns: [] })
+
+    expect(screen.getByText('Este quadro ainda não tem colunas.')).toBeInTheDocument()
+  })
+
+  it('explica a ausência de usuários em vez de mostrar uma seção vazia', () => {
+    renderFields({ users: [] })
+
+    expect(screen.getByText('Nenhum usuário disponível.')).toBeInTheDocument()
+  })
+
+  it('dá aos rótulos de filtro um alvo de toque confortável', () => {
+    const { container } = renderFields()
+
+    const rotulos = container.querySelectorAll('label.min-h-\\[44px\\]')
+    expect(rotulos.length).toBeGreaterThan(0)
   })
 })

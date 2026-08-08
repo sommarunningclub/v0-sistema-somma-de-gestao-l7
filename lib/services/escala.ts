@@ -16,7 +16,6 @@ const SELECT_ESCALACAO = `
   escala_insider_atividades ( escala_atividades ( * ) )
 `
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 function mapEscalacao(row: any): EscalaInsider {
   return {
     id: row.id,

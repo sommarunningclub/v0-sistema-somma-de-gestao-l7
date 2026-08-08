@@ -1,105 +1,70 @@
 'use client'
 
-import { Card, CardContent } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { MoreHorizontal, Mail, Phone } from 'lucide-react'
+import { CardListSkeleton, MobileRecordCard } from '@/components/somma'
 import type { CadastroSite } from '@/lib/supabase-client'
 
 interface MembersCardListProps {
   members: CadastroSite[]
   onSelectMember: (member: CadastroSite) => void
   loading?: boolean
+  selectedId?: number | null
 }
 
-export function MembersCardList({ members, onSelectMember, loading = false }: MembersCardListProps) {
-  const formatPhone = (phone: string) => {
-    const cleaned = phone.replace(/\D/g, '')
-    if (cleaned.length === 11) {
-      return `(${cleaned.slice(0, 2)}) ${cleaned.slice(2, 7)}-${cleaned.slice(7)}`
-    }
-    return phone
+function formatPhone(phone: string) {
+  const cleaned = (phone || '').replace(/\D/g, '')
+  if (cleaned.length === 11) {
+    return `(${cleaned.slice(0, 2)}) ${cleaned.slice(2, 7)}-${cleaned.slice(7)}`
   }
-
-  const formatCPF = (cpf: string) => {
-    const cleaned = cpf.replace(/\D/g, '')
-    if (cleaned.length === 11) {
-      return `${cleaned.slice(0, 3)}.${cleaned.slice(3, 6)}.${cleaned.slice(6, 9)}-${cleaned.slice(9)}`
-    }
-    return cpf
+  if (cleaned.length === 10) {
+    return `(${cleaned.slice(0, 2)}) ${cleaned.slice(2, 6)}-${cleaned.slice(6)}`
   }
+  return phone || '—'
+}
 
+function formatCPF(cpf: string) {
+  const cleaned = (cpf || '').replace(/\D/g, '')
+  if (cleaned.length === 11) {
+    return `${cleaned.slice(0, 3)}.${cleaned.slice(3, 6)}.${cleaned.slice(6, 9)}-${cleaned.slice(9)}`
+  }
+  return cpf || '—'
+}
+
+/**
+ * Lista de membros no celular. Substitui a tabela — nada de rolagem
+ * horizontal: cada registro vira um cartão com o toque na linha inteira.
+ */
+export function MembersCardList({
+  members,
+  onSelectMember,
+  loading = false,
+  selectedId = null,
+}: MembersCardListProps) {
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 px-4">
-        <div className="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mb-3" />
-        <p className="text-center text-sm text-neutral-400">Carregando membros...</p>
+      <div className="lg:hidden" aria-busy="true">
+        <CardListSkeleton count={5} />
       </div>
     )
   }
 
-  if (members.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-12 px-4">
-        <div className="text-4xl mb-3">🔍</div>
-        <p className="text-center text-sm text-neutral-400">Nenhum membro encontrado</p>
-      </div>
-    )
-  }
+  if (members.length === 0) return null
 
   return (
-    <div className="lg:hidden space-y-2">
+    <ul className="space-y-2.5 lg:hidden">
       {members.map((member) => (
-        <Card
-          key={member.id}
-          className="bg-neutral-900 border-neutral-700 hover:border-orange-500/50 transition-colors cursor-pointer active:bg-neutral-800"
-          onClick={() => onSelectMember(member)}
-        >
-          <CardContent className="p-3">
-            {/* Top Section - Name and Actions */}
-            <div className="flex items-start justify-between gap-2 mb-2">
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-white truncate">{member.nome_completo}</p>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-neutral-400 hover:text-orange-500 p-1 flex-shrink-0"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onSelectMember(member)
-                }}
-              >
-                <MoreHorizontal className="w-4 h-4" />
-              </Button>
-            </div>
-
-            {/* Contact Info */}
-            <div className="space-y-1.5 text-xs">
-              {/* Email */}
-              <div className="flex items-center gap-2 text-neutral-300">
-                <Mail className="w-3.5 h-3.5 text-neutral-500 flex-shrink-0" />
-                <span className="truncate">{member.email}</span>
-              </div>
-
-              {/* WhatsApp */}
-              <div className="flex items-center gap-2 text-neutral-300">
-                <Phone className="w-3.5 h-3.5 text-neutral-500 flex-shrink-0" />
-                <span>{formatPhone(member.whatsapp)}</span>
-              </div>
-            </div>
-
-            {/* Footer - Meta Info */}
-            <div className="flex items-center justify-between mt-2 pt-2 border-t border-neutral-800">
-              <div className="text-xs text-neutral-500">
-                ID: <span className="font-mono">{member.id}</span>
-              </div>
-              <div className="text-xs text-neutral-400 font-mono">
-                {formatCPF(member.cpf)}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <li key={member.id}>
+          <MobileRecordCard
+            title={member.nome_completo}
+            subtitle={member.email || 'Sem e-mail cadastrado'}
+            onClick={() => onSelectMember(member)}
+            className={selectedId === member.id ? 'border-brand-border bg-brand-soft' : undefined}
+            fields={[
+              { label: 'WhatsApp', value: formatPhone(member.whatsapp) },
+              { label: 'CPF', value: <span className="font-mono tabular-nums">{formatCPF(member.cpf)}</span> },
+            ]}
+          />
+        </li>
       ))}
-    </div>
+    </ul>
   )
 }

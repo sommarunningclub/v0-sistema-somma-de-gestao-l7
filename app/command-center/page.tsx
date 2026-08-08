@@ -1,316 +1,124 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { apiFetch } from '@/lib/api-client'
-import { ErrorBanner } from '@/components/ui/error-banner'
-import { PageLoading } from '@/components/ui/page-loading'
-import {
-  Users,
-  DollarSign,
-  TrendingUp,
-  CreditCard,
-  UserCheck,
-  AlertCircle,
-  Award,
-  Briefcase
-} from "lucide-react"
+import { useCallback, useEffect, useState } from "react"
+import { RefreshCw } from "lucide-react"
 
-interface DashboardMetrics {
-  totalCustomers: number
-  activeSubscriptions: number
-  totalProfessors: number
-  linkedClients: number
-  pendingPayments: number
-  pendingPaymentsValue: number
-  totalRevenue: number
-  overduePayments: number
-  recentActivity: Array<{
-    type: string
-    description: string
-    timestamp: string
-  }>
+import { apiFetch } from "@/lib/api-client"
+import { ErrorBanner } from "@/components/ui/error-banner"
+import { PageHeader, PageShell } from "@/components/somma"
+import { EscalaInsidersPanel } from "@/components/dashboard/escala-insiders-panel"
+import { PresencaEventosPanel } from "@/components/dashboard/presenca-eventos-panel"
+import { ProximosEventosPanel } from "@/components/dashboard/proximos-eventos-panel"
+import { TopCheckinsPanel } from "@/components/dashboard/top-checkins-panel"
+import type { DashboardBlocos } from "@/components/dashboard/types"
+
+/*
+ * O dashboard é 100% operacional por decisão de produto: nenhuma informação
+ * financeira (cobranças, pagamentos, receita, Asaas) aparece aqui nem em
+ * qualquer outra tela. O centro da página são os quatro blocos de comunidade
+ * e operação — check-ins, presença, escala e agenda.
+ */
+
+/*
+ * O endpoint devolve exatamente os quatro blocos — nada além. Métricas de
+ * equipe e financeiras foram removidas do produto.
+ */
+type DashboardMetricsResponse = DashboardBlocos
+
+const EMPTY_BLOCOS: DashboardBlocos = {
+  topCheckins: null,
+  presencaEventos: null,
+  escalaInsiders: null,
+  proximosEventos: null,
 }
 
 export default function CommandCenterPage() {
-  const [metrics, setMetrics] = useState<DashboardMetrics>({
-    totalCustomers: 0,
-    activeSubscriptions: 0,
-    totalProfessors: 0,
-    linkedClients: 0,
-    pendingPayments: 0,
-    pendingPaymentsValue: 0,
-    totalRevenue: 0,
-    overduePayments: 0,
-    recentActivity: []
-  })
+  const [blocos, setBlocos] = useState<DashboardBlocos>(EMPTY_BLOCOS)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null)
 
-  useEffect(() => {
-    fetchDashboardMetrics()
-  }, [])
-
-  const fetchDashboardMetrics = async () => {
+  const fetchDashboard = useCallback(async () => {
     setLoading(true)
-    console.log("[v0] Fetching dashboard metrics...")
-
     try {
-      // Buscar total de clientes do Asaas
-      const customersRes = await apiFetch("/api/asaas?endpoint=/customers&limit=100")
-      let totalCustomers = 0
-      if (customersRes.ok) {
-        const customersData = await customersRes.json()
-        totalCustomers = customersData.data?.length || 0
+      const res = await apiFetch("/api/command-center/metrics")
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body?.error || `Falha ao carregar o dashboard (HTTP ${res.status})`)
       }
+      const data: DashboardMetricsResponse = await res.json()
 
-      // Buscar assinaturas ativas do Asaas
-      const subscriptionsRes = await apiFetch("/api/asaas?endpoint=/subscriptions&limit=100")
-      let activeSubscriptions = 0
-      let totalRevenue = 0
-      if (subscriptionsRes.ok) {
-        const subsData = await subscriptionsRes.json()
-        const activeSubs = (subsData.data || []).filter((s: any) => s.status === "ACTIVE")
-        activeSubscriptions = activeSubs.length
-        totalRevenue = activeSubs.reduce((sum: number, s: any) => sum + (s.value || 0), 0)
-      }
-
-      // Métricas do Supabase vêm do servidor: essas tabelas têm RLS e são
-      // invisíveis para a chave anon usada no browser.
-      const supabaseRes = await apiFetch("/api/command-center/metrics")
-      if (!supabaseRes.ok) {
-        const body = await supabaseRes.json().catch(() => ({}))
-        throw new Error(body?.error || `Falha ao carregar métricas (HTTP ${supabaseRes.status})`)
-      }
-      const db = await supabaseRes.json()
-
-      setMetrics({
-        totalCustomers,
-        activeSubscriptions,
-        totalProfessors: db.totalProfessors,
-        linkedClients: db.linkedClients,
-        pendingPayments: db.pendingPayments,
-        pendingPaymentsValue: db.pendingPaymentsValue,
-        totalRevenue,
-        overduePayments: db.overduePayments,
-        recentActivity: (db.recentActivity || []).map((a: any) => ({
-          ...a,
-          timestamp: new Date(a.timestamp).toLocaleString("pt-BR"),
-        }))
+      setBlocos({
+        topCheckins: data.topCheckins ?? null,
+        presencaEventos: data.presencaEventos ?? null,
+        escalaInsiders: data.escalaInsiders ?? null,
+        proximosEventos: data.proximosEventos ?? null,
       })
-
+      setUpdatedAt(new Date().toLocaleString("pt-BR"))
       setError(null)
     } catch (err) {
-      console.error("[v0] Error fetching dashboard metrics:", err)
-      setError('Erro ao carregar métricas do dashboard')
+      console.error("[command-center] Erro ao carregar o dashboard:", err)
+      setError("Erro ao carregar o dashboard")
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  if (loading) {
-    return <PageLoading label="Carregando dashboard..." />
-  }
-
-  if (error) {
-    return (
-      <div className="p-4 sm:p-6">
-        <ErrorBanner message={error} onRetry={fetchDashboardMetrics} />
-      </div>
-    )
-  }
+  useEffect(() => {
+    void fetchDashboard()
+  }, [fetchDashboard])
 
   return (
-    <div className="w-full h-full flex flex-col overflow-auto">
-      {/* Main Content - Mobile Optimized */}
-      <div className="flex flex-col p-3 sm:p-4 md:p-6 lg:p-8 gap-3 sm:gap-4 md:gap-6">
-        {/* Header - Sticky on mobile */}
-        <div className="sticky top-0 z-10 bg-black/80 backdrop-blur -mx-3 sm:-mx-4 md:-mx-6 lg:-mx-8 px-3 sm:px-4 md:px-6 lg:px-8 pt-2 pb-2 mb-2">
-          <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-white tracking-wider">DASHBOARD</h1>
-          <p className="text-xs sm:text-sm text-neutral-400">Resumo das métricas</p>
+    <PageShell>
+      <PageHeader
+        eyebrow="Visão geral"
+        title="Dashboard"
+        description="O pulso do clube: presença nos eventos, escala dos insiders e a agenda do que vem por aí."
+        meta={
+          updatedAt ? <span>Atualizado em {updatedAt}</span> : <span>Carregando…</span>
+        }
+        actions={
+          <button
+            type="button"
+            onClick={() => void fetchDashboard()}
+            disabled={loading}
+            className="ds-tap inline-flex items-center gap-2 rounded border border-line bg-surface-hover px-3.5 py-2 text-sm font-medium text-ink transition-colors hover:border-line-strong hover:text-ink-strong disabled:opacity-60"
+          >
+            <RefreshCw
+              aria-hidden="true"
+              className={loading ? "h-4 w-4 animate-spin" : "h-4 w-4"}
+            />
+            Atualizar
+          </button>
+        }
+      />
+
+      {error ? (
+        <div className="mb-5">
+          <ErrorBanner message={error} onRetry={fetchDashboard} />
         </div>
+      ) : null}
 
-        {/* Main Metrics Grid - Mobile Optimized */}
-        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4">
-          {/* Total Clientes */}
-          <Card className="bg-neutral-900 border-neutral-700 hover:border-orange-500/50 transition-colors">
-            <CardContent className="p-2 sm:p-3 md:p-4">
-              <div className="flex flex-col gap-1">
-                <p className="text-xs text-neutral-400 tracking-wider">CLIENTES</p>
-                <p className="text-base sm:text-lg md:text-2xl font-bold text-white font-mono">{metrics.totalCustomers}</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Assinaturas Ativas */}
-          <Card className="bg-neutral-900 border-neutral-700 hover:border-orange-500/50 transition-colors">
-            <CardContent className="p-2 sm:p-3 md:p-4">
-              <div className="flex flex-col gap-1">
-                <p className="text-xs text-neutral-400 tracking-wider">ASSINATURA</p>
-                <p className="text-base sm:text-lg md:text-2xl font-bold text-white font-mono">{metrics.activeSubscriptions}</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Receita Mensal */}
-          <Card className="bg-neutral-900 border-neutral-700 hover:border-orange-500/50 transition-colors">
-            <CardContent className="p-2 sm:p-3 md:p-4">
-              <div className="flex flex-col gap-1">
-                <p className="text-xs text-neutral-400 tracking-wider">RECEITA</p>
-                <p className="text-base sm:text-lg md:text-2xl font-bold text-white font-mono truncate">
-                  R$ {(metrics.totalRevenue / 1000).toFixed(1)}K
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Professores Ativos */}
-          <Card className="bg-neutral-900 border-neutral-700 hover:border-orange-500/50 transition-colors hidden sm:block md:block">
-            <CardContent className="p-2 sm:p-3 md:p-4">
-              <div className="flex flex-col gap-1">
-                <p className="text-xs text-neutral-400 tracking-wider">PROF.</p>
-                <p className="text-base sm:text-lg md:text-2xl font-bold text-white font-mono">{metrics.totalProfessors}</p>
-              </div>
-            </CardContent>
-          </Card>
+      {/* Os quatro blocos pedidos pelo produto — o coração da página. */}
+      <section aria-labelledby="comunidade-operacao">
+        {/*
+          Heading apenas para leitores de tela: com uma seção só na página, um
+          título visível repetiria o "Dashboard" do cabeçalho sem informar nada.
+        */}
+        <h2 id="comunidade-operacao" className="sr-only">
+          Comunidade e operação
+        </h2>
+        {/*
+          `items-start`: sem isso, o painel curto (o destaque de um membro só)
+          era esticado até a altura do Top 10 e deixava meia tela vazia.
+        */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start lg:gap-6">
+          <TopCheckinsPanel bloco={blocos.topCheckins} loading={loading} />
+          <PresencaEventosPanel bloco={blocos.presencaEventos} loading={loading} />
+          <EscalaInsidersPanel bloco={blocos.escalaInsiders} loading={loading} />
+          <ProximosEventosPanel bloco={blocos.proximosEventos} loading={loading} />
         </div>
-
-        {/* Secondary Metrics - Stacked on mobile */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 sm:gap-3 md:gap-4">
-          {/* Cobranças Pendentes */}
-          <Card className="bg-neutral-900 border-neutral-700 hover:border-orange-500/50 transition-colors">
-            <CardContent className="p-2 sm:p-3 md:p-4">
-              <div className="flex items-center justify-between gap-2 mb-1">
-                <div>
-                  <p className="text-xs text-neutral-400 tracking-wider">PENDENTES</p>
-                  <p className="text-base sm:text-lg md:text-xl font-bold text-white font-mono">{metrics.pendingPayments}</p>
-                </div>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-neutral-400">R$:</span>
-                <span className="font-bold text-white font-mono">{metrics.pendingPaymentsValue.toFixed(0)}</span>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Pagamentos Vencidos */}
-          <Card className="bg-neutral-900 border-neutral-700 hover:border-orange-500/50 transition-colors">
-            <CardContent className="p-2 sm:p-3 md:p-4">
-              <div className="flex items-center justify-between mb-1">
-                <div>
-                  <p className="text-xs text-neutral-400 tracking-wider">VENCIDOS</p>
-                  <p className="text-base sm:text-lg md:text-xl font-bold text-white font-mono">{metrics.overduePayments}</p>
-                </div>
-              </div>
-              <Badge className="bg-red-500/20 text-red-500 text-xs">
-                Atenção
-              </Badge>
-            </CardContent>
-          </Card>
-
-          {/* Clientes Vinculados */}
-          <Card className="bg-neutral-900 border-neutral-700 hover:border-orange-500/50 transition-colors">
-            <CardContent className="p-2 sm:p-3 md:p-4">
-              <div className="flex items-center justify-between mb-1">
-                <div>
-                  <p className="text-xs text-neutral-400 tracking-wider">VINCULADOS</p>
-                  <p className="text-base sm:text-lg md:text-xl font-bold text-white font-mono">{metrics.linkedClients}</p>
-                </div>
-              </div>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-neutral-400">Taxa:</span>
-                <span className="font-bold text-white font-mono">
-                  {metrics.totalCustomers > 0 
-                    ? ((metrics.linkedClients / metrics.totalCustomers) * 100).toFixed(0)
-                    : 0}%
-                </span>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Charts & Activity - Hidden on mobile, shown on tablet+ */}
-        <div className="hidden md:grid md:grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-          {/* Recent Activity */}
-          <Card className="bg-neutral-900 border-neutral-700">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-xs font-bold text-white tracking-wider">
-                ATIVIDADES RECENTES
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {metrics.recentActivity.length === 0 ? (
-                <div className="text-center py-8 text-neutral-400 text-sm">
-                  Nenhuma atividade
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {metrics.recentActivity.map((activity, index) => (
-                    <div
-                      key={index}
-                      className="flex items-start gap-3 p-3 bg-neutral-800 rounded hover:bg-neutral-750 transition-colors"
-                    >
-                      <div className="w-2 h-2 mt-1.5 bg-orange-500 rounded-full flex-shrink-0"></div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-white truncate">{activity.description}</p>
-                        <p className="text-xs text-neutral-400 mt-1">{activity.timestamp}</p>
-                      </div>
-                      <Badge className="bg-blue-500/20 text-blue-400 text-xs flex-shrink-0">
-                        {activity.type}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Quick Stats */}
-          <Card className="bg-neutral-900 border-neutral-800">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-xs font-bold text-white tracking-wider">
-                ESTATÍSTICAS
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between p-3 bg-neutral-800 rounded text-sm">
-                  <span className="text-neutral-300">Taxa de Conversão</span>
-                  <span className="font-bold text-white">
-                    {metrics.totalCustomers > 0 
-                      ? ((metrics.activeSubscriptions / metrics.totalCustomers) * 100).toFixed(1)
-                      : 0}%
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between p-3 bg-neutral-800 rounded text-sm">
-                  <span className="text-neutral-300">Ticket Médio</span>
-                  <span className="font-bold text-white">
-                    R$ {metrics.activeSubscriptions > 0 
-                      ? (metrics.totalRevenue / metrics.activeSubscriptions).toFixed(0)
-                      : "0"}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between p-3 bg-neutral-800 rounded text-sm">
-                  <span className="text-neutral-300">Clientes/Prof</span>
-                  <span className="font-bold text-white">
-                    {metrics.totalProfessors > 0 
-                      ? (metrics.linkedClients / metrics.totalProfessors).toFixed(1)
-                      : 0}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between p-3 bg-neutral-800 rounded text-sm">
-                  <span className="text-neutral-300">Professores</span>
-                  <span className="font-bold text-white">{metrics.totalProfessors}</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    </div>
+      </section>
+    </PageShell>
   )
 }
