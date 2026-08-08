@@ -24,6 +24,15 @@ const STATUS_RANK: Record<string, number> = {
   clicado: 4,
 }
 
+/**
+ * Status terminais: uma vez atingidos, nenhum evento da escada de entrega
+ * (enviado/entregue/aberto/clicado) pode regredir o destinatário de volta.
+ * Não têm rank em STATUS_RANK, então ficariam com rank 0 e, sem esta guarda,
+ * um evento fora de ordem (ex.: 'opened' chegando depois de 'complained')
+ * apagaria o estado terminal.
+ */
+const TERMINAL_STATUSES = new Set<string>(['bounce', 'spam', 'falha'])
+
 const EVENT_TO_STATUS: Record<string, RecipientStatus> = {
   sent: 'enviado',
   delivered: 'entregue',
@@ -84,10 +93,12 @@ export async function POST(req: NextRequest) {
     })
 
     const nextStatus = EVENT_TO_STATUS[type]
-    if (nextStatus) {
+    // Uma vez terminal (bounce/spam/falha), nenhum evento da escada de entrega
+    // pode mudar o status de volta — só um novo evento terminal poderia.
+    if (nextStatus && !TERMINAL_STATUSES.has(recipient.status)) {
       const currentRank = STATUS_RANK[recipient.status] ?? 0
       const nextRank = STATUS_RANK[nextStatus] ?? 0
-      // bounce/spam/falha não estão no ranking e sempre vencem.
+      // bounce/spam/falha não estão no ranking e sempre vencem sobre a escada.
       if (nextRank === 0 || nextRank > currentRank) {
         await supabase
           .from('email_campaign_recipients')
