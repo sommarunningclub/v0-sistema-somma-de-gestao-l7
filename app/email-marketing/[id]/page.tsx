@@ -272,8 +272,11 @@ export default function EmailCampaignStatusPage() {
                       <span className="text-xs text-neutral-500">atualiza a cada 10s</span>
                     </div>
                     <div className="flex items-center justify-between text-xs text-neutral-400 mb-1.5">
+                      {/* "processados" (não "enviados") para não colidir com o card
+                          "Enviados" abaixo, que mostra stats.enviado — quem está
+                          parado nesse status agora, não quem já passou por ele. */}
                       <span>
-                        {dispatched} / {stats.total} enviados
+                        {dispatched} / {stats.total} processados
                       </span>
                       <span>{progressPct}%</span>
                     </div>

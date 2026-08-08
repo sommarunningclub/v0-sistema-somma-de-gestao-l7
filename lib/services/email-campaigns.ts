@@ -226,6 +226,17 @@ export interface DailyEventPoint {
   clicados: number
 }
 
+// Agrupa por dia de calendário em America/Sao_Paulo, não UTC — um evento às
+// 21h-23h59 no horário de Brasília cairia no dia seguinte se fatiássemos a
+// string ISO (que vem em UTC) direto. Locale 'en-CA' formata como YYYY-MM-DD,
+// igual ao que `page.tsx` espera para parsear a data de volta como local.
+const SAO_PAULO_DATE_FORMATTER = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'America/Sao_Paulo',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+})
+
 /**
  * Série diária de aberturas/cliques para o gráfico da Task 13. `email_campaign_events`
  * guarda um evento por ocorrência (created_at real), diferente de
@@ -241,6 +252,13 @@ export async function getCampaignEventSeries(id: string): Promise<DailyEventPoin
       .select('type,created_at')
       .eq('campaign_id', id)
       .in('type', ['opened', 'clicked'])
+      // Sem order(), o Postgres/PostgREST não garante quais linhas sobrevivem
+      // ao limit — e clientes de e-mail com pré-carregamento de imagem (ex.:
+      // Apple Mail Privacy Protection) podem gerar vários 'opened' por
+      // destinatário, então uma campanha modesta pode passar de 10 mil
+      // eventos. Ordenar por created_at faz o corte ser previsível (descarta
+      // os eventos mais recentes, não um subconjunto arbitrário).
+      .order('created_at', { ascending: true })
       .limit(10000)
 
     if (error) {
@@ -250,7 +268,7 @@ export async function getCampaignEventSeries(id: string): Promise<DailyEventPoin
 
     const byDate = new Map<string, DailyEventPoint>()
     for (const row of data ?? []) {
-      const date = String(row.created_at).slice(0, 10)
+      const date = SAO_PAULO_DATE_FORMATTER.format(new Date(row.created_at))
       const point = byDate.get(date) ?? { date, abertos: 0, clicados: 0 }
       if (row.type === 'opened') point.abertos++
       else if (row.type === 'clicked') point.clicados++
