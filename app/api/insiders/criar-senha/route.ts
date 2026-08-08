@@ -4,6 +4,7 @@ import { cpfCandidates } from '@/lib/insider/insider-mapper'
 import { checkRateLimit, clientKey } from '@/lib/insider/rate-limit'
 import { createInsiderToken, attachInsiderCookie } from '@/lib/auth/insider-session'
 import { validateSenha } from '@/lib/insider/validation'
+import { isSameOrigin } from '@/lib/auth/same-origin'
 
 /** Mesma mensagem de `entrar`: o endpoint não pode revelar quem é Insider. */
 const FALHA = 'CPF ou senha incorretos.'
@@ -20,6 +21,11 @@ export async function POST(req: NextRequest) {
         { error: 'Muitas tentativas. Aguarde um instante e tente novamente.' },
         { status: 429, headers: { 'Retry-After': String(rate.retryAfterSeconds) } }
       )
+    }
+
+    if (!isSameOrigin(req)) {
+      console.warn('[insiders/criar-senha] origem recusada')
+      return NextResponse.json({ error: 'Requisição inválida.' }, { status: 403 })
     }
 
     const body = await req.json().catch(() => null)
