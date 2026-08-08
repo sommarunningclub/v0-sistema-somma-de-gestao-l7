@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
 import { resolveAudience } from './audiences'
-import { normalizeEmail } from './normalize'
-import { isSuppressed } from './suppression'
+import { normalizeEmail, type Recipient } from './normalize'
+import { filterSuppressed, isSuppressed } from './suppression'
 import { renderTemplate } from './templates'
 import { signUnsubscribeToken } from './unsubscribe-token'
 import type { EmailCampaign } from './types'
@@ -166,54 +166,87 @@ export async function dispatchSlice(
 
   for (let i = 0; i < groups.length; i++) {
     const group = groups[i]
-    const payload = group.map((r) => buildPayload(campaign, r, from))
 
-    let ids: Array<{ id: string }> = []
-    let lastError: string | null = null
+    // Reconfere a supressão pouco antes de enviar. `prepareCampaign` já
+    // filtrou a audiência ao congelá-la, mas um destinatário pode se
+    // descadastrar, dar bounce ou reclamar entre aquele momento e este —
+    // sobretudo em campanhas grandes, retomadas ao longo de várias execuções
+    // do cron. Nenhum caminho de código pode enviar para quem está em
+    // `email_suppressions`.
+    const asRecipients: Recipient[] = group.map((r) => ({
+      email: r.email,
+      nome: r.nome,
+      sourceBase: '',
+    }))
+    const allowedEmails = new Set((await filterSuppressed(asRecipients)).map((r) => r.email))
+    const sendable = group.filter((r) => allowedEmails.has(r.email))
+    const suppressedNow = group.filter((r) => !allowedEmails.has(r.email))
 
-    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-      try {
-        const { data, error: sendError } = await resend.batch.send(payload)
-        if (sendError) {
-          lastError = sendError.message
-          await sleep(THROTTLE_MS * attempt * 2)
-          continue
-        }
-        // O formato do retorno mudou entre versões do SDK.
-        const raw = (data as unknown as { data?: Array<{ id: string }> })?.data
-        ids = Array.isArray(raw) ? raw : Array.isArray(data) ? (data as Array<{ id: string }>) : []
-        lastError = null
-        break
-      } catch (e) {
-        lastError = String(e)
-        await sleep(THROTTLE_MS * attempt * 2)
+    if (suppressedNow.length > 0) {
+      failed += suppressedNow.length
+      for (const r of suppressedNow) {
+        await supabase
+          .from('email_campaign_recipients')
+          .update({ status: 'falha', error: 'suprimido antes do envio' })
+          .eq('id', r.id)
       }
     }
 
-    const now = new Date().toISOString()
+    if (sendable.length > 0) {
+      const payload = sendable.map((r) => buildPayload(campaign, r, from))
+      // Chave estável por lote (não muda entre as tentativas de retry
+      // abaixo): se uma exceção de rede deixar ambíguo se a Resend já
+      // processou o envio, o retry com a mesma chave não duplica o disparo.
+      const idempotencyKey = `${campaignId}:slice:${i}:${sendable[0].id}`
 
-    if (lastError) {
-      // Falha após as tentativas: marca o lote e segue. Volta a ser tentado
-      // num disparo futuro só se for reposto para 'pendente' manualmente.
-      failed += group.length
-      for (const r of group) {
-        await supabase
-          .from('email_campaign_recipients')
-          .update({ status: 'falha', error: lastError.slice(0, 500) })
-          .eq('id', r.id)
+      let ids: Array<{ id: string }> = []
+      let lastError: string | null = null
+
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          const { data, error: sendError } = await resend.batch.send(payload, { idempotencyKey })
+          if (sendError) {
+            lastError = sendError.message
+            await sleep(THROTTLE_MS * attempt * 2)
+            continue
+          }
+          // O formato do retorno mudou entre versões do SDK.
+          const raw = (data as unknown as { data?: Array<{ id: string }> })?.data
+          ids = Array.isArray(raw) ? raw : Array.isArray(data) ? (data as Array<{ id: string }>) : []
+          lastError = null
+          break
+        } catch (e) {
+          lastError = String(e)
+          await sleep(THROTTLE_MS * attempt * 2)
+        }
       }
-    } else {
-      sent += group.length
-      for (let idx = 0; idx < group.length; idx++) {
-        await supabase
-          .from('email_campaign_recipients')
-          .update({
-            status: 'enviado',
-            resend_email_id: ids[idx]?.id ?? null,
-            sent_at: now,
-            error: null,
-          })
-          .eq('id', group[idx].id)
+
+      const now = new Date().toISOString()
+
+      if (lastError) {
+        // Falha após as tentativas: marca o lote e segue. Volta a ser
+        // tentado num disparo futuro só se for reposto para 'pendente'
+        // manualmente.
+        failed += sendable.length
+        for (const r of sendable) {
+          await supabase
+            .from('email_campaign_recipients')
+            .update({ status: 'falha', error: lastError.slice(0, 500) })
+            .eq('id', r.id)
+        }
+      } else {
+        sent += sendable.length
+        for (let idx = 0; idx < sendable.length; idx++) {
+          await supabase
+            .from('email_campaign_recipients')
+            .update({
+              status: 'enviado',
+              resend_email_id: ids[idx]?.id ?? null,
+              sent_at: now,
+              error: null,
+            })
+            .eq('id', sendable[idx].id)
+        }
       }
     }
 
