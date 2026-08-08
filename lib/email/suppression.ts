@@ -11,8 +11,14 @@ function getSupabase() {
 
 const PAGE_SIZE = 1000
 
-/** Carrega a lista inteira de suprimidos. */
-async function loadSuppressed(): Promise<Set<string>> {
+/**
+ * Carrega a lista inteira de suprimidos.
+ *
+ * Retorna `null` se qualquer página falhar — um `Set` parcial seria pior que
+ * nenhum, porque `filterSuppressed` o trataria como "lista completa" e
+ * deixaria passar suprimidos que ainda não foram lidos (fail-open silencioso).
+ */
+async function loadSuppressed(): Promise<Set<string> | null> {
   const supabase = getSupabase()
   const set = new Set<string>()
 
@@ -24,7 +30,7 @@ async function loadSuppressed(): Promise<Set<string>> {
 
     if (error) {
       console.error('[email] loadSuppressed error:', error)
-      break
+      return null // fail-closed: lista incompleta não é confiável
     }
     if (!data || data.length === 0) break
 
@@ -41,7 +47,17 @@ async function loadSuppressed(): Promise<Set<string>> {
 
 export async function filterSuppressed(recipients: Recipient[]): Promise<Recipient[]> {
   if (recipients.length === 0) return []
+
   const suppressed = await loadSuppressed()
+  if (suppressed === null) {
+    // fail-closed: na dúvida (lista de supressão indisponível), não envia
+    // para ninguém do lote em vez de arriscar mandar para um suprimido.
+    console.error(
+      '[email] filterSuppressed: lista de supressão indisponível — bloqueando lote inteiro (fail-closed)',
+    )
+    return []
+  }
+
   return recipients.filter((r) => !suppressed.has(r.email))
 }
 
