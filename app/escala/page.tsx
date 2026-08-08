@@ -1,17 +1,18 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CalendarRange, ListChecks } from 'lucide-react'
 import { apiFetch } from '@/lib/api-client'
 import { EscalaCalendario } from '@/components/escala-calendario'
 import { EscalaDiaPanel } from '@/components/escala-dia-panel'
 import { EscalaAtividadesManager } from '@/components/escala-atividades-manager'
 import { ErrorBanner } from '@/components/ui/error-banner'
-import { PageLoading } from '@/components/ui/page-loading'
+import { Button } from '@/components/ui/button'
+import { EmptyState, PageHeader, PageShell, Skeleton } from '@/components/somma'
 import type { EscalaDiaResumo } from '@/lib/types/escala'
 
 export default function EscalaPage() {
-  const hoje = new Date()
+  const hoje = useMemo(() => new Date(), [])
   const [ano, setAno] = useState(hoje.getFullYear())
   const [mes, setMes] = useState(hoje.getMonth() + 1)
   const [dias, setDias] = useState<EscalaDiaResumo[]>([])
@@ -40,55 +41,68 @@ export default function EscalaPage() {
   }, [carregar])
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <CalendarRange className="w-5 h-5 text-orange-500" />
-          <h1 className="text-white font-bold text-xl">Escala</h1>
-        </div>
-        <button
-          onClick={() => setMostrarAtividades(true)}
-          className="flex items-center gap-1.5 text-sm text-neutral-300 hover:text-white bg-neutral-800 border border-neutral-700 hover:border-neutral-500 px-3 py-1.5 rounded-lg transition-colors"
-        >
-          <ListChecks className="w-4 h-4" />
-          Atividades
-        </button>
+    <PageShell>
+      <PageHeader
+        eyebrow="Operação"
+        title="Escala"
+        description="Quem corre, quem apoia e quem não vai — evento por evento, mês a mês."
+        meta={
+          loading ? null : (
+            <span>
+              <span className="font-mono tabular-nums text-ink">{dias.length}</span>{' '}
+              evento(s) neste mês
+            </span>
+          )
+        }
+        actions={
+          <Button variant="secondary" size="sm" onClick={() => setMostrarAtividades(true)}>
+            <ListChecks aria-hidden="true" />
+            Atividades
+          </Button>
+        }
+      />
+
+      <div className="space-y-4">
+        {erro ? <ErrorBanner message={erro} onRetry={carregar} /> : null}
+
+        {loading ? (
+          <div aria-busy="true" className="space-y-3">
+            <Skeleton className="h-9 w-full" />
+            <Skeleton className="h-[420px] w-full rounded-xl" />
+          </div>
+        ) : (
+          <EscalaCalendario
+            ano={ano}
+            mes={mes}
+            dias={dias}
+            onMudarMes={(novoAno, novoMes) => {
+              setAno(novoAno)
+              setMes(novoMes)
+            }}
+            onSelecionarDia={(dia) => setEventoSelecionado(dia.evento_id)}
+          />
+        )}
+
+        {dias.length === 0 && !loading && !erro ? (
+          <EmptyState
+            icon={CalendarRange}
+            title="Nenhum evento neste mês"
+            description="Cadastre um treino no módulo Eventos para poder escalar insiders."
+          />
+        ) : null}
       </div>
 
-      {erro && <ErrorBanner message={erro} onRetry={carregar} />}
-
-      {loading ? (
-        <PageLoading label="Carregando escala..." />
-      ) : (
-        <EscalaCalendario
-          ano={ano}
-          mes={mes}
-          dias={dias}
-          onMudarMes={(novoAno, novoMes) => {
-            setAno(novoAno)
-            setMes(novoMes)
-          }}
-          onSelecionarDia={(dia) => setEventoSelecionado(dia.evento_id)}
-        />
-      )}
-
-      {dias.length === 0 && !loading && !erro && (
-        <p className="text-sm text-neutral-500">
-          Nenhum evento neste mês. Cadastre um treino no módulo Eventos para poder escalar insiders.
-        </p>
-      )}
-
-      {eventoSelecionado && (
+      {eventoSelecionado ? (
         <EscalaDiaPanel
           eventoId={eventoSelecionado}
           onFechar={() => setEventoSelecionado(null)}
           onAlterado={carregar}
         />
-      )}
+      ) : null}
 
-      {mostrarAtividades && (
+      {mostrarAtividades ? (
         <EscalaAtividadesManager onFechar={() => setMostrarAtividades(false)} />
-      )}
-    </div>
+      ) : null}
+    </PageShell>
   )
 }

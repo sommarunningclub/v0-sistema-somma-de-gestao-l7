@@ -1,9 +1,35 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { X, Save, Trash2, Send, Paperclip, FileText, Download, Clock, MessageSquare, Building2, User, Phone, Mail, FileIcon, AlertTriangle, Search, Calendar } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef, useId } from 'react'
+import {
+  Building2,
+  Calendar,
+  Clock,
+  Download,
+  FileIcon,
+  FileText,
+  Mail,
+  MessageSquare,
+  Paperclip,
+  Phone,
+  Save,
+  Search,
+  Send,
+  Trash2,
+  User,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  EmptyState,
+  ResponsiveModal,
+  SectionTitle,
+  StatusPill,
+  Well,
+  confirmAction,
+  notify,
+} from '@/components/somma'
+import { STAGE_TONE, stageLabel } from '@/components/crm-lead-card'
 import { CRM_STAGES } from '@/lib/crm-constants'
 import type { CRMLead, CRMLeadNote, CRMLeadAttachment, CRMStage, MeetingData } from '@/lib/services/crm'
 import { getSession } from '@/components/protected-route'
@@ -12,6 +38,7 @@ import { CRMMeetingTab } from '@/components/crm-meeting-tab'
 import { apiFetch } from '@/lib/api-client'
 
 interface CRMLeadModalProps {
+  open: boolean
   lead: CRMLead | null
   isNew?: boolean
   onClose: () => void
@@ -19,10 +46,15 @@ interface CRMLeadModalProps {
   onDelete?: (id: string) => Promise<void>
 }
 
-export function CRMLeadModal({ lead, isNew, onClose, onSave, onDelete }: CRMLeadModalProps) {
+type TabKey = 'details' | 'notes' | 'attachments' | 'meeting'
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+export function CRMLeadModal({ open, lead, isNew, onClose, onSave, onDelete }: CRMLeadModalProps) {
   const session = getSession()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { lookupCNPJ, loading: cnpjLoading, error: cnpjError } = useCNPJLookup()
+  const fieldId = useId()
 
   // Form state
   const [name, setName] = useState(lead?.name || '')
@@ -32,19 +64,26 @@ export function CRMLeadModal({ lead, isNew, onClose, onSave, onDelete }: CRMLead
   const [cnpj, setCnpj] = useState(lead?.cnpj || '')
   const [description, setDescription] = useState(lead?.description || '')
   const [stage, setStage] = useState<CRMStage>(lead?.stage || 'novo_lead')
+  const [touched, setTouched] = useState(false)
 
   // Notes & Attachments
   const [notes, setNotes] = useState<CRMLeadNote[]>([])
   const [attachments, setAttachments] = useState<CRMLeadAttachment[]>([])
   const [newNote, setNewNote] = useState('')
-  const [activeTab, setActiveTab] = useState<'details' | 'notes' | 'attachments' | 'meeting'>('details')
+  const [savingNote, setSavingNote] = useState(false)
+  const [activeTab, setActiveTab] = useState<TabKey>('details')
   const [currentMeeting, setCurrentMeeting] = useState<MeetingData | null | undefined>(lead?.meeting)
 
   // UI state
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [dirty, setDirty] = useState(false)
+
+  const markDirty = () => setDirty(true)
+
+  const nameError = touched && !name.trim() ? 'Informe o nome do contato.' : null
+  const emailError = email.trim() && !EMAIL_RE.test(email.trim()) ? 'E-mail inválido.' : null
 
   // Load notes and attachments
   const loadNotesAndAttachments = useCallback(async () => {
@@ -89,7 +128,8 @@ export function CRMLeadModal({ lead, isNew, onClose, onSave, onDelete }: CRMLead
   }
 
   const handleSave = async () => {
-    if (!name.trim()) return
+    setTouched(true)
+    if (!name.trim() || emailError) return
     setSaving(true)
     try {
       await onSave({
@@ -103,6 +143,7 @@ export function CRMLeadModal({ lead, isNew, onClose, onSave, onDelete }: CRMLead
         stage,
         created_by: session?.full_name || session?.email || 'unknown',
       })
+      setDirty(false)
       onClose()
     } finally {
       setSaving(false)
@@ -127,7 +168,10 @@ export function CRMLeadModal({ lead, isNew, onClose, onSave, onDelete }: CRMLead
     } else if (activeTab === 'meeting' && newStage !== 'agendamento') {
       setActiveTab('details')
     }
-    if (!lead?.id || isNew) return
+    if (!lead?.id || isNew) {
+      markDirty()
+      return
+    }
     await apiFetch(`/api/crm/${lead.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -141,46 +185,86 @@ export function CRMLeadModal({ lead, isNew, onClose, onSave, onDelete }: CRMLead
       setCompanyName(data.nome_fantasia || data.razao_social)
       if (data.ddd_telefone_1) setPhone(data.ddd_telefone_1)
       if (data.email) setEmail(data.email)
+      markDirty()
     }
   }
 
   const handleDelete = async () => {
     if (!lead?.id || !onDelete) return
-    if (!confirmDelete) {
-      setConfirmDelete(true)
-      return
-    }
+    const confirmed = await confirmAction({
+      title: 'Excluir este lead?',
+      description:
+        'O lead sai do funil junto com suas observações e anexos. Esta ação não pode ser desfeita.',
+      detail: lead.name,
+      tone: 'danger',
+    })
+    if (!confirmed) return
+
     setDeleting(true)
     try {
       await onDelete(lead.id)
+      setDirty(false)
       onClose()
     } finally {
       setDeleting(false)
     }
   }
 
+  const requestClose = async () => {
+    if (dirty) {
+      const confirmed = await confirmAction({
+        title: 'Descartar alterações?',
+        description: 'Há alterações não salvas neste lead. Se sair agora, elas serão perdidas.',
+        confirmLabel: 'Descartar',
+        cancelLabel: 'Continuar editando',
+        tone: 'danger',
+      })
+      if (!confirmed) return
+    }
+    onClose()
+  }
+
   const handleAddNote = async () => {
     if (!newNote.trim() || !lead?.id) return
 
-    const res = await apiFetch(`/api/crm/${lead.id}/notes`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        content: newNote.trim(),
-        created_by: session?.full_name || session?.email || 'unknown',
-      }),
-    })
+    setSavingNote(true)
+    try {
+      const res = await apiFetch(`/api/crm/${lead.id}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: newNote.trim(),
+          created_by: session?.full_name || session?.email || 'unknown',
+        }),
+      })
 
-    if (res.ok) {
-      setNewNote('')
-      loadNotesAndAttachments()
+      if (res.ok) {
+        setNewNote('')
+        loadNotesAndAttachments()
+      } else {
+        notify.error('Não foi possível salvar a observação')
+      }
+    } finally {
+      setSavingNote(false)
     }
   }
 
   const handleDeleteNote = async (noteId: string) => {
     if (!lead?.id) return
+    const confirmed = await confirmAction({
+      title: 'Excluir observação?',
+      description: 'A observação será removida do histórico do lead.',
+      tone: 'danger',
+    })
+    if (!confirmed) return
+
     const res = await apiFetch(`/api/crm/${lead.id}/notes?noteId=${noteId}`, { method: 'DELETE' })
-    if (res.ok) loadNotesAndAttachments()
+    if (res.ok) {
+      notify.success('Observação excluída')
+      loadNotesAndAttachments()
+    } else {
+      notify.error('Erro ao excluir a observação')
+    }
   }
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -200,6 +284,7 @@ export function CRMLeadModal({ lead, isNew, onClose, onSave, onDelete }: CRMLead
 
       if (uploadError) {
         console.error('[v0] Upload error:', uploadError)
+        notify.error('Erro ao enviar o arquivo')
         return
       }
 
@@ -223,9 +308,11 @@ export function CRMLeadModal({ lead, isNew, onClose, onSave, onDelete }: CRMLead
       if (!res.ok) {
         const error = await res.json()
         console.error('[v0] Error saving attachment record:', error)
+        notify.error('Erro ao registrar o anexo')
         return
       }
 
+      notify.success('Anexo enviado')
       loadNotesAndAttachments()
     } finally {
       setUploading(false)
@@ -233,10 +320,23 @@ export function CRMLeadModal({ lead, isNew, onClose, onSave, onDelete }: CRMLead
     }
   }
 
-  const handleDeleteAttachment = async (attachmentId: string) => {
+  const handleDeleteAttachment = async (attachmentId: string, fileName: string) => {
     if (!lead?.id) return
+    const confirmed = await confirmAction({
+      title: 'Excluir anexo?',
+      description: 'O arquivo deixará de ficar disponível para a equipe.',
+      detail: fileName,
+      tone: 'danger',
+    })
+    if (!confirmed) return
+
     const res = await apiFetch(`/api/crm/${lead.id}/attachments?attachmentId=${attachmentId}`, { method: 'DELETE' })
-    if (res.ok) loadNotesAndAttachments()
+    if (res.ok) {
+      notify.success('Anexo excluído')
+      loadNotesAndAttachments()
+    } else {
+      notify.error('Erro ao excluir o anexo')
+    }
   }
 
   const formatFileSize = (bytes: number) => {
@@ -250,361 +350,449 @@ export function CRMLeadModal({ lead, isNew, onClose, onSave, onDelete }: CRMLead
     return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
   }
 
+  const tabs: { key: TabKey; label: string; icon: React.ElementType; count?: number }[] = [
+    { key: 'details', label: 'Dados', icon: User },
+    { key: 'notes', label: 'Histórico', icon: MessageSquare, count: notes.length },
+    { key: 'attachments', label: 'Anexos', icon: Paperclip, count: attachments.length },
+    ...(stage === 'agendamento'
+      ? [{ key: 'meeting' as const, label: 'Reunião', icon: Calendar }]
+      : []),
+  ]
+
+  const fieldClass = 'mt-1.5'
+  const labelClass = 'flex items-center gap-1.5 text-meta font-medium text-ink-muted'
+
   return (
-    <div className="fixed inset-0 bg-black/80 z-50 flex items-end sm:items-center justify-center p-4 sm:p-4" onClick={onClose}>
-      <div
-        className="bg-neutral-900 border border-neutral-700 rounded-t-2xl sm:rounded-2xl w-full max-w-2xl max-h-[92vh] sm:max-h-[90vh] flex flex-col overflow-hidden shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Mobile Handle Bar */}
-        <div className="sm:hidden flex justify-center pt-2">
-          <div className="w-12 h-1 bg-neutral-700 rounded-full" />
-        </div>
-
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 sm:p-4 border-b border-neutral-700 gap-3">
-          <div className="flex-1 min-w-0">
-            <h2 className="text-lg sm:text-xl font-bold text-white">
-              {isNew ? 'Novo Lead' : 'Detalhes do Lead'}
-            </h2>
-            {!isNew && lead && (
-              <p className="text-xs sm:text-sm text-neutral-400 mt-0.5 truncate">
-                {lead.company_name || 'Sem empresa'}
-              </p>
-            )}
-          </div>
-          <button onClick={onClose} className="p-2.5 -m-2.5 text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-lg transition-colors flex-shrink-0 w-10 h-10 flex items-center justify-center">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Tabs (only for existing leads) */}
-        {!isNew && (
-          <div className="flex border-b border-neutral-700 bg-neutral-800/30">
-            {[
-              { key: 'details' as const, label: 'Dados', icon: User },
-              { key: 'notes' as const, label: 'Histórico', icon: MessageSquare },
-              { key: 'attachments' as const, label: 'Anexos', icon: Paperclip },
-              ...(stage === 'agendamento' ? [{ key: 'meeting' as const, label: 'Reunião', icon: Calendar }] : []),
-            ].map((tab) => (
+    <ResponsiveModal
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) void requestClose()
+      }}
+      size="lg"
+      dismissible={!dirty}
+      title={isNew ? 'Novo lead' : lead?.name || 'Detalhes do lead'}
+      description={
+        isNew
+          ? 'Cadastre a oportunidade de parceria e escolha a fase inicial do funil.'
+          : lead?.company_name || 'Sem empresa'
+      }
+      footer={
+        <>
+          {!isNew && onDelete ? (
+            <Button
+              variant="outline"
+              onClick={handleDelete}
+              loading={deleting}
+              className="mr-auto text-danger hover:text-danger"
+            >
+              <Trash2 aria-hidden="true" />
+              Excluir
+            </Button>
+          ) : null}
+          <Button variant="secondary" onClick={() => void requestClose()}>
+            Cancelar
+          </Button>
+          <Button onClick={handleSave} loading={saving}>
+            <Save aria-hidden="true" />
+            {isNew ? 'Criar lead' : 'Salvar'}
+          </Button>
+        </>
+      }
+    >
+      {/* Abas (apenas para leads existentes) */}
+      {!isNew ? (
+        <div role="tablist" aria-label="Seções do lead" className="mb-4 flex flex-wrap gap-1 border-b border-line">
+          {tabs.map((tab) => {
+            const selected = activeTab === tab.key
+            return (
               <button
                 key={tab.key}
+                type="button"
+                role="tab"
+                id={`${fieldId}-tab-${tab.key}`}
+                aria-selected={selected}
+                aria-controls={`${fieldId}-panel-${tab.key}`}
                 onClick={() => setActiveTab(tab.key)}
-                className={`flex-1 flex items-center justify-center gap-1.5 px-2 sm:px-3 py-3 sm:py-4 text-xs sm:text-sm font-medium transition-all min-h-[48px] ${
-                  activeTab === tab.key
-                    ? 'text-orange-500 border-b-2 border-orange-500 bg-neutral-800/50'
-                    : 'text-neutral-400 hover:text-white hover:bg-neutral-800/20'
+                className={`ds-tap -mb-px flex items-center gap-1.5 border-b-2 px-3 text-sm font-medium transition-colors ${
+                  selected
+                    ? 'border-brand text-brand-strong'
+                    : 'border-transparent text-ink-muted hover:text-ink-strong'
                 }`}
               >
-                <tab.icon className="w-4 h-4 flex-shrink-0" />
-                <span className="text-xs sm:text-sm">{tab.label}</span>
-                {tab.key === 'notes' && notes.length > 0 && (
-                  <span className="ml-0.5 inline-flex items-center justify-center min-w-[20px] h-5 bg-orange-500/20 text-orange-400 text-xs rounded-full font-semibold flex-shrink-0">{notes.length}</span>
-                )}
-                {tab.key === 'attachments' && attachments.length > 0 && (
-                  <span className="ml-0.5 inline-flex items-center justify-center min-w-[20px] h-5 bg-orange-500/20 text-orange-400 text-xs rounded-full font-semibold flex-shrink-0">{attachments.length}</span>
-                )}
+                <tab.icon aria-hidden="true" className="h-4 w-4" />
+                {tab.label}
+                {tab.count ? (
+                  <span className="font-mono text-micro tabular-nums text-ink-subtle">
+                    {tab.count}
+                  </span>
+                ) : null}
               </button>
-            ))}
-          </div>
-        )}
+            )
+          })}
+        </div>
+      ) : null}
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4">
-          {/* Details Tab */}
-          {(activeTab === 'details' || isNew) && (
+      {/* Dados */}
+      {activeTab === 'details' || isNew ? (
+        <div
+          role={isNew ? undefined : 'tabpanel'}
+          id={`${fieldId}-panel-details`}
+          aria-labelledby={isNew ? undefined : `${fieldId}-tab-details`}
+          className="space-y-6"
+        >
+          <section>
+            <SectionTitle
+              title="Fase do funil"
+              meta={<StatusPill tone={STAGE_TONE[stage]}>{stageLabel(stage)}</StatusPill>}
+            />
+            <div role="radiogroup" aria-label="Fase do funil" className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {CRM_STAGES.map((s) => {
+                const selected = stage === s.id
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => void handleStageChange(s.id)}
+                    className={`ds-tap flex items-center justify-center rounded-lg border px-3 text-[0.8125rem] font-medium transition-colors ${
+                      selected
+                        ? 'border-brand-border bg-brand-soft text-brand-strong'
+                        : 'border-line bg-surface-sunken text-ink-muted hover:border-line-strong hover:text-ink'
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                )
+              })}
+            </div>
+          </section>
+
+          <section>
+            <SectionTitle title="Contato" />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor={`${fieldId}-name`} className={labelClass}>
+                  <User aria-hidden="true" className="h-3.5 w-3.5" />
+                  Nome <span className="text-danger">*</span>
+                </label>
+                <Input
+                  id={`${fieldId}-name`}
+                  className={fieldClass}
+                  value={name}
+                  onChange={(e) => {
+                    setName(e.target.value)
+                    markDirty()
+                  }}
+                  onBlur={() => setTouched(true)}
+                  placeholder="Nome do contato"
+                  type="text"
+                  autoComplete="name"
+                  required
+                  aria-required="true"
+                  aria-invalid={nameError ? true : undefined}
+                  aria-describedby={nameError ? `${fieldId}-name-error` : undefined}
+                />
+                {nameError ? (
+                  <p id={`${fieldId}-name-error`} className="mt-1.5 text-meta text-danger">
+                    {nameError}
+                  </p>
+                ) : null}
+              </div>
+
+              <div>
+                <label htmlFor={`${fieldId}-phone`} className={labelClass}>
+                  <Phone aria-hidden="true" className="h-3.5 w-3.5" />
+                  Telefone
+                </label>
+                <Input
+                  id={`${fieldId}-phone`}
+                  className={fieldClass}
+                  value={phone}
+                  onChange={(e) => {
+                    setPhone(formatPhone(e.target.value))
+                    markDirty()
+                  }}
+                  placeholder="(00) 00000-0000"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                />
+              </div>
+
+              <div>
+                <label htmlFor={`${fieldId}-email`} className={labelClass}>
+                  <Mail aria-hidden="true" className="h-3.5 w-3.5" />
+                  E-mail
+                </label>
+                <Input
+                  id={`${fieldId}-email`}
+                  className={fieldClass}
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value)
+                    markDirty()
+                  }}
+                  placeholder="email@empresa.com"
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  aria-invalid={emailError ? true : undefined}
+                  aria-describedby={emailError ? `${fieldId}-email-error` : undefined}
+                />
+                {emailError ? (
+                  <p id={`${fieldId}-email-error`} className="mt-1.5 text-meta text-danger">
+                    {emailError}
+                  </p>
+                ) : null}
+              </div>
+
+              <div>
+                <label htmlFor={`${fieldId}-company`} className={labelClass}>
+                  <Building2 aria-hidden="true" className="h-3.5 w-3.5" />
+                  Empresa
+                </label>
+                <Input
+                  id={`${fieldId}-company`}
+                  className={fieldClass}
+                  value={companyName}
+                  onChange={(e) => {
+                    setCompanyName(e.target.value)
+                    markDirty()
+                  }}
+                  placeholder="Nome da empresa"
+                  type="text"
+                  autoComplete="organization"
+                />
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <SectionTitle title="Documento e oportunidade" />
             <div className="space-y-4">
-              {/* Stage Selector */}
               <div>
-                <label className="block text-xs font-medium text-neutral-400 mb-2">Etapa do Lead</label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {CRM_STAGES.map((s) => (
-                    <button
-                      key={s.id}
-                      onClick={() => handleStageChange(s.id)}
-                      className={`text-xs sm:text-sm py-2.5 px-3 rounded-lg border-2 transition-all min-h-[44px] flex items-center justify-center font-medium ${
-                        stage === s.id
-                          ? `${s.color} text-white border-transparent shadow-lg`
-                          : 'bg-neutral-800 text-neutral-400 border-neutral-700 hover:border-neutral-500 active:bg-neutral-700'
-                      }`}
-                    >
-                      {s.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Contact Info */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-neutral-400 mb-2">
-                    <User className="w-3 h-3 inline mr-1" />
-                    Nome *
-                  </label>
-                  <Input
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Nome do contato"
-                    className="bg-neutral-800 border-neutral-700 text-white text-sm h-11 sm:h-10 px-3.5"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-neutral-400 mb-2">
-                    <Phone className="w-3 h-3 inline mr-1" />
-                    Telefone
-                  </label>
-                  <Input
-                    value={phone}
-                    onChange={(e) => setPhone(formatPhone(e.target.value))}
-                    placeholder="(00) 00000-0000"
-                    className="bg-neutral-800 border-neutral-700 text-white text-sm h-11 sm:h-10 px-3.5"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-neutral-400 mb-2">
-                    <Mail className="w-3 h-3 inline mr-1" />
-                    E-mail
-                  </label>
-                  <Input
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="email@empresa.com"
-                    type="email"
-                    className="bg-neutral-800 border-neutral-700 text-white text-sm h-11 sm:h-10 px-3.5"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-neutral-400 mb-2">
-                    <Building2 className="w-3 h-3 inline mr-1" />
-                    Empresa
-                  </label>
-                  <Input
-                    value={companyName}
-                    onChange={(e) => setCompanyName(e.target.value)}
-                    placeholder="Nome da empresa"
-                    className="bg-neutral-800 border-neutral-700 text-white text-sm h-11 sm:h-10 px-3.5"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-neutral-400 mb-2">
-                  <FileText className="w-3 h-3 inline mr-1" />
+                <label htmlFor={`${fieldId}-cnpj`} className={labelClass}>
+                  <FileText aria-hidden="true" className="h-3.5 w-3.5" />
                   CNPJ / CPF
                 </label>
-                <div className="flex gap-2">
+                <div className="mt-1.5 flex gap-2">
                   <Input
+                    id={`${fieldId}-cnpj`}
                     value={cnpj}
-                    onChange={(e) => setCnpj(formatDocumento(e.target.value))}
+                    onChange={(e) => {
+                      setCnpj(formatDocumento(e.target.value))
+                      markDirty()
+                    }}
                     placeholder="000.000.000-00 ou 00.000.000/0000-00"
-                    className="bg-neutral-800 border-neutral-700 text-white text-sm flex-1 h-11 sm:h-10 px-3.5"
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    className="flex-1"
+                    aria-invalid={cnpjError ? true : undefined}
+                    aria-describedby={cnpjError ? `${fieldId}-cnpj-error` : undefined}
                   />
                   <Button
+                    variant="secondary"
+                    size="icon"
                     onClick={handleCNPJLookup}
-                    disabled={cnpjLoading || cnpj.replace(/\D/g, '').length !== 14}
-                    className="bg-orange-600 hover:bg-orange-700 text-white px-4 min-h-[44px] sm:min-h-[40px] flex-shrink-0"
-                    size="sm"
-                    title="Buscar dados da empresa pelo CNPJ"
+                    loading={cnpjLoading}
+                    disabled={cnpj.replace(/\D/g, '').length !== 14}
+                    aria-label="Buscar dados da empresa pelo CNPJ"
                   >
-                    <Search className="w-4 h-4" />
+                    <Search aria-hidden="true" />
                   </Button>
                 </div>
-                {cnpjError && <p className="text-xs text-red-400 mt-1.5">{cnpjError}</p>}
+                {cnpjError ? (
+                  <p id={`${fieldId}-cnpj-error`} className="mt-1.5 text-meta text-danger">
+                    {cnpjError}
+                  </p>
+                ) : null}
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-neutral-400 mb-2">Descrição</label>
+                <label htmlFor={`${fieldId}-description`} className={labelClass}>
+                  Descrição
+                </label>
                 <textarea
+                  id={`${fieldId}-description`}
                   value={description}
-                  onChange={(e) => setDescription(e.target.value)}
+                  onChange={(e) => {
+                    setDescription(e.target.value)
+                    markDirty()
+                  }}
                   placeholder="Descreva a oportunidade de parceria..."
                   rows={4}
-                  className="w-full bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3.5 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-colors"
+                  className="mt-1.5 w-full resize-none rounded-lg border border-line bg-surface-sunken px-3.5 py-2.5 text-base text-ink transition-colors placeholder:text-ink-subtle hover:border-line-strong focus-visible:border-brand focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand"
                 />
               </div>
             </div>
-          )}
+          </section>
+        </div>
+      ) : null}
 
-          {/* Notes Tab */}
-          {activeTab === 'notes' && !isNew && (
-            <div className="space-y-4">
-              {/* Add note */}
-              <div className="flex gap-2 flex-col sm:flex-row">
-                <textarea
-                  value={newNote}
-                  onChange={(e) => setNewNote(e.target.value)}
-                  placeholder="Escreva uma observação sobre este lead..."
-                  rows={3}
-                  className="flex-1 bg-neutral-800 border border-neutral-700 text-white text-sm rounded-lg px-3.5 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-colors"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleAddNote()
-                  }}
-                />
-                <Button
-                  onClick={handleAddNote}
-                  disabled={!newNote.trim()}
-                  className="bg-orange-500 hover:bg-orange-600 text-white w-full sm:w-auto min-h-[44px] sm:min-h-[40px] flex-shrink-0"
-                  size="default"
-                >
-                  <Send className="w-4 h-4" />
-                  <span className="ml-1">Enviar</span>
-                </Button>
-              </div>
-
-              {/* Notes list */}
-              {notes.length === 0 ? (
-                <p className="text-center text-neutral-500 text-sm py-8">Nenhuma observação ainda.</p>
-              ) : (
-                <div className="space-y-3">
-                  {notes.map((note) => (
-                    <div key={note.id} className="bg-neutral-800 border border-neutral-700 rounded-lg p-3.5 group hover:border-neutral-600 transition-colors">
-                      <div className="flex items-start justify-between gap-3">
-                        <p className="text-sm text-neutral-200 whitespace-pre-wrap flex-1 leading-relaxed">{note.content}</p>
-                        <button
-                          onClick={() => handleDeleteNote(note.id)}
-                          className="p-2.5 -m-1 text-neutral-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors flex-shrink-0 active:scale-90"
-                          title="Deletar nota"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                      <div className="flex items-center gap-2 mt-3 text-xs text-neutral-500">
-                        <Clock className="w-3 h-3" />
-                        <time>{formatDate(note.created_at)}</time>
-                        <span className="text-neutral-600">•</span>
-                        <span>{note.created_by}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Meeting Tab */}
-          {activeTab === 'meeting' && !isNew && lead?.id && (
-            <CRMMeetingTab
-              leadId={lead.id}
-              leadEmail={email}
-              initialMeeting={currentMeeting}
-              onSaved={(saved) => setCurrentMeeting(saved)}
+      {/* Histórico */}
+      {activeTab === 'notes' && !isNew ? (
+        <div
+          role="tabpanel"
+          id={`${fieldId}-panel-notes`}
+          aria-labelledby={`${fieldId}-tab-notes`}
+          className="space-y-4"
+        >
+          <SectionTitle title="Nova observação" meta="Ctrl+Enter envia" />
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <label htmlFor={`${fieldId}-note`} className="sr-only">
+              Nova observação
+            </label>
+            <textarea
+              id={`${fieldId}-note`}
+              value={newNote}
+              onChange={(e) => setNewNote(e.target.value)}
+              placeholder="Escreva uma observação sobre este lead..."
+              rows={3}
+              className="w-full flex-1 resize-none rounded-lg border border-line bg-surface-sunken px-3.5 py-2.5 text-base text-ink transition-colors placeholder:text-ink-subtle hover:border-line-strong focus-visible:border-brand focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) void handleAddNote()
+              }}
             />
+            <Button
+              onClick={handleAddNote}
+              disabled={!newNote.trim()}
+              loading={savingNote}
+              className="sm:self-start"
+            >
+              <Send aria-hidden="true" />
+              Enviar
+            </Button>
+          </div>
+
+          {notes.length === 0 ? (
+            <EmptyState
+              compact
+              icon={MessageSquare}
+              title="Nenhuma observação ainda"
+              description="Registre aqui o que foi conversado — o histórico fica visível para toda a equipe."
+            />
+          ) : (
+            <ul className="space-y-3">
+              {notes.map((note) => (
+                <li key={note.id}>
+                  <Well className="p-3.5">
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="flex-1 whitespace-pre-wrap text-sm leading-relaxed text-ink">
+                        {note.content}
+                      </p>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => handleDeleteNote(note.id)}
+                        aria-label={`Excluir observação de ${note.created_by}`}
+                      >
+                        <Trash2 aria-hidden="true" />
+                      </Button>
+                    </div>
+                    <p className="mt-3 flex items-center gap-2 text-meta text-ink-subtle">
+                      <Clock aria-hidden="true" className="h-3 w-3" />
+                      <time dateTime={note.created_at}>{formatDate(note.created_at)}</time>
+                      <span aria-hidden="true">•</span>
+                      <span>{note.created_by}</span>
+                    </p>
+                  </Well>
+                </li>
+              ))}
+            </ul>
           )}
+        </div>
+      ) : null}
 
-          {/* Attachments Tab */}
-          {activeTab === 'attachments' && !isNew && (
-            <div className="space-y-4">
-              {/* Upload */}
-              <div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg,.gif,.txt,.csv"
-                />
-                <Button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading}
-                  className="bg-orange-600 hover:bg-orange-700 text-white border-0 w-full min-h-[44px] font-medium"
-                  variant="outline"
-                >
-                  <Paperclip className="w-4 h-4 mr-2" />
-                  {uploading ? 'Enviando...' : 'Anexar Proposta / Documento'}
-                </Button>
-              </div>
+      {/* Reunião */}
+      {activeTab === 'meeting' && !isNew && lead?.id ? (
+        <div
+          role="tabpanel"
+          id={`${fieldId}-panel-meeting`}
+          aria-labelledby={`${fieldId}-tab-meeting`}
+        >
+          <CRMMeetingTab
+            leadId={lead.id}
+            leadEmail={email}
+            initialMeeting={currentMeeting}
+            onSaved={(saved) => setCurrentMeeting(saved)}
+          />
+        </div>
+      ) : null}
 
-              {/* Attachments list */}
-              {attachments.length === 0 ? (
-                <p className="text-center text-neutral-500 text-sm py-12">Nenhum anexo ainda.</p>
-              ) : (
-                <div className="space-y-2.5">
-                  {attachments.map((att) => (
-                    <div key={att.id} className="flex items-center gap-3 bg-neutral-800 border border-neutral-700 rounded-lg p-3.5 hover:border-neutral-600 group transition-colors">
-                      <FileIcon className="w-8 h-8 text-orange-500 flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-white truncate font-medium">{att.file_name}</p>
-                        <p className="text-xs text-neutral-500 mt-0.5">
-                          {formatFileSize(att.file_size)} • {formatDate(att.uploaded_at)} • {att.uploaded_by}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-1 flex-shrink-0">
+      {/* Anexos */}
+      {activeTab === 'attachments' && !isNew ? (
+        <div
+          role="tabpanel"
+          id={`${fieldId}-panel-attachments`}
+          aria-labelledby={`${fieldId}-tab-attachments`}
+          className="space-y-4"
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            onChange={handleFileUpload}
+            className="hidden"
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg,.gif,.txt,.csv"
+          />
+          <Button
+            variant="secondary"
+            block
+            onClick={() => fileInputRef.current?.click()}
+            loading={uploading}
+          >
+            <Paperclip aria-hidden="true" />
+            Anexar proposta / documento
+          </Button>
+
+          {attachments.length === 0 ? (
+            <EmptyState
+              compact
+              icon={Paperclip}
+              title="Nenhum anexo ainda"
+              description="Envie propostas, contratos e apresentações para manter tudo no mesmo lugar."
+            />
+          ) : (
+            <ul className="space-y-2.5">
+              {attachments.map((att) => (
+                <li key={att.id}>
+                  <Well className="flex items-center gap-3 p-3.5">
+                    <FileIcon aria-hidden="true" className="h-7 w-7 shrink-0 text-brand" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-ink-strong">{att.file_name}</p>
+                      <p className="mt-0.5 text-meta text-ink-subtle">
+                        {formatFileSize(att.file_size)} • {formatDate(att.uploaded_at)} •{' '}
+                        {att.uploaded_by}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
+                      <Button asChild variant="ghost" size="icon-sm">
                         <a
                           href={att.file_url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="p-2.5 -m-1 text-neutral-400 hover:text-orange-500 hover:bg-orange-500/10 rounded-lg transition-colors active:scale-90"
-                          title="Download"
+                          aria-label={`Baixar ${att.file_name}`}
                         >
-                          <Download className="w-4 h-4" />
+                          <Download aria-hidden="true" />
                         </a>
-                        <button
-                          onClick={() => handleDeleteAttachment(att.id)}
-                          className="p-2.5 -m-1 text-neutral-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors active:scale-90"
-                          title="Deletar anexo"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => handleDeleteAttachment(att.id, att.file_name)}
+                        aria-label={`Excluir ${att.file_name}`}
+                      >
+                        <Trash2 aria-hidden="true" />
+                      </Button>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                  </Well>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
-
-        {/* Footer */}
-        <div className={`border-t border-neutral-700 p-4 sm:p-4 bg-neutral-900/50 ${
-          confirmDelete
-            ? 'flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between pb-[calc(1rem+env(safe-area-inset-bottom))]'
-            : 'flex flex-col-reverse sm:flex-row sm:items-center gap-2 sm:justify-between pb-[calc(1rem+env(safe-area-inset-bottom))]'
-        }`}>
-          <div className="w-full sm:w-auto">
-            {!isNew && onDelete && (
-              <Button
-                onClick={handleDelete}
-                disabled={deleting}
-                variant="outline"
-                className={`w-full sm:w-auto min-h-[44px] sm:min-h-[40px] font-medium ${
-                  confirmDelete
-                    ? 'bg-red-500/20 border-red-500 text-red-400 hover:bg-red-500/30'
-                    : 'border-neutral-700 text-neutral-400 hover:text-red-400 hover:border-red-500/50'
-                }`}
-              >
-                {confirmDelete ? (
-                  <>
-                    <AlertTriangle className="w-4 h-4 mr-2" />
-                    {deleting ? 'Excluindo...' : 'Confirmar Exclusão'}
-                  </>
-                ) : (
-                  <>
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    Excluir
-                  </>
-                )}
-              </Button>
-            )}
-          </div>
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <Button
-              onClick={onClose}
-              variant="outline"
-              className="flex-1 sm:flex-none border-neutral-700 text-neutral-400 hover:text-white min-h-[44px] sm:min-h-[40px] font-medium"
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={handleSave}
-              disabled={saving || !name.trim()}
-              className="flex-1 sm:flex-none bg-orange-500 hover:bg-orange-600 text-white min-h-[44px] sm:min-h-[40px] font-medium"
-            >
-              <Save className="w-4 h-4 mr-2" />
-              {saving ? 'Salvando...' : isNew ? 'Criar Lead' : 'Salvar'}
-            </Button>
-          </div>
-        </div>
-      </div>
-    </div>
+      ) : null}
+    </ResponsiveModal>
   )
 }

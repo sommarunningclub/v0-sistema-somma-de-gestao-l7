@@ -20,7 +20,10 @@
     ],
     "paths": {
       "@/*": ["./*"]
-    }
+    },
+    // `jest.setup.js` importa @testing-library/jest-dom em runtime; sem esta
+    // referência o TypeScript não enxerga matchers como `toBeInTheDocument`.
+    "types": ["node", "jest", "@testing-library/jest-dom"]
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
   "exclude": ["node_modules"]

@@ -27,3 +27,10 @@ yarn-error.log*
 next-env.d.ts
 gestao-somma.env.local.env.txt
 .superpowers/
+
+/test-results
+/playwright-report
+
+# credenciais locais dos testes de interface
+.env.e2e
+/somma-shots

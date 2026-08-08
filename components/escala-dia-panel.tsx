@@ -1,17 +1,29 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import { X, Plus, Trash2, Edit3 } from 'lucide-react'
+import { useCallback, useEffect, useId, useState } from 'react'
+import { Plus, Trash2, Edit3, UserPlus } from 'lucide-react'
 import { apiFetch } from '@/lib/api-client'
 import { ErrorBanner } from '@/components/ui/error-banner'
-import { PageLoading } from '@/components/ui/page-loading'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { EscalaInsiderPicker } from '@/components/escala-insider-picker'
-import { CORES_ESTADO } from '@/lib/escala-ui'
+import {
+  CardListSkeleton,
+  ResponsiveModal,
+  SectionTitle,
+  Skeleton,
+  StatusPill,
+  Well,
+  confirmAction,
+  notify,
+  type StatusTone,
+} from '@/components/somma'
 import { ESCALA_STATUS_LABELS, type EscalaStatus } from '@/lib/escala-constants'
 import type {
   EscalaAtividade,
   EscalaDia,
   EscalaInsider,
+  EstadoPreenchimento,
   InsiderOption,
 } from '@/lib/types/escala'
 
@@ -30,6 +42,18 @@ interface Rascunho {
   atividadeIds: string[]
 }
 
+const TOM_ESTADO: Record<EstadoPreenchimento, StatusTone> = {
+  completo: 'success',
+  parcial: 'warning',
+  vazio: 'danger',
+}
+
+const ROTULO_ESTADO: Record<EstadoPreenchimento, string> = {
+  completo: 'Completo',
+  parcial: 'Parcial',
+  vazio: 'Vazio',
+}
+
 export function EscalaDiaPanel({ eventoId, onFechar, onAlterado }: EscalaDiaPanelProps) {
   const [escala, setEscala] = useState<EscalaDia | null>(null)
   const [insiders, setInsiders] = useState<InsiderOption[]>([])
@@ -38,6 +62,10 @@ export function EscalaDiaPanel({ eventoId, onFechar, onAlterado }: EscalaDiaPane
   const [erro, setErro] = useState<string | null>(null)
   const [rascunho, setRascunho] = useState<Rascunho | null>(null)
   const [salvando, setSalvando] = useState(false)
+  const [mostrarPicker, setMostrarPicker] = useState(false)
+
+  const uid = useId()
+  const id = (name: string) => `${uid}-${name}`
 
   const carregar = useCallback(async () => {
     setLoading(true)
@@ -81,7 +109,9 @@ export function EscalaDiaPanel({ eventoId, onFechar, onAlterado }: EscalaDiaPane
       })
       const body = await res.json()
       if (!res.ok) throw new Error(body.error || 'Erro ao salvar')
+      notify.success('Escalação salva.', { description: rascunho.insider.nome })
       setRascunho(null)
+      setMostrarPicker(false)
       await carregar()
       onAlterado()
     } catch (err) {
@@ -91,247 +121,315 @@ export function EscalaDiaPanel({ eventoId, onFechar, onAlterado }: EscalaDiaPane
     }
   }
 
-  const remover = async (id: string) => {
+  const remover = async (item: EscalaInsider) => {
+    const ok = await confirmAction({
+      title: 'Remover da escala?',
+      description: 'O insider deixa de aparecer na escala deste dia. Você pode escalá-lo de novo depois.',
+      detail: item.insider_nome,
+      tone: 'danger',
+      confirmLabel: 'Remover',
+    })
+    if (!ok) return
+
     setErro(null)
-    const res = await apiFetch(`/api/escala/${id}`, { method: 'DELETE' })
+    const res = await apiFetch(`/api/escala/${item.id}`, { method: 'DELETE' })
     if (!res.ok) {
+      notify.error('Erro ao remover a escalação')
       setErro('Erro ao remover a escalação')
       return
     }
+    notify.success('Removido da escala.', { description: item.insider_nome })
     await carregar()
     onAlterado()
   }
 
   const linhaInsider = (item: EscalaInsider) => (
-    <div
-      key={item.id}
-      className="flex items-center justify-between gap-2 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2"
-    >
-      <div className="min-w-0">
-        <p className="text-sm text-white truncate">{item.insider_nome}</p>
-        <div className="flex flex-wrap gap-1 mt-1">
-          {item.atividades.map((a) => (
-            <span
-              key={a.id}
-              className="text-[10px] px-1.5 py-0.5 rounded-full border"
-              style={{ color: a.cor, borderColor: `${a.cor}55`, backgroundColor: `${a.cor}1A` }}
-            >
-              {a.nome}
-            </span>
-          ))}
-          {item.motivo && <span className="text-[10px] text-neutral-400">{item.motivo}</span>}
+    <li key={item.id}>
+      <div className="flex items-center justify-between gap-2 rounded-lg border border-line bg-surface-raised px-3 py-2">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium text-ink-strong">{item.insider_nome}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-1">
+            {item.atividades.map((a) => (
+              <span
+                key={a.id}
+                className="rounded-full border px-1.5 py-0.5 text-micro font-medium"
+                style={{ color: a.cor, borderColor: `${a.cor}55`, backgroundColor: `${a.cor}1A` }}
+              >
+                {a.nome}
+              </span>
+            ))}
+            {item.motivo ? <span className="text-micro text-ink-muted">{item.motivo}</span> : null}
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() =>
+              setRascunho({
+                insider: { id: item.insider_id, nome: item.insider_nome },
+                status: item.status,
+                pelotao: item.pelotao ?? '',
+                motivo: item.motivo ?? '',
+                atividadeIds: item.atividades.map((a) => a.id),
+              })
+            }
+            aria-label={`Editar escalação de ${item.insider_nome}`}
+          >
+            <Edit3 aria-hidden="true" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => remover(item)}
+            aria-label={`Remover ${item.insider_nome} da escala`}
+            className="hover:bg-danger-soft hover:text-danger"
+          >
+            <Trash2 aria-hidden="true" />
+          </Button>
         </div>
       </div>
-      <button
-        onClick={() =>
-          setRascunho({
-            insider: { id: item.insider_id, nome: item.insider_nome },
-            status: item.status,
-            pelotao: item.pelotao ?? '',
-            motivo: item.motivo ?? '',
-            atividadeIds: item.atividades.map((a) => a.id),
-          })
-        }
-        className="p-1.5 text-neutral-500 hover:text-orange-400 transition-colors flex-shrink-0"
-        aria-label={`Editar ${item.insider_nome}`}
-      >
-        <Edit3 className="w-4 h-4" />
-      </button>
-      <button
-        onClick={() => remover(item.id)}
-        className="p-1.5 text-neutral-500 hover:text-red-400 transition-colors flex-shrink-0"
-        aria-label={`Remover ${item.insider_nome} da escala`}
-      >
-        <Trash2 className="w-4 h-4" />
-      </button>
-    </div>
+    </li>
   )
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black/70 flex items-end md:items-center md:justify-center" onClick={onFechar}>
-      <div
-        className="w-full md:max-w-2xl max-h-[90vh] overflow-auto bg-neutral-900 border border-neutral-700 rounded-t-2xl md:rounded-2xl p-4 space-y-4"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <h2 className="text-white font-bold">
-              {escala ? escala.titulo : 'Escala do dia'}
-            </h2>
-            {escala && (
-              <p className="text-xs text-neutral-400">
-                {new Date(`${escala.data_evento}T12:00:00`).toLocaleDateString('pt-BR', {
-                  weekday: 'long',
-                  day: '2-digit',
-                  month: 'long',
-                })}{' '}
-                · {escala.horario_inicio}
-              </p>
-            )}
-          </div>
-          <button onClick={onFechar} className="p-1 text-neutral-400 hover:text-white" aria-label="Fechar">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+  const dataFormatada = escala
+    ? new Date(`${escala.data_evento}T12:00:00`).toLocaleDateString('pt-BR', {
+        weekday: 'long',
+        day: '2-digit',
+        month: 'long',
+      })
+    : null
 
-        {erro && <ErrorBanner message={erro} />}
+  return (
+    <ResponsiveModal
+      open
+      onOpenChange={(aberto) => {
+        if (!aberto && !salvando) onFechar()
+      }}
+      dismissible={!salvando}
+      size="lg"
+      title={escala ? escala.titulo : 'Escala do dia'}
+      description={
+        escala && dataFormatada ? (
+          <span className="capitalize">{dataFormatada} · {escala.horario_inicio}</span>
+        ) : (
+          'Carregando as informações do dia...'
+        )
+      }
+    >
+      <div className="space-y-5">
+        {erro ? <ErrorBanner message={erro} /> : null}
 
         {loading || !escala ? (
-          <PageLoading label="Carregando o dia..." />
+          <div aria-busy="true" className="space-y-3">
+            <Skeleton className="h-4 w-32" />
+            <CardListSkeleton count={3} />
+          </div>
         ) : (
           <>
             {/* Pelotões */}
-            <div className="space-y-2">
-              {escala.pelotoes_resumo.map((resumo) => {
-                const cores = CORES_ESTADO[resumo.estado]
-                const corredores = escala.insiders.filter(
-                  (i) => i.status === 'corre' && i.pelotao === resumo.pelotao
-                )
-                return (
-                  <div key={resumo.pelotao} className={`rounded-lg border p-2.5 space-y-2 ${cores.borda} ${cores.fundo}`}>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-bold text-white">{resumo.pelotao}</span>
-                      <span className={`text-xs font-bold ${cores.texto}`}>
-                        {resumo.escalados}/{resumo.meta}
-                      </span>
-                    </div>
-                    {corredores.map(linhaInsider)}
-                    {corredores.length === 0 && (
-                      <p className="text-xs text-neutral-500">Ninguém escalado neste pelotão.</p>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
+            <section>
+              <SectionTitle
+                as="h3"
+                title="Pelotões"
+                meta={`${escala.corredores}/${escala.meta_total} corredores`}
+              />
+              <div className="space-y-2">
+                {escala.pelotoes_resumo.length === 0 ? (
+                  <p className="text-meta text-ink-muted">Este evento não tem pelotões definidos.</p>
+                ) : null}
+                {escala.pelotoes_resumo.map((resumo) => {
+                  const corredores = escala.insiders.filter(
+                    (i) => i.status === 'corre' && i.pelotao === resumo.pelotao
+                  )
+                  return (
+                    <Well key={resumo.pelotao} className="space-y-2 p-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-semibold text-ink-strong">{resumo.pelotao}</span>
+                        <StatusPill tone={TOM_ESTADO[resumo.estado]}>
+                          {resumo.escalados}/{resumo.meta} · {ROTULO_ESTADO[resumo.estado]}
+                        </StatusPill>
+                      </div>
+                      {corredores.length > 0 ? (
+                        <ul className="space-y-1.5">{corredores.map(linhaInsider)}</ul>
+                      ) : (
+                        <p className="text-meta text-ink-subtle">Ninguém escalado neste pelotão.</p>
+                      )}
+                    </Well>
+                  )
+                })}
+              </div>
+            </section>
 
             {/* Apoio */}
-            <div className="space-y-2">
-              <h3 className="text-xs font-bold text-neutral-400 tracking-wide">APOIO (NÃO CORRE)</h3>
-              {escala.insiders.filter((i) => i.status === 'apoio').map(linhaInsider)}
-              {escala.apoio === 0 && <p className="text-xs text-neutral-500">Ninguém no apoio.</p>}
-            </div>
+            <section>
+              <SectionTitle as="h3" title="Apoio (não corre)" meta={`${escala.apoio}`} />
+              {escala.apoio === 0 ? (
+                <p className="text-meta text-ink-subtle">Ninguém no apoio.</p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {escala.insiders.filter((i) => i.status === 'apoio').map(linhaInsider)}
+                </ul>
+              )}
+            </section>
 
             {/* Ausências */}
-            <div className="space-y-2">
-              <h3 className="text-xs font-bold text-neutral-400 tracking-wide">NÃO VAI</h3>
-              {escala.insiders.filter((i) => i.status === 'nao_vai').map(linhaInsider)}
-              {escala.nao_vai === 0 && <p className="text-xs text-neutral-500">Nenhuma ausência registrada.</p>}
-            </div>
+            <section>
+              <SectionTitle as="h3" title="Não vai" meta={`${escala.nao_vai}`} />
+              {escala.nao_vai === 0 ? (
+                <p className="text-meta text-ink-subtle">Nenhuma ausência registrada.</p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {escala.insiders.filter((i) => i.status === 'nao_vai').map(linhaInsider)}
+                </ul>
+              )}
+            </section>
 
             {/* Formulário */}
             {rascunho ? (
-              <div className="bg-neutral-800 border border-neutral-700 rounded-lg p-3 space-y-3">
-                <p className="text-sm text-white font-bold">{rascunho.insider.nome}</p>
+              <Well className="space-y-3 p-3">
+                <p className="text-sm font-semibold text-ink-strong">{rascunho.insider.nome}</p>
 
-                <div className="flex gap-2">
-                  {(Object.keys(ESCALA_STATUS_LABELS) as EscalaStatus[]).map((status) => (
-                    <button
-                      key={status}
-                      onClick={() => setRascunho({ ...rascunho, status })}
-                      className={`flex-1 text-xs py-2 rounded-lg border transition-colors ${
-                        rascunho.status === status
-                          ? 'bg-orange-500 text-white border-orange-500'
-                          : 'bg-neutral-900 text-neutral-300 border-neutral-700 hover:border-neutral-500'
-                      }`}
-                    >
-                      {ESCALA_STATUS_LABELS[status]}
-                    </button>
-                  ))}
-                </div>
-
-                {rascunho.status === 'corre' && (
-                  <select
-                    value={rascunho.pelotao}
-                    onChange={(e) => setRascunho({ ...rascunho, pelotao: e.target.value })}
-                    className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white"
-                  >
-                    <option value="">Selecione o pelotão</option>
-                    {escala.pelotoes.map((p) => (
-                      <option key={p} value={p}>{p}</option>
-                    ))}
-                  </select>
-                )}
-
-                {rascunho.status === 'nao_vai' && (
-                  <input
-                    value={rascunho.motivo}
-                    onChange={(e) => setRascunho({ ...rascunho, motivo: e.target.value })}
-                    placeholder="Motivo da ausência"
-                    className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-neutral-500"
-                  />
-                )}
-
-                {rascunho.status !== 'nao_vai' && atividades.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {atividades.map((a) => {
-                      const marcada = rascunho.atividadeIds.includes(a.id)
+                <fieldset>
+                  <legend className="mb-1.5 text-meta font-medium text-ink-muted">Presença</legend>
+                  <div className="flex flex-wrap gap-2">
+                    {(Object.keys(ESCALA_STATUS_LABELS) as EscalaStatus[]).map((status) => {
+                      const selecionado = rascunho.status === status
                       return (
                         <button
-                          key={a.id}
-                          onClick={() =>
-                            setRascunho({
-                              ...rascunho,
-                              atividadeIds: marcada
-                                ? rascunho.atividadeIds.filter((id) => id !== a.id)
-                                : [...rascunho.atividadeIds, a.id],
-                            })
-                          }
-                          className="text-xs px-2 py-1 rounded-full border transition-all"
-                          style={{
-                            color: a.cor,
-                            borderColor: a.cor,
-                            backgroundColor: marcada ? `${a.cor}33` : 'transparent',
-                            opacity: marcada ? 1 : 0.6,
-                          }}
+                          key={status}
+                          type="button"
+                          aria-pressed={selecionado}
+                          onClick={() => setRascunho({ ...rascunho, status })}
+                          className={[
+                            'ds-tap flex-1 rounded-lg border px-3 text-[0.8125rem] font-medium transition-colors',
+                            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-canvas',
+                            selecionado
+                              ? 'border-brand-border bg-brand-soft text-brand-strong'
+                              : 'border-line bg-surface-raised text-ink-muted hover:border-line-strong hover:text-ink',
+                          ].join(' ')}
                         >
-                          {a.nome}
+                          {ESCALA_STATUS_LABELS[status]}
                         </button>
                       )
                     })}
                   </div>
-                )}
+                </fieldset>
 
-                <div className="flex gap-2">
-                  <button
-                    onClick={salvar}
-                    disabled={salvando}
-                    className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white text-sm font-bold py-2 rounded-lg transition-colors"
-                  >
-                    {salvando ? 'Salvando...' : 'Salvar'}
-                  </button>
-                  <button
+                {rascunho.status === 'corre' ? (
+                  <div>
+                    <label htmlFor={id('pelotao')} className="mb-1.5 block text-meta font-medium text-ink-muted">
+                      Pelotão
+                    </label>
+                    <select
+                      id={id('pelotao')}
+                      value={rascunho.pelotao}
+                      onChange={(e) => setRascunho({ ...rascunho, pelotao: e.target.value })}
+                      className="h-11 w-full rounded-lg border border-line bg-surface-sunken px-3 text-base text-ink transition-colors hover:border-line-strong focus-visible:border-brand focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand lg:h-10"
+                    >
+                      <option value="">Selecione o pelotão</option>
+                      {escala.pelotoes.map((p) => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
+                    </select>
+                  </div>
+                ) : null}
+
+                {rascunho.status === 'nao_vai' ? (
+                  <div>
+                    <label htmlFor={id('motivo')} className="mb-1.5 block text-meta font-medium text-ink-muted">
+                      Motivo da ausência
+                    </label>
+                    <Input
+                      id={id('motivo')}
+                      value={rascunho.motivo}
+                      onChange={(e) => setRascunho({ ...rascunho, motivo: e.target.value })}
+                      placeholder="Ex.: viagem, lesão, trabalho"
+                    />
+                  </div>
+                ) : null}
+
+                {rascunho.status !== 'nao_vai' && atividades.length > 0 ? (
+                  <fieldset>
+                    <legend className="mb-1.5 text-meta font-medium text-ink-muted">Atividades</legend>
+                    <div className="flex flex-wrap gap-1.5">
+                      {atividades.map((a) => {
+                        const marcada = rascunho.atividadeIds.includes(a.id)
+                        return (
+                          <button
+                            key={a.id}
+                            type="button"
+                            aria-pressed={marcada}
+                            onClick={() =>
+                              setRascunho({
+                                ...rascunho,
+                                atividadeIds: marcada
+                                  ? rascunho.atividadeIds.filter((atvId) => atvId !== a.id)
+                                  : [...rascunho.atividadeIds, a.id],
+                              })
+                            }
+                            className="min-h-[36px] rounded-full border px-3 text-xs font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-canvas"
+                            style={{
+                              color: a.cor,
+                              borderColor: a.cor,
+                              backgroundColor: marcada ? `${a.cor}33` : 'transparent',
+                              opacity: marcada ? 1 : 0.65,
+                            }}
+                          >
+                            {marcada ? '✓ ' : ''}{a.nome}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </fieldset>
+                ) : null}
+
+                <div className="flex flex-col-reverse gap-2 sm:flex-row">
+                  <Button
+                    variant="secondary"
                     onClick={() => setRascunho(null)}
-                    className="px-4 text-sm text-neutral-400 hover:text-white"
+                    disabled={salvando}
+                    block
+                    className="sm:w-auto"
                   >
                     Cancelar
-                  </button>
+                  </Button>
+                  <Button onClick={salvar} loading={salvando} block className="sm:flex-1">
+                    Salvar escalação
+                  </Button>
                 </div>
-              </div>
+              </Well>
+            ) : mostrarPicker ? (
+              <Well className="space-y-3 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <SectionTitle as="h3" title="Escalar insider" className="mb-0" />
+                  <Button variant="ghost" size="sm" onClick={() => setMostrarPicker(false)}>
+                    Fechar
+                  </Button>
+                </div>
+                <EscalaInsiderPicker
+                  insiders={insiders}
+                  jaEscalados={escala.insiders.map((i) => i.insider_id)}
+                  onSelecionar={(insider) =>
+                    setRascunho({
+                      insider,
+                      status: 'corre',
+                      pelotao: '',
+                      motivo: '',
+                      atividadeIds: [],
+                    })
+                  }
+                />
+              </Well>
             ) : (
-              <details className="bg-neutral-800 border border-neutral-700 rounded-lg p-3">
-                <summary className="text-sm text-orange-400 cursor-pointer flex items-center gap-1.5">
-                  <Plus className="w-4 h-4" /> Escalar insider
-                </summary>
-                <div className="pt-3">
-                  <EscalaInsiderPicker
-                    insiders={insiders}
-                    jaEscalados={escala.insiders.map((i) => i.insider_id)}
-                    onSelecionar={(insider) =>
-                      setRascunho({
-                        insider,
-                        status: 'corre',
-                        pelotao: '',
-                        motivo: '',
-                        atividadeIds: [],
-                      })
-                    }
-                  />
-                </div>
-              </details>
+              <Button variant="secondary" block onClick={() => setMostrarPicker(true)}>
+                <UserPlus aria-hidden="true" />
+                Escalar insider
+              </Button>
             )}
           </>
         )}
       </div>
-    </div>
+    </ResponsiveModal>
   )
 }

@@ -1,9 +1,20 @@
+// components/popups-modal.tsx
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
-import { X, Upload, Loader2, ImageIcon } from 'lucide-react'
-import type { Popup, PopupWithStats, CreatePopupInput, PopupFrequency } from '@/lib/services/popups'
+import { useCallback, useId, useRef, useState } from 'react'
+import { ImageIcon, Loader2, Trash2, Upload, X } from 'lucide-react'
+import {
+  ResponsiveModal,
+  SectionTitle,
+  SegmentedControl,
+  Well,
+  confirmAction,
+  notify,
+} from '@/components/somma'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { apiFetch } from '@/lib/api-client'
+import type { CreatePopupInput, PopupFrequency, PopupWithStats } from '@/lib/services/popups'
 
 const SITE_PAGES = [
   { value: '/', label: 'Página inicial' },
@@ -14,21 +25,60 @@ const SITE_PAGES = [
   { value: '/parceiro-somma-club', label: 'Parceiro Somma Club' },
 ]
 
+const FREQUENCY_OPTIONS: Array<{ value: PopupFrequency; label: string }> = [
+  { value: 'uma_vez', label: 'Uma vez' },
+  { value: 'sessao', label: 'Por sessão' },
+  { value: 'sempre', label: 'Sempre' },
+]
+
 interface PopupsModalProps {
+  open: boolean
   popup?: PopupWithStats | null
   onClose: () => void
   onSave: (data: CreatePopupInput) => Promise<void>
 }
 
-export default function PopupsModal({ popup, onClose, onSave }: PopupsModalProps) {
+function FieldLabel({
+  htmlFor,
+  children,
+  required = false,
+}: {
+  htmlFor: string
+  children: React.ReactNode
+  required?: boolean
+}) {
+  return (
+    <label htmlFor={htmlFor} className="mb-1.5 block ds-label">
+      {children}
+      {required ? (
+        <>
+          {' '}
+          <span aria-hidden="true" className="text-danger">
+            *
+          </span>
+          <span className="sr-only">(obrigatório)</span>
+        </>
+      ) : null}
+    </label>
+  )
+}
+
+export default function PopupsModal({ open, popup, onClose, onSave }: PopupsModalProps) {
   const isEditing = !!popup
+  const ids = useId()
+  const titleId = `${ids}-title`
+  const linkId = `${ids}-link`
+  const startId = `${ids}-start`
+  const endId = `${ids}-end`
+  const customPageId = `${ids}-custom-page`
 
   const [title, setTitle] = useState(popup?.title || '')
   const [imageUrl, setImageUrl] = useState(popup?.image_url || '')
-  const [imagePath, setImagePath] = useState<string | null>(null) // track uploaded path for orphan cleanup
+  // caminho do upload feito nesta sessão — usado para limpar órfãos ao cancelar
+  const [imagePath, setImagePath] = useState<string | null>(null)
   const [redirectLink, setRedirectLink] = useState(popup?.redirect_link || '')
   const [startDate, setStartDate] = useState(
-    popup?.start_date ? popup.start_date.slice(0, 10) : new Date().toISOString().slice(0, 10)
+    popup?.start_date ? popup.start_date.slice(0, 10) : new Date().toISOString().slice(0, 10),
   )
   const [endDate, setEndDate] = useState(popup?.end_date ? popup.end_date.slice(0, 10) : '')
   const [noEndDate, setNoEndDate] = useState(!popup?.end_date)
@@ -40,10 +90,26 @@ export default function PopupsModal({ popup, onClose, onSave }: PopupsModalProps
   const [saving, setSaving] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [dirty, setDirty] = useState(false)
+  const [showErrors, setShowErrors] = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const uploadFile = async (file: File) => {
+  const titleError = !title.trim() ? 'Informe um título para a campanha.' : null
+  const linkError = !redirectLink.trim()
+    ? 'Informe o link de redirecionamento.'
+    : !/^https?:\/\//i.test(redirectLink.trim())
+      ? 'O link deve começar com http:// ou https://.'
+      : null
+  const startError = !startDate ? 'Informe a data de início.' : null
+  const endError =
+    !noEndDate && endDate && startDate && endDate < startDate
+      ? 'A data de fim deve ser posterior à data de início.'
+      : null
+
+  const hasErrors = Boolean(titleError || linkError || startError || endError)
+
+  const uploadFile = useCallback(async (file: File) => {
     setUploading(true)
     setUploadError(null)
     try {
@@ -52,298 +118,484 @@ export default function PopupsModal({ popup, onClose, onSave }: PopupsModalProps
       const res = await apiFetch('/api/popups/upload', { method: 'POST', body: fd })
       const json = await res.json()
       if (!res.ok) {
-        setUploadError(json.error || 'Erro ao fazer upload')
+        setUploadError(typeof json?.error === 'string' ? json.error : 'Erro ao fazer upload')
         return
       }
       setImageUrl(json.url)
       setImagePath(json.path)
+      setDirty(true)
     } catch {
       setUploadError('Erro ao fazer upload da imagem')
     } finally {
       setUploading(false)
     }
-  }
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) uploadFile(file)
-  }
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragging(false)
-    const file = e.dataTransfer.files?.[0]
-    if (file) uploadFile(file)
   }, [])
 
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) void uploadFile(file)
+    event.target.value = ''
+  }
+
+  const handleDrop = useCallback(
+    (event: React.DragEvent) => {
+      event.preventDefault()
+      setIsDragging(false)
+      const file = event.dataTransfer.files?.[0]
+      if (file) void uploadFile(file)
+    },
+    [uploadFile],
+  )
+
   const togglePage = (value: string) => {
-    setPages((prev) =>
-      prev.includes(value) ? prev.filter((p) => p !== value) : [...prev, value]
-    )
+    setDirty(true)
+    setPages((prev) => (prev.includes(value) ? prev.filter((p) => p !== value) : [...prev, value]))
   }
 
   const addCustomPage = () => {
-    const v = customPage.trim()
-    if (v && !pages.includes(v)) {
-      setPages((prev) => [...prev, v.startsWith('/') ? v : `/${v}`])
+    const value = customPage.trim()
+    if (!value) return
+    const normalized = value.startsWith('/') ? value : `/${value}`
+    if (pages.includes(normalized)) {
+      notify.info('Esta página já está na lista')
       setCustomPage('')
+      return
+    }
+    setDirty(true)
+    setPages((prev) => [...prev, normalized])
+    setCustomPage('')
+  }
+
+  const cleanupOrphanImage = async () => {
+    // Limpa a imagem enviada nesta sessão quando o pop-up não é salvo.
+    if (imagePath) {
+      await apiFetch(`/api/popups/upload?path=${encodeURIComponent(imagePath)}`, {
+        method: 'DELETE',
+      })
     }
   }
 
-  const handleClose = async () => {
-    // Clean up orphaned image (uploaded in this session but popup not saved/updated)
-    // Applies to both create AND edit flows — imagePath is only set when a new file was uploaded
-    if (imagePath) {
-      await apiFetch(`/api/popups/upload?path=${encodeURIComponent(imagePath)}`, { method: 'DELETE' })
+  const requestClose = async () => {
+    if (saving || uploading) return
+    if (dirty) {
+      const confirmed = await confirmAction({
+        title: 'Descartar alterações?',
+        description: 'As alterações feitas neste pop-up não foram salvas e serão perdidas.',
+        detail: title.trim() || 'Novo pop-up',
+        confirmLabel: 'Descartar',
+        cancelLabel: 'Continuar editando',
+        tone: 'danger',
+      })
+      if (!confirmed) return
     }
+    await cleanupOrphanImage()
     onClose()
   }
 
   const handleSave = async () => {
+    if (hasErrors) {
+      setShowErrors(true)
+      notify.error('Revise os campos destacados antes de salvar')
+      return
+    }
     setSaving(true)
-    await onSave({
-      title,
-      image_url: imageUrl,
-      redirect_link: redirectLink,
-      is_active: isActive,
-      start_date: new Date(startDate).toISOString(),
-      end_date: noEndDate || !endDate ? null : new Date(endDate).toISOString(),
-      pages,
-      frequency,
-    })
-    setSaving(false)
+    try {
+      await onSave({
+        title: title.trim(),
+        image_url: imageUrl,
+        redirect_link: redirectLink.trim(),
+        is_active: isActive,
+        start_date: new Date(startDate).toISOString(),
+        end_date: noEndDate || !endDate ? null : new Date(endDate).toISOString(),
+        pages,
+        frequency,
+      })
+    } finally {
+      setSaving(false)
+    }
   }
 
-  const canSave = title.trim() && redirectLink.trim() && startDate && !uploading && !saving
+  const customPages = pages.filter((page) => !SITE_PAGES.some((site) => site.value === page))
+  const showError = (message: string | null) => (showErrors ? message : null)
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 p-4"
-      onClick={(e) => { if (e.target === e.currentTarget) handleClose() }}
-    >
-      <div className="bg-neutral-950 border border-neutral-800 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-neutral-800 sticky top-0 bg-neutral-950 z-10">
-          <h2 className="font-semibold text-white">
-            {isEditing ? 'Editar Pop-up' : 'Novo Pop-up'}
-          </h2>
-          <button
-            onClick={handleClose}
-            className="p-1 text-neutral-500 hover:text-white transition-colors rounded"
+    <ResponsiveModalShell
+      open={open}
+      onRequestClose={requestClose}
+      title={isEditing ? 'Editar pop-up' : 'Novo pop-up'}
+      description={
+        isEditing
+          ? 'Altere conteúdo, agendamento e segmentação da campanha.'
+          : 'Configure a campanha que será exibida no site.'
+      }
+      busy={saving || uploading}
+      footer={
+        <>
+          <Button variant="secondary" onClick={() => void requestClose()} block className="sm:w-auto">
+            Cancelar
+          </Button>
+          <Button
+            onClick={() => void handleSave()}
+            loading={saving}
+            disabled={uploading}
+            block
+            className="sm:w-auto"
           >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <div className="p-5 space-y-5">
-          {/* Title */}
-          <div>
-            <label className="block text-xs text-neutral-400 mb-1.5 font-medium">
-              Título <span className="text-red-400">*</span>
-            </label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Nome da campanha"
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-orange-500 transition-colors"
-            />
-          </div>
-
-          {/* Image Upload */}
-          <div>
-            <label className="block text-xs text-neutral-400 mb-1.5 font-medium">Imagem</label>
-            <div
-              onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
-              onDragLeave={() => setIsDragging(false)}
-              onDrop={handleDrop}
-              onClick={() => !uploading && fileInputRef.current?.click()}
-              className={`relative border-2 border-dashed rounded-xl transition-colors cursor-pointer ${
-                isDragging ? 'border-orange-500 bg-orange-500/5' : 'border-neutral-700 hover:border-neutral-600'
-              }`}
-            >
-              {imageUrl ? (
-                <div className="relative">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={imageUrl} alt="Preview" className="w-full rounded-xl object-cover max-h-40" />
-                  <div className="absolute inset-0 bg-black/50 rounded-xl opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <span className="text-white text-sm">Trocar imagem</span>
-                  </div>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center py-8 gap-2">
-                  {uploading ? (
-                    <Loader2 className="w-8 h-8 text-neutral-500 animate-spin" />
-                  ) : (
-                    <>
-                      <ImageIcon className="w-8 h-8 text-neutral-600" />
-                      <p className="text-sm text-neutral-500">Arraste ou clique para fazer upload</p>
-                      <p className="text-xs text-neutral-600">JPG, PNG, WebP, GIF — máx. 5MB</p>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              onChange={handleFileChange}
-              className="hidden"
-            />
-            {uploadError && <p className="text-xs text-red-400 mt-1">{uploadError}</p>}
-          </div>
-
-          {/* Redirect Link */}
-          <div>
-            <label className="block text-xs text-neutral-400 mb-1.5 font-medium">
-              Link de redirecionamento <span className="text-red-400">*</span>
-            </label>
-            <input
-              type="url"
-              value={redirectLink}
-              onChange={(e) => setRedirectLink(e.target.value)}
-              placeholder="https://sommaclub.com.br/evento"
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-orange-500 transition-colors"
-            />
-          </div>
-
-          {/* Dates */}
-          <div className="grid grid-cols-2 gap-3">
+            {isEditing ? 'Salvar alterações' : 'Criar pop-up'}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-7">
+        {/* Conteúdo */}
+        <section aria-labelledby={`${ids}-sec-conteudo`}>
+          <SectionTitle as="h3" title={<span id={`${ids}-sec-conteudo`}>Conteúdo</span>} />
+          <div className="space-y-4">
             <div>
-              <label className="block text-xs text-neutral-400 mb-1.5 font-medium">
-                Data início <span className="text-red-400">*</span>
-              </label>
-              <input
+              <FieldLabel htmlFor={titleId} required>
+                Título
+              </FieldLabel>
+              <Input
+                id={titleId}
+                value={title}
+                onChange={(event) => {
+                  setDirty(true)
+                  setTitle(event.target.value)
+                }}
+                placeholder="Nome da campanha"
+                aria-invalid={showError(titleError) ? true : undefined}
+                aria-describedby={showError(titleError) ? `${titleId}-error` : undefined}
+              />
+              {showError(titleError) ? (
+                <p id={`${titleId}-error`} role="alert" className="mt-1.5 text-meta text-danger">
+                  {titleError}
+                </p>
+              ) : null}
+            </div>
+
+            <div>
+              <FieldLabel htmlFor={linkId} required>
+                Link de redirecionamento
+              </FieldLabel>
+              <Input
+                id={linkId}
+                type="url"
+                inputMode="url"
+                value={redirectLink}
+                onChange={(event) => {
+                  setDirty(true)
+                  setRedirectLink(event.target.value)
+                }}
+                placeholder="https://sommaclub.com.br/evento"
+                aria-invalid={showError(linkError) ? true : undefined}
+                aria-describedby={showError(linkError) ? `${linkId}-error` : undefined}
+              />
+              {showError(linkError) ? (
+                <p id={`${linkId}-error`} role="alert" className="mt-1.5 text-meta text-danger">
+                  {linkError}
+                </p>
+              ) : null}
+            </div>
+          </div>
+        </section>
+
+        {/* Imagem */}
+        <section aria-labelledby={`${ids}-sec-imagem`}>
+          <SectionTitle as="h3" title={<span id={`${ids}-sec-imagem`}>Imagem</span>} />
+          <div
+            onDragOver={(event) => {
+              event.preventDefault()
+              setIsDragging(true)
+            }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={handleDrop}
+            className={`rounded-xl border-2 border-dashed transition-colors ${
+              isDragging ? 'border-brand bg-brand-soft' : 'border-line hover:border-line-strong'
+            }`}
+          >
+            {imageUrl ? (
+              <div className="p-3">
+                { }
+                <img
+                  src={imageUrl}
+                  alt="Pré-visualização da imagem do pop-up"
+                  className="max-h-44 w-full rounded-lg object-cover"
+                />
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    loading={uploading}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Upload aria-hidden="true" />
+                    Trocar imagem
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={uploading}
+                    onClick={() => {
+                      setDirty(true)
+                      setImageUrl('')
+                    }}
+                  >
+                    <Trash2 aria-hidden="true" />
+                    Remover
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="flex w-full flex-col items-center justify-center gap-2 rounded-xl py-9 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+              >
+                {uploading ? (
+                  <>
+                    <Loader2 aria-hidden="true" className="h-7 w-7 animate-spin text-brand" />
+                    <span className="text-sm text-ink" aria-live="polite">
+                      Enviando imagem...
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <ImageIcon aria-hidden="true" className="h-7 w-7 text-ink-subtle" />
+                    <span className="text-sm text-ink">
+                      <span className="lg:hidden">Toque para escolher uma imagem</span>
+                      <span className="hidden lg:inline">Arraste ou clique para enviar</span>
+                    </span>
+                    <span className="text-meta text-ink-subtle">
+                      JPG, PNG, WebP ou GIF — máx. 5MB
+                    </span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            onChange={handleFileChange}
+            className="sr-only"
+            tabIndex={-1}
+            aria-hidden="true"
+          />
+          {uploadError ? (
+            <p role="alert" className="mt-2 text-meta text-danger">
+              {uploadError}
+            </p>
+          ) : null}
+        </section>
+
+        {/* Agendamento */}
+        <section aria-labelledby={`${ids}-sec-agenda`}>
+          <SectionTitle as="h3" title={<span id={`${ids}-sec-agenda`}>Agendamento</span>} />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <FieldLabel htmlFor={startId} required>
+                Data de início
+              </FieldLabel>
+              <Input
+                id={startId}
                 type="date"
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-orange-500 transition-colors"
+                onChange={(event) => {
+                  setDirty(true)
+                  setStartDate(event.target.value)
+                }}
+                aria-invalid={showError(startError) ? true : undefined}
+                aria-describedby={showError(startError) ? `${startId}-error` : undefined}
               />
+              {showError(startError) ? (
+                <p id={`${startId}-error`} role="alert" className="mt-1.5 text-meta text-danger">
+                  {startError}
+                </p>
+              ) : null}
             </div>
             <div>
-              <label className="block text-xs text-neutral-400 mb-1.5 font-medium">Data fim</label>
-              <input
+              <FieldLabel htmlFor={endId}>Data de fim</FieldLabel>
+              <Input
+                id={endId}
                 type="date"
                 value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
                 disabled={noEndDate}
-                className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-orange-500 transition-colors disabled:opacity-40"
+                min={startDate || undefined}
+                onChange={(event) => {
+                  setDirty(true)
+                  setEndDate(event.target.value)
+                }}
+                aria-invalid={showError(endError) ? true : undefined}
+                aria-describedby={showError(endError) ? `${endId}-error` : undefined}
               />
+              {showError(endError) ? (
+                <p id={`${endId}-error`} role="alert" className="mt-1.5 text-meta text-danger">
+                  {endError}
+                </p>
+              ) : null}
             </div>
           </div>
-          <label className="flex items-center gap-2 cursor-pointer">
+
+          <label className="ds-tap mt-2 flex cursor-pointer items-center gap-2.5">
             <input
               type="checkbox"
               checked={noEndDate}
-              onChange={(e) => { setNoEndDate(e.target.checked); if (e.target.checked) setEndDate('') }}
-              className="accent-orange-500"
+              onChange={(event) => {
+                setDirty(true)
+                setNoEndDate(event.target.checked)
+                if (event.target.checked) setEndDate('')
+              }}
+              className="h-4 w-4 accent-brand"
             />
-            <span className="text-xs text-neutral-400">Sem data de fim</span>
+            <span className="text-sm text-ink">Sem data de fim</span>
           </label>
 
-          {/* Frequency */}
-          <div>
-            <label className="block text-xs text-neutral-400 mb-1.5 font-medium">Frequência</label>
-            <div className="flex rounded-lg overflow-hidden border border-neutral-700">
-              {([
-                { value: 'uma_vez', label: 'Uma vez' },
-                { value: 'sessao', label: 'Por sessão' },
-                { value: 'sempre', label: 'Sempre' },
-              ] as { value: PopupFrequency; label: string }[]).map(({ value, label }) => (
-                <button
-                  key={value}
-                  onClick={() => setFrequency(value)}
-                  className={`flex-1 py-2 text-xs font-medium transition-colors ${
-                    frequency === value
-                      ? 'bg-orange-500 text-black'
-                      : 'bg-neutral-900 text-neutral-400 hover:text-white'
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+          <div className="mt-4">
+            <span className="mb-1.5 block ds-label">Frequência de exibição</span>
+            <SegmentedControl
+              label="Frequência de exibição"
+              value={frequency}
+              onChange={(value) => {
+                setDirty(true)
+                setFrequency(value)
+              }}
+              options={FREQUENCY_OPTIONS}
+              className="w-full"
+            />
           </div>
 
-          {/* Pages */}
-          <div>
-            <label className="block text-xs text-neutral-400 mb-2 font-medium">
-              Páginas onde exibir
-            </label>
-            <div className="space-y-1.5">
+          <label className="ds-tap mt-4 flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-line px-3">
+            <span className="text-sm text-ink">
+              Ativar imediatamente
+              <span className="mt-0.5 block text-meta text-ink-muted">
+                O pop-up só aparece no site dentro do período configurado.
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              role="switch"
+              checked={isActive}
+              onChange={(event) => {
+                setDirty(true)
+                setIsActive(event.target.checked)
+              }}
+              className="h-5 w-5 shrink-0 accent-brand"
+            />
+          </label>
+        </section>
+
+        {/* Segmentação */}
+        <section aria-labelledby={`${ids}-sec-segmentacao`}>
+          <SectionTitle
+            as="h3"
+            title={<span id={`${ids}-sec-segmentacao`}>Segmentação</span>}
+            meta={pages.length > 0 ? `${pages.length} página(s)` : 'Todas as páginas'}
+          />
+          <fieldset>
+            <legend className="sr-only">Páginas onde exibir o pop-up</legend>
+            <div className="space-y-1">
               {SITE_PAGES.map(({ value, label }) => (
-                <label key={value} className="flex items-center gap-2.5 cursor-pointer group/check">
+                <label
+                  key={value}
+                  className="ds-tap flex cursor-pointer items-center gap-2.5 rounded-lg px-2 hover:bg-surface-hover"
+                >
                   <input
                     type="checkbox"
                     checked={pages.includes(value)}
                     onChange={() => togglePage(value)}
-                    className="accent-orange-500"
+                    className="h-4 w-4 accent-brand"
                   />
-                  <span className="text-sm text-neutral-300 group-hover/check:text-white transition-colors">
-                    {label}
-                  </span>
-                  <span className="text-xs text-neutral-600 ml-auto">{value}</span>
+                  <span className="text-sm text-ink">{label}</span>
+                  <span className="ml-auto text-meta text-ink-subtle">{value}</span>
                 </label>
               ))}
             </div>
-            {/* Custom page */}
-            <div className="flex gap-2 mt-2">
-              <input
-                type="text"
+          </fieldset>
+
+          <div className="mt-3">
+            <FieldLabel htmlFor={customPageId}>Adicionar outra página</FieldLabel>
+            <div className="flex gap-2">
+              <Input
+                id={customPageId}
                 value={customPage}
-                onChange={(e) => setCustomPage(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomPage() } }}
+                onChange={(event) => setCustomPage(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault()
+                    addCustomPage()
+                  }
+                }}
                 placeholder="/outra-pagina"
-                className="flex-1 bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-orange-500 transition-colors"
               />
-              <button
-                onClick={addCustomPage}
-                className="px-3 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg text-sm transition-colors"
-              >
-                +
-              </button>
+              <Button type="button" variant="secondary" onClick={addCustomPage}>
+                Adicionar
+              </Button>
             </div>
-            {pages.filter(p => !SITE_PAGES.map(s => s.value).includes(p)).map(p => (
-              <div key={p} className="flex items-center justify-between mt-1 px-2 py-1 bg-neutral-800 rounded text-xs">
-                <span className="text-neutral-300">{p}</span>
-                <button onClick={() => togglePage(p)} className="text-neutral-500 hover:text-red-400">
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-            ))}
           </div>
 
-          {/* Active toggle */}
-          <label className="flex items-center justify-between cursor-pointer">
-            <span className="text-sm text-neutral-300">Ativar imediatamente</span>
-            <button
-              onClick={() => setIsActive(!isActive)}
-              className={`relative w-10 h-5 rounded-full transition-colors ${isActive ? 'bg-orange-500' : 'bg-neutral-700'}`}
-            >
-              <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${isActive ? 'translate-x-5' : 'translate-x-0.5'}`} />
-            </button>
-          </label>
-        </div>
-
-        {/* Footer */}
-        <div className="p-5 border-t border-neutral-800 flex gap-3">
-          <button
-            onClick={handleClose}
-            className="flex-1 py-2.5 rounded-lg bg-neutral-800 text-neutral-300 hover:text-white hover:bg-neutral-700 transition-colors text-sm font-medium"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={!canSave}
-            className="flex-1 py-2.5 rounded-lg bg-orange-500 text-black font-semibold text-sm hover:bg-orange-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-          >
-            {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-            {isEditing ? 'Salvar' : 'Criar'}
-          </button>
-        </div>
+          {customPages.length > 0 ? (
+            <ul className="mt-2 space-y-1.5">
+              {customPages.map((page) => (
+                <li key={page}>
+                  <Well className="flex items-center justify-between gap-2 py-1 pl-3 pr-1">
+                    <span className="truncate text-meta text-ink">{page}</span>
+                    <button
+                      type="button"
+                      onClick={() => togglePage(page)}
+                      aria-label={`Remover página ${page}`}
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-ink-subtle transition-colors hover:bg-danger-soft hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                    >
+                      <X aria-hidden="true" className="h-4 w-4" />
+                    </button>
+                  </Well>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </section>
       </div>
-    </div>
+    </ResponsiveModalShell>
+  )
+}
+
+/**
+ * Envolve o `ResponsiveModal` para que qualquer tentativa de fechar (ESC,
+ * overlay, botão X) passe pela confirmação de alterações não salvas.
+ */
+function ResponsiveModalShell({
+  open,
+  onRequestClose,
+  title,
+  description,
+  footer,
+  busy,
+  children,
+}: {
+  open: boolean
+  onRequestClose: () => Promise<void>
+  title: React.ReactNode
+  description?: React.ReactNode
+  footer: React.ReactNode
+  busy: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <ResponsiveModal
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) void onRequestClose()
+      }}
+      title={title}
+      description={description}
+      footer={footer}
+      size="lg"
+      dismissible={!busy}
+    >
+      {children}
+    </ResponsiveModal>
   )
 }

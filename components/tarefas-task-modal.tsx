@@ -1,12 +1,49 @@
 // components/tarefas-task-modal.tsx
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { X, Plus, Trash2, Check, Paperclip, FileText, Download, ChevronLeft, ChevronRight, ZoomIn } from 'lucide-react'
+import * as React from 'react'
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  FileText,
+  Paperclip,
+  Plus,
+  Trash2,
+  ZoomIn,
+} from 'lucide-react'
+import {
+  EmptyState,
+  ResponsiveModal,
+  SectionTitle,
+  SegmentedControl,
+  Skeleton,
+  confirmAction,
+  notify,
+} from '@/components/somma'
+import { PriorityPill } from '@/components/tarefas-card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { TAREFAS_PRIORIDADES } from '@/lib/tarefas-constants'
-import type { TarefasTask, TarefasColumn, TarefasUser, ChecklistItem, TarefasAnexo } from '@/lib/services/tarefas'
 import { getSession } from '@/components/protected-route'
 import { apiFetch } from '@/lib/api-client'
+import { cn } from '@/lib/utils'
+import type {
+  ChecklistItem,
+  TarefasAnexo,
+  TarefasColumn,
+  TarefasTask,
+  TarefasUser,
+} from '@/lib/services/tarefas'
+
+/**
+ * Modal de tarefa.
+ *
+ * Formulário e anexos vivem no mesmo diálogo responsivo do design system —
+ * bottom sheet no celular, diálogo no desktop — com foco preso, ESC e
+ * confirmação antes de descartar alterações não salvas.
+ */
 
 interface TarefasTaskModalProps {
   task: Partial<TarefasTask> | null
@@ -15,9 +52,11 @@ interface TarefasTaskModalProps {
   users: TarefasUser[]
   defaultColumnId?: string
   onClose: () => void
-  onSave: (task: Partial<TarefasTask>) => void
-  onDelete?: (id: string) => void
+  onSave: (task: Partial<TarefasTask>) => void | Promise<void>
+  onDelete?: (id: string) => void | Promise<void>
 }
+
+type TaskTab = 'detalhes' | 'anexos'
 
 function generateId() {
   return Math.random().toString(36).slice(2, 10)
@@ -33,73 +72,179 @@ function isImage(fileType: string) {
   return fileType.startsWith('image/')
 }
 
+function fileBadge(fileType: string): { label: string; className: string } {
+  if (fileType === 'application/pdf')
+    return { label: 'PDF', className: 'border-danger-border bg-danger-soft text-danger' }
+  if (fileType.includes('word') || fileType.includes('document'))
+    return { label: 'DOC', className: 'border-info-border bg-info-soft text-info' }
+  if (fileType.includes('excel') || fileType.includes('sheet'))
+    return { label: 'XLS', className: 'border-success-border bg-success-soft text-success' }
+  if (fileType.includes('presentation') || fileType.includes('powerpoint'))
+    return { label: 'PPT', className: 'border-brand-border bg-brand-soft text-brand-strong' }
+  if (fileType === 'text/csv')
+    return { label: 'CSV', className: 'border-info-border bg-info-soft text-info' }
+  return { label: 'ARQ', className: 'border-line bg-surface-sunken text-ink-muted' }
+}
+
+/** Classe compartilhada pelos `select` nativos do formulário. */
+const SELECT_CLASS =
+  'h-11 w-full rounded-lg border border-line bg-surface-sunken px-3 text-base text-ink transition-colors hover:border-line-strong focus-visible:border-brand focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand lg:h-10'
+
 export function TarefasTaskModal({
-  task, isNew, columns, users, defaultColumnId, onClose, onSave, onDelete
+  task,
+  isNew,
+  columns,
+  users,
+  defaultColumnId,
+  onClose,
+  onSave,
+  onDelete,
 }: TarefasTaskModalProps) {
   const session = getSession()
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
 
-  const [titulo, setTitulo] = useState(task?.titulo || '')
-  const [descricao, setDescricao] = useState(task?.descricao || '')
-  const [prioridade, setPrioridade] = useState(task?.prioridade || 'media')
-  const [responsavelId, setResponsavelId] = useState(task?.responsavel_id || '')
-  const [dataEntrega, setDataEntrega] = useState(task?.data_entrega || '')
-  const [columnId, setColumnId] = useState(task?.column_id || defaultColumnId || '')
-  const [checklist, setChecklist] = useState<ChecklistItem[]>(task?.checklist || [])
-  const [newItem, setNewItem] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState(false)
+  const initial = React.useRef({
+    titulo: task?.titulo || '',
+    descricao: task?.descricao || '',
+    prioridade: task?.prioridade || 'media',
+    responsavelId: task?.responsavel_id || '',
+    dataEntrega: task?.data_entrega || '',
+    columnId: task?.column_id || defaultColumnId || '',
+    checklist: JSON.stringify(task?.checklist || []),
+  })
 
-  // Attachments
-  const [anexos, setAnexos] = useState<TarefasAnexo[]>([])
-  const [uploading, setUploading] = useState(false)
-  const [previewAnexo, setPreviewAnexo] = useState<TarefasAnexo | null>(null)
-  const [activeTab, setActiveTab] = useState<'detalhes' | 'anexos'>('detalhes')
+  const [titulo, setTitulo] = React.useState(initial.current.titulo)
+  const [descricao, setDescricao] = React.useState(initial.current.descricao)
+  const [prioridade, setPrioridade] = React.useState(initial.current.prioridade)
+  const [responsavelId, setResponsavelId] = React.useState(initial.current.responsavelId)
+  const [dataEntrega, setDataEntrega] = React.useState(initial.current.dataEntrega)
+  const [columnId, setColumnId] = React.useState(initial.current.columnId)
+  const [checklist, setChecklist] = React.useState<ChecklistItem[]>(task?.checklist || [])
+  const [newItem, setNewItem] = React.useState('')
+  const [saving, setSaving] = React.useState(false)
+  const [touched, setTouched] = React.useState(false)
 
-  const selectedUser = users.find(u => u.id === responsavelId)
+  const [anexos, setAnexos] = React.useState<TarefasAnexo[]>([])
+  const [anexosLoading, setAnexosLoading] = React.useState(!isNew && Boolean(task?.id))
+  const [uploading, setUploading] = React.useState(false)
+  const [previewAnexo, setPreviewAnexo] = React.useState<TarefasAnexo | null>(null)
+  const [activeTab, setActiveTab] = React.useState<TaskTab>('detalhes')
 
-  const loadAnexos = useCallback(async () => {
+  const tituloId = React.useId()
+  const descricaoId = React.useId()
+  const prioridadeId = React.useId()
+  const columnFieldId = React.useId()
+  const responsavelId_ = React.useId()
+  const dataId = React.useId()
+  const novoItemId = React.useId()
+  const tituloErrorId = React.useId()
+  const columnErrorId = React.useId()
+
+  const selectedUser = users.find((u) => u.id === responsavelId)
+
+  const loadAnexos = React.useCallback(async () => {
     if (!task?.id) return
-    const res = await apiFetch(`/api/tarefas/tasks/${task.id}/attachments`)
-    if (res.ok) setAnexos(await res.json())
+    try {
+      const res = await apiFetch(`/api/tarefas/tasks/${task.id}/attachments`)
+      if (res.ok) setAnexos(await res.json())
+    } finally {
+      setAnexosLoading(false)
+    }
   }, [task?.id])
 
-  useEffect(() => {
-    loadAnexos()
+  React.useEffect(() => {
+    void loadAnexos()
   }, [loadAnexos])
+
+  const dirty =
+    titulo !== initial.current.titulo ||
+    descricao !== initial.current.descricao ||
+    prioridade !== initial.current.prioridade ||
+    responsavelId !== initial.current.responsavelId ||
+    dataEntrega !== initial.current.dataEntrega ||
+    columnId !== initial.current.columnId ||
+    JSON.stringify(checklist) !== initial.current.checklist
+
+  const tituloInvalid = touched && !titulo.trim()
+  const columnInvalid = touched && !columnId
+
+  const handleClose = async () => {
+    if (dirty && !saving) {
+      const leave = await confirmAction({
+        title: 'Descartar alterações?',
+        description: 'Esta tarefa tem alterações que ainda não foram salvas.',
+        confirmLabel: 'Descartar',
+        cancelLabel: 'Continuar editando',
+        tone: 'danger',
+      })
+      if (!leave) return
+    }
+    onClose()
+  }
 
   const handleAddChecklistItem = () => {
     if (!newItem.trim()) return
-    setChecklist(prev => [...prev, { id: generateId(), texto: newItem.trim(), concluido: false }])
+    setChecklist((prev) => [...prev, { id: generateId(), texto: newItem.trim(), concluido: false }])
     setNewItem('')
   }
 
   const handleToggleItem = (id: string) => {
-    setChecklist(prev => prev.map(i => i.id === id ? { ...i, concluido: !i.concluido } : i))
+    setChecklist((prev) =>
+      prev.map((i) => (i.id === id ? { ...i, concluido: !i.concluido } : i)),
+    )
   }
 
   const handleRemoveItem = (id: string) => {
-    setChecklist(prev => prev.filter(i => i.id !== id))
+    setChecklist((prev) => prev.filter((i) => i.id !== id))
   }
 
   const handleSave = async () => {
-    if (!titulo.trim() || !columnId) return
+    setTouched(true)
+    if (!titulo.trim() || !columnId) {
+      setActiveTab('detalhes')
+      notify.warning('Preencha o título e a coluna da tarefa.')
+      return
+    }
     setSaving(true)
-    const col = columns.find(c => c.id === columnId)
-    await onSave({
-      ...(task?.id && { id: task.id }),
-      titulo: titulo.trim(),
-      descricao: descricao.trim() || null,
-      prioridade: prioridade as TarefasTask['prioridade'],
-      responsavel_id: responsavelId || null,
-      responsavel_nome: selectedUser?.full_name || null,
-      data_entrega: dataEntrega || null,
-      column_id: columnId,
-      board_id: task?.board_id || col?.board_id,
-      checklist,
+    const col = columns.find((c) => c.id === columnId)
+    try {
+      await onSave({
+        ...(task?.id && { id: task.id }),
+        titulo: titulo.trim(),
+        descricao: descricao.trim() || null,
+        prioridade: prioridade as TarefasTask['prioridade'],
+        responsavel_id: responsavelId || null,
+        responsavel_nome: selectedUser?.full_name || null,
+        data_entrega: dataEntrega || null,
+        column_id: columnId,
+        board_id: task?.board_id || col?.board_id,
+        checklist,
+      })
+      notify.success(isNew ? 'Tarefa criada.' : 'Tarefa atualizada.')
+      onClose()
+    } catch {
+      notify.error('Não foi possível salvar a tarefa.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!task?.id || !onDelete) return
+    const confirmed = await confirmAction({
+      title: 'Excluir esta tarefa?',
+      description: 'A tarefa sai do quadro junto com seu checklist. Esta ação não pode ser desfeita.',
+      detail: task.titulo,
+      tone: 'danger',
     })
-    setSaving(false)
-    onClose()
+    if (!confirmed) return
+    try {
+      await onDelete(task.id)
+      notify.success('Tarefa excluída.')
+      onClose()
+    } catch {
+      notify.error('Não foi possível excluir a tarefa.')
+    }
   }
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -118,12 +263,11 @@ export function TarefasTaskModal({
 
       if (uploadError) {
         console.error('[v0] tarefas upload error:', uploadError)
+        notify.error('Falha ao enviar o arquivo.')
         return
       }
 
-      const { data: urlData } = supabase.storage
-        .from('tarefas-anexos')
-        .getPublicUrl(fileName)
+      const { data: urlData } = supabase.storage.from('tarefas-anexos').getPublicUrl(fileName)
 
       const res = await apiFetch(`/api/tarefas/tasks/${task.id}/attachments`, {
         method: 'POST',
@@ -137,452 +281,508 @@ export function TarefasTaskModal({
         }),
       })
 
-      if (res.ok) loadAnexos()
+      if (res.ok) {
+        await loadAnexos()
+        notify.success('Anexo enviado.')
+      } else {
+        notify.error('Falha ao registrar o anexo.')
+      }
     } finally {
       setUploading(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
 
-  const handleDeleteAnexo = async (id: string) => {
+  const handleDeleteAnexo = async (anexo: TarefasAnexo) => {
     if (!task?.id) return
-    const res = await apiFetch(`/api/tarefas/tasks/${task.id}/attachments?attachmentId=${id}`, { method: 'DELETE' })
-    if (res.ok) setAnexos(prev => prev.filter(a => a.id !== id))
+    const confirmed = await confirmAction({
+      title: 'Excluir anexo?',
+      description: 'O arquivo deixa de ficar disponível nesta tarefa.',
+      detail: anexo.file_name,
+      tone: 'danger',
+    })
+    if (!confirmed) return
+    const res = await apiFetch(
+      `/api/tarefas/tasks/${task.id}/attachments?attachmentId=${anexo.id}`,
+      { method: 'DELETE' },
+    )
+    if (res.ok) {
+      setAnexos((prev) => prev.filter((a) => a.id !== anexo.id))
+      notify.success('Anexo excluído.')
+    } else {
+      notify.error('Não foi possível excluir o anexo.')
+    }
   }
 
-  const imageAnexos = anexos.filter(a => isImage(a.file_type))
-  const previewIndex = previewAnexo ? imageAnexos.findIndex(a => a.id === previewAnexo.id) : -1
+  const imageAnexos = anexos.filter((a) => isImage(a.file_type))
+  const fileAnexos = anexos.filter((a) => !isImage(a.file_type))
+  const previewIndex = previewAnexo ? imageAnexos.findIndex((a) => a.id === previewAnexo.id) : -1
 
   const handleAnexoClick = (anexo: TarefasAnexo) => {
     if (isImage(anexo.file_type)) {
       setPreviewAnexo(anexo)
     } else {
-      window.open(anexo.file_url, '_blank')
+      window.open(anexo.file_url, '_blank', 'noopener,noreferrer')
     }
   }
 
-  const handlePrevImage = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (previewIndex > 0) setPreviewAnexo(imageAnexos[previewIndex - 1])
-  }
-
-  const handleNextImage = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (previewIndex < imageAnexos.length - 1) setPreviewAnexo(imageAnexos[previewIndex + 1])
-  }
-
-  function getFileIcon(fileType: string) {
-    if (fileType === 'application/pdf') return { icon: FileText, color: 'text-red-400', bg: 'bg-red-500/10', label: 'PDF' }
-    if (fileType.includes('word') || fileType.includes('document')) return { icon: FileText, color: 'text-blue-400', bg: 'bg-blue-500/10', label: 'DOC' }
-    if (fileType.includes('excel') || fileType.includes('sheet')) return { icon: FileText, color: 'text-green-400', bg: 'bg-green-500/10', label: 'XLS' }
-    if (fileType.includes('presentation') || fileType.includes('powerpoint')) return { icon: FileText, color: 'text-orange-400', bg: 'bg-orange-500/10', label: 'PPT' }
-    if (fileType === 'text/csv') return { icon: FileText, color: 'text-teal-400', bg: 'bg-teal-500/10', label: 'CSV' }
-    return { icon: FileText, color: 'text-neutral-400', bg: 'bg-neutral-700', label: 'FILE' }
-  }
+  const doneItems = checklist.filter((i) => i.concluido).length
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70">
-        <div className="bg-neutral-900 border border-neutral-800 rounded-t-xl sm:rounded-xl w-full max-w-lg max-h-[92vh] sm:max-h-[90vh] flex flex-col shadow-2xl">
-          {/* Header */}
-          <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-800">
-            <h2 className="text-white font-bold text-sm">
-              {isNew ? 'Nova Tarefa' : 'Editar Tarefa'}
-            </h2>
-            <button onClick={onClose} className="p-2 -mr-2 text-neutral-500 hover:text-white rounded-lg hover:bg-neutral-800">
-              <X className="w-4 h-4" />
-            </button>
+      <ResponsiveModal
+        open
+        onOpenChange={(open) => {
+          if (!open) void handleClose()
+        }}
+        dismissible={!saving}
+        size="lg"
+        title={isNew ? 'Nova tarefa' : 'Editar tarefa'}
+        description={
+          isNew ? 'Defina título, coluna e prazo. O restante pode ser ajustado depois.' : undefined
+        }
+        footer={
+          <>
+            {!isNew && onDelete ? (
+              <Button variant="ghost" onClick={handleDelete} className="mr-auto text-danger">
+                <Trash2 aria-hidden="true" />
+                Excluir
+              </Button>
+            ) : null}
+            <Button variant="secondary" onClick={() => void handleClose()}>
+              Cancelar
+            </Button>
+            <Button onClick={handleSave} loading={saving}>
+              {isNew ? 'Criar tarefa' : 'Salvar'}
+            </Button>
+          </>
+        }
+      >
+        {!isNew ? (
+          <div className="mb-5">
+            <SegmentedControl<TaskTab>
+              label="Seção da tarefa"
+              value={activeTab}
+              onChange={setActiveTab}
+              options={[
+                { value: 'detalhes', label: 'Detalhes' },
+                { value: 'anexos', label: `Anexos${anexos.length ? ` (${anexos.length})` : ''}`, icon: Paperclip },
+              ]}
+            />
           </div>
+        ) : null}
 
-          {/* Tabs — só para edição */}
-          {!isNew && (
-            <div className="flex border-b border-neutral-800">
-              <button
-                onClick={() => setActiveTab('detalhes')}
-                className={`flex-1 py-3 text-xs font-medium transition-colors ${activeTab === 'detalhes' ? 'text-orange-500 border-b-2 border-orange-500' : 'text-neutral-500 hover:text-neutral-300'}`}
-              >
-                Detalhes
-              </button>
-              <button
-                onClick={() => setActiveTab('anexos')}
-                className={`flex-1 py-3 text-xs font-medium transition-colors flex items-center justify-center gap-1.5 ${activeTab === 'anexos' ? 'text-orange-500 border-b-2 border-orange-500' : 'text-neutral-500 hover:text-neutral-300'}`}
-              >
-                <Paperclip className="w-3 h-3" />
-                Anexos {anexos.length > 0 && <span className="bg-neutral-700 text-neutral-300 rounded-full px-1.5 py-0.5 text-[10px]">{anexos.length}</span>}
-              </button>
-            </div>
-          )}
-
-          {/* Body */}
-          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-
-            {/* ── Aba Detalhes ── */}
-            {(isNew || activeTab === 'detalhes') && (
-              <>
-                {/* Título */}
+        {isNew || activeTab === 'detalhes' ? (
+          <div className="space-y-6">
+            <section>
+              <SectionTitle as="h3" title="Descrição" />
+              <div className="space-y-4">
                 <div>
-                  <label className="text-neutral-400 text-xs mb-1 block">Título *</label>
-                  <input
-                    value={titulo}
-                    onChange={e => setTitulo(e.target.value)}
-                    placeholder="Nome da tarefa"
-                    className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500"
-                    style={{ fontSize: '16px' }}
-                  />
-                </div>
-
-                {/* Descrição */}
-                <div>
-                  <label className="text-neutral-400 text-xs mb-1 block">Descrição</label>
-                  <textarea
-                    value={descricao}
-                    onChange={e => setDescricao(e.target.value)}
-                    placeholder="Detalhes opcionais..."
-                    rows={3}
-                    className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm resize-none focus:outline-none focus:border-orange-500"
-                    style={{ fontSize: '16px' }}
-                  />
-                </div>
-
-                {/* Prioridade + Coluna */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-neutral-400 text-xs mb-1 block">Prioridade</label>
-                    <select
-                      value={prioridade}
-                      onChange={e => setPrioridade(e.target.value as TarefasTask['prioridade'])}
-                      className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500"
-                      style={{ fontSize: '16px' }}
-                    >
-                      {TAREFAS_PRIORIDADES.map(p => (
-                        <option key={p.id} value={p.id}>{p.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-neutral-400 text-xs mb-1 block">Coluna</label>
-                    <select
-                      value={columnId}
-                      onChange={e => setColumnId(e.target.value)}
-                      className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500"
-                      style={{ fontSize: '16px' }}
-                    >
-                      <option value="">Selecionar...</option>
-                      {columns.map(c => (
-                        <option key={c.id} value={c.id}>{c.nome}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {/* Responsável + Data */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-neutral-400 text-xs mb-1 block">Responsável</label>
-                    <select
-                      value={responsavelId}
-                      onChange={e => setResponsavelId(e.target.value)}
-                      className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500"
-                      style={{ fontSize: '16px' }}
-                    >
-                      <option value="">Nenhum</option>
-                      {users.map(u => (
-                        <option key={u.id} value={u.id}>{u.full_name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-neutral-400 text-xs mb-1 block">Data de entrega</label>
-                    <input
-                      type="date"
-                      value={dataEntrega}
-                      onChange={e => setDataEntrega(e.target.value)}
-                      className="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-orange-500"
-                      style={{ fontSize: '16px' }}
-                    />
-                  </div>
-                </div>
-
-                {/* Checklist */}
-                <div>
-                  <label className="text-neutral-400 text-xs mb-2 block">
-                    Checklist {checklist.length > 0 && `(${checklist.filter(i=>i.concluido).length}/${checklist.length})`}
+                  <label htmlFor={tituloId} className="mb-1 block text-meta text-ink-muted">
+                    Título <span className="text-danger">*</span>
                   </label>
-                  <div className="space-y-1.5 mb-2">
-                    {checklist.map(item => (
-                      <div key={item.id} className="flex items-center gap-2 group/item">
-                        <button
-                          onClick={() => handleToggleItem(item.id)}
-                          className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${item.concluido ? 'bg-orange-500 border-orange-500' : 'border-neutral-600 bg-neutral-800'}`}
-                        >
-                          {item.concluido && <Check className="w-2.5 h-2.5 text-black" />}
-                        </button>
-                        <span className={`flex-1 text-sm ${item.concluido ? 'line-through text-neutral-500' : 'text-neutral-300'}`}>
-                          {item.texto}
-                        </span>
-                        <button
-                          onClick={() => handleRemoveItem(item.id)}
-                          className="opacity-0 group-hover/item:opacity-100 p-0.5 text-neutral-600 hover:text-red-400 transition-opacity"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      </div>
+                  <Input
+                    id={tituloId}
+                    value={titulo}
+                    onChange={(e) => setTitulo(e.target.value)}
+                    onBlur={() => setTouched(true)}
+                    placeholder="Nome da tarefa"
+                    required
+                    autoFocus={isNew}
+                    enterKeyHint="next"
+                    aria-invalid={tituloInvalid}
+                    aria-describedby={tituloInvalid ? tituloErrorId : undefined}
+                  />
+                  {tituloInvalid ? (
+                    <p id={tituloErrorId} role="alert" className="mt-1 text-meta text-danger">
+                      Informe um título para a tarefa.
+                    </p>
+                  ) : null}
+                </div>
+
+                <div>
+                  <label htmlFor={descricaoId} className="mb-1 block text-meta text-ink-muted">
+                    Detalhes
+                  </label>
+                  <textarea
+                    id={descricaoId}
+                    value={descricao}
+                    onChange={(e) => setDescricao(e.target.value)}
+                    rows={3}
+                    placeholder="Contexto, links, critérios de conclusão..."
+                    className="w-full resize-y rounded-lg border border-line bg-surface-sunken px-3.5 py-2.5 text-base text-ink transition-colors placeholder:text-ink-subtle hover:border-line-strong focus-visible:border-brand focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand"
+                  />
+                </div>
+              </div>
+            </section>
+
+            <section>
+              <SectionTitle as="h3" title="Classificação" />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label htmlFor={prioridadeId} className="mb-1 block text-meta text-ink-muted">
+                    Prioridade
+                  </label>
+                  <select
+                    id={prioridadeId}
+                    value={prioridade}
+                    onChange={(e) => setPrioridade(e.target.value as TarefasTask['prioridade'])}
+                    className={SELECT_CLASS}
+                  >
+                    {TAREFAS_PRIORIDADES.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.label}
+                      </option>
                     ))}
-                  </div>
-                  <div className="flex gap-2">
-                    <input
-                      value={newItem}
-                      onChange={e => setNewItem(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleAddChecklistItem() } }}
-                      placeholder="Adicionar item..."
-                      className="flex-1 bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-1.5 text-white text-xs focus:outline-none focus:border-orange-500"
-                      style={{ fontSize: '16px' }}
-                    />
-                    <button
-                      onClick={handleAddChecklistItem}
-                      className="p-1.5 bg-neutral-800 border border-neutral-700 rounded-lg text-neutral-400 hover:text-white hover:border-orange-500"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                    </button>
+                  </select>
+                  <div className="mt-2">
+                    <PriorityPill prioridade={prioridade} />
                   </div>
                 </div>
+
+                <div>
+                  <label htmlFor={columnFieldId} className="mb-1 block text-meta text-ink-muted">
+                    Coluna <span className="text-danger">*</span>
+                  </label>
+                  <select
+                    id={columnFieldId}
+                    value={columnId}
+                    onChange={(e) => setColumnId(e.target.value)}
+                    onBlur={() => setTouched(true)}
+                    required
+                    aria-invalid={columnInvalid}
+                    aria-describedby={columnInvalid ? columnErrorId : undefined}
+                    className={cn(SELECT_CLASS, columnInvalid && 'border-danger')}
+                  >
+                    <option value="">Selecionar...</option>
+                    {columns.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.nome}
+                      </option>
+                    ))}
+                  </select>
+                  {columnInvalid ? (
+                    <p id={columnErrorId} role="alert" className="mt-1 text-meta text-danger">
+                      Escolha em qual coluna a tarefa entra.
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            </section>
+
+            <section>
+              <SectionTitle as="h3" title="Responsável e prazo" />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label htmlFor={responsavelId_} className="mb-1 block text-meta text-ink-muted">
+                    Responsável
+                  </label>
+                  <select
+                    id={responsavelId_}
+                    value={responsavelId}
+                    onChange={(e) => setResponsavelId(e.target.value)}
+                    className={SELECT_CLASS}
+                  >
+                    <option value="">Ninguém atribuído</option>
+                    {users.map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.full_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor={dataId} className="mb-1 block text-meta text-ink-muted">
+                    Data de entrega
+                  </label>
+                  <Input
+                    id={dataId}
+                    type="date"
+                    value={dataEntrega ? dataEntrega.split('T')[0] : ''}
+                    onChange={(e) => setDataEntrega(e.target.value)}
+                  />
+                </div>
+              </div>
+            </section>
+
+            <section>
+              <SectionTitle
+                as="h3"
+                title="Checklist"
+                meta={checklist.length > 0 ? `${doneItems}/${checklist.length} concluídos` : undefined}
+              />
+
+              {checklist.length > 0 ? (
+                <ul className="mb-3 space-y-1.5">
+                  {checklist.map((item) => (
+                    <li key={item.id} className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleItem(item.id)}
+                        aria-pressed={item.concluido}
+                        aria-label={`${item.concluido ? 'Desmarcar' : 'Marcar'} ${item.texto}`}
+                        className={cn(
+                          'flex h-11 w-11 shrink-0 items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand',
+                          'hover:bg-surface-hover',
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            'flex h-5 w-5 items-center justify-center rounded border',
+                            item.concluido
+                              ? 'border-brand bg-brand text-white'
+                              : 'border-line-strong bg-surface-sunken',
+                          )}
+                        >
+                          {item.concluido ? (
+                            <Check aria-hidden="true" className="h-3.5 w-3.5" />
+                          ) : null}
+                        </span>
+                      </button>
+                      <span
+                        className={cn(
+                          'min-w-0 flex-1 text-sm',
+                          item.concluido ? 'text-ink-muted line-through' : 'text-ink',
+                        )}
+                      >
+                        {item.texto}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRemoveItem(item.id)}
+                        aria-label={`Remover item ${item.texto}`}
+                        className="hover:text-danger"
+                      >
+                        <Trash2 aria-hidden="true" />
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+
+              <div className="flex gap-2">
+                <label htmlFor={novoItemId} className="sr-only">
+                  Novo item do checklist
+                </label>
+                <Input
+                  id={novoItemId}
+                  value={newItem}
+                  onChange={(e) => setNewItem(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      handleAddChecklistItem()
+                    }
+                  }}
+                  enterKeyHint="done"
+                  placeholder="Adicionar item..."
+                />
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  onClick={handleAddChecklistItem}
+                  disabled={!newItem.trim()}
+                  aria-label="Adicionar item ao checklist"
+                >
+                  <Plus aria-hidden="true" />
+                </Button>
+              </div>
+            </section>
+          </div>
+        ) : null}
+
+        {!isNew && activeTab === 'anexos' ? (
+          <div className="space-y-5">
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              onChange={handleFileUpload}
+              accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
+            />
+            <Button
+              variant="secondary"
+              block
+              loading={uploading}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Paperclip aria-hidden="true" />
+              {uploading ? 'Enviando...' : 'Anexar arquivo'}
+            </Button>
+
+            {anexosLoading ? (
+              <div className="space-y-2" aria-busy="true">
+                <Skeleton className="h-16 rounded-xl" />
+                <Skeleton className="h-16 rounded-xl" />
+              </div>
+            ) : anexos.length === 0 ? (
+              <EmptyState
+                compact
+                icon={Paperclip}
+                title="Nenhum anexo ainda"
+                description="Imagens, PDFs e planilhas anexados aqui ficam disponíveis para todo o time."
+              />
+            ) : (
+              <>
+                {imageAnexos.length > 0 ? (
+                  <section>
+                    <SectionTitle as="h3" title="Imagens" meta={`${imageAnexos.length}`} />
+                    <ul className="grid grid-cols-3 gap-2">
+                      {imageAnexos.map((anexo) => (
+                        <li key={anexo.id} className="group/img relative aspect-square">
+                          <button
+                            type="button"
+                            onClick={() => handleAnexoClick(anexo)}
+                            aria-label={`Ampliar ${anexo.file_name}`}
+                            className="h-full w-full overflow-hidden rounded-lg border border-line bg-surface-sunken transition-colors hover:border-brand-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                          >
+                            <img
+                              src={anexo.file_url}
+                              alt={anexo.file_name}
+                              className="h-full w-full object-cover"
+                            />
+                            <span className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/0 transition-colors group-hover/img:bg-black/40">
+                              <ZoomIn
+                                aria-hidden="true"
+                                className="h-5 w-5 text-white opacity-0 transition-opacity group-hover/img:opacity-100"
+                              />
+                            </span>
+                          </button>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            onClick={() => handleDeleteAnexo(anexo)}
+                            aria-label={`Excluir ${anexo.file_name}`}
+                            className="absolute right-1 top-1 bg-black/60 text-white hover:bg-black/80 hover:text-danger"
+                          >
+                            <Trash2 aria-hidden="true" />
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                ) : null}
+
+                {fileAnexos.length > 0 ? (
+                  <section>
+                    <SectionTitle as="h3" title="Arquivos" meta={`${fileAnexos.length}`} />
+                    <ul className="space-y-2">
+                      {fileAnexos.map((anexo) => {
+                        const badge = fileBadge(anexo.file_type)
+                        return (
+                          <li
+                            key={anexo.id}
+                            className="flex items-center gap-3 rounded-xl border border-line bg-surface-raised p-3"
+                          >
+                            <span
+                              aria-hidden="true"
+                              className={cn(
+                                'flex h-10 w-10 shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg border',
+                                badge.className,
+                              )}
+                            >
+                              <FileText className="h-4 w-4" />
+                              <span className="text-[0.5625rem] font-bold leading-none">
+                                {badge.label}
+                              </span>
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm font-medium text-ink-strong">
+                                {anexo.file_name}
+                              </span>
+                              <span className="block text-micro text-ink-muted">
+                                {badge.label} · {formatFileSize(anexo.file_size)}
+                              </span>
+                            </span>
+                            <a
+                              href={anexo.file_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              aria-label={`Abrir ${anexo.file_name}`}
+                              className="ds-tap flex w-11 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-surface-hover hover:text-ink-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                            >
+                              <Download aria-hidden="true" className="h-4 w-4" />
+                            </a>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDeleteAnexo(anexo)}
+                              aria-label={`Excluir ${anexo.file_name}`}
+                              className="hover:text-danger"
+                            >
+                              <Trash2 aria-hidden="true" />
+                            </Button>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </section>
+                ) : null}
               </>
             )}
-
-            {/* ── Aba Anexos ── */}
-            {!isNew && activeTab === 'anexos' && (
-              <div className="space-y-4">
-                {/* Upload button */}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  className="hidden"
-                  onChange={handleFileUpload}
-                  accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv"
-                />
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploading}
-                  className="w-full flex items-center justify-center gap-2 py-3.5 border border-dashed border-neutral-700 rounded-xl text-sm text-neutral-400 hover:text-white hover:border-orange-500 hover:bg-orange-500/5 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  {uploading ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-orange-500/40 border-t-orange-500 rounded-full animate-spin" />
-                      <span>Enviando...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Paperclip className="w-4 h-4" />
-                      <span>Clique para anexar arquivo</span>
-                    </>
-                  )}
-                </button>
-
-                {anexos.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-10 gap-2 text-neutral-600">
-                    <Paperclip className="w-8 h-8 opacity-30" />
-                    <p className="text-xs">Nenhum anexo ainda</p>
-                  </div>
-                ) : (
-                  <>
-                    {/* Grid de imagens */}
-                    {imageAnexos.length > 0 && (
-                      <div>
-                        <p className="text-neutral-500 text-[11px] uppercase tracking-wider mb-2">Imagens</p>
-                        <div className="grid grid-cols-3 gap-2">
-                          {imageAnexos.map(anexo => (
-                            <div key={anexo.id} className="relative group/img aspect-square">
-                              <button
-                                onClick={() => handleAnexoClick(anexo)}
-                                className="w-full h-full rounded-lg overflow-hidden bg-neutral-800 border border-neutral-700 hover:border-orange-500 transition-all"
-                              >
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img src={anexo.file_url} alt={anexo.file_name} className="w-full h-full object-cover" />
-                                <div className="absolute inset-0 bg-black/0 group-hover/img:bg-black/40 transition-all flex items-center justify-center">
-                                  <ZoomIn className="w-5 h-5 text-white opacity-0 group-hover/img:opacity-100 transition-opacity" />
-                                </div>
-                              </button>
-                              <button
-                                onClick={() => handleDeleteAnexo(anexo.id)}
-                                className="absolute top-1.5 right-1.5 p-1 bg-black/70 rounded-md text-white/60 hover:text-red-400 opacity-0 group-hover/img:opacity-100 transition-opacity"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Lista de arquivos não-imagem */}
-                    {anexos.filter(a => !isImage(a.file_type)).length > 0 && (
-                      <div>
-                        {imageAnexos.length > 0 && <p className="text-neutral-500 text-[11px] uppercase tracking-wider mb-2">Arquivos</p>}
-                        <div className="space-y-1.5">
-                          {anexos.filter(a => !isImage(a.file_type)).map(anexo => {
-                            const { icon: Icon, color, bg, label } = getFileIcon(anexo.file_type)
-                            return (
-                              <div key={anexo.id} className="flex items-center gap-3 p-3 bg-neutral-800/60 rounded-xl border border-neutral-800 hover:border-neutral-700 group/doc transition-colors">
-                                {/* Ícone do tipo */}
-                                <div className={`flex-shrink-0 w-10 h-10 rounded-lg ${bg} flex flex-col items-center justify-center gap-0.5`}>
-                                  <Icon className={`w-4 h-4 ${color}`} />
-                                  <span className={`text-[9px] font-bold ${color} leading-none`}>{label}</span>
-                                </div>
-
-                                {/* Nome e tamanho */}
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-white text-xs font-medium truncate">{anexo.file_name}</p>
-                                  <p className="text-neutral-500 text-[11px] mt-0.5">{formatFileSize(anexo.file_size)}</p>
-                                </div>
-
-                                {/* Ações */}
-                                <div className="flex items-center gap-1 opacity-0 group-hover/doc:opacity-100 transition-opacity">
-                                  <a
-                                    href={anexo.file_url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="p-1.5 text-neutral-400 hover:text-white bg-neutral-700 rounded-md"
-                                    title="Abrir"
-                                  >
-                                    <Download className="w-3.5 h-3.5" />
-                                  </a>
-                                  <button
-                                    onClick={() => handleDeleteAnexo(anexo.id)}
-                                    className="p-1.5 text-neutral-400 hover:text-red-400 bg-neutral-700 rounded-md"
-                                    title="Excluir"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            )}
           </div>
+        ) : null}
+      </ResponsiveModal>
 
-          {/* Footer */}
-          <div className="px-5 py-3 border-t border-neutral-800 flex items-center justify-between gap-3" style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}>
-            {!isNew && onDelete && (
-              confirmDelete ? (
-                <div className="flex items-center gap-2">
-                  <span className="text-red-400 text-xs">Confirmar?</span>
-                  <button onClick={() => { onDelete(task!.id!); onClose() }} className="text-xs bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-1 rounded">Sim</button>
-                  <button onClick={() => setConfirmDelete(false)} className="text-xs text-neutral-500 px-2 py-1 rounded hover:text-white">Não</button>
+      {previewAnexo ? (
+        <ResponsiveModal
+          open
+          onOpenChange={(open) => {
+            if (!open) setPreviewAnexo(null)
+          }}
+          size="xl"
+          title={previewAnexo.file_name}
+          description={`${formatFileSize(previewAnexo.file_size)}${
+            imageAnexos.length > 1 ? ` · ${previewIndex + 1} de ${imageAnexos.length}` : ''
+          }`}
+          footer={
+            <>
+              {imageAnexos.length > 1 ? (
+                <div className="mr-auto flex items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    size="icon"
+                    disabled={previewIndex <= 0}
+                    onClick={() => setPreviewAnexo(imageAnexos[previewIndex - 1])}
+                    aria-label="Imagem anterior"
+                  >
+                    <ChevronLeft aria-hidden="true" />
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="icon"
+                    disabled={previewIndex >= imageAnexos.length - 1}
+                    onClick={() => setPreviewAnexo(imageAnexos[previewIndex + 1])}
+                    aria-label="Próxima imagem"
+                  >
+                    <ChevronRight aria-hidden="true" />
+                  </Button>
                 </div>
-              ) : (
-                <button onClick={() => setConfirmDelete(true)} className="text-xs text-neutral-500 hover:text-red-400 flex items-center gap-1 transition-colors">
-                  <Trash2 className="w-3.5 h-3.5" />Excluir
-                </button>
-              )
-            )}
-            {isNew && <div />}
-            <div className="flex gap-2 ml-auto">
-              <button onClick={onClose} className="px-4 py-2 text-xs text-neutral-400 hover:text-white bg-neutral-800 border border-neutral-700 rounded-lg">
-                Cancelar
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={!titulo.trim() || !columnId || saving}
-                className="px-4 py-2 text-xs font-bold bg-orange-500 text-black rounded-lg hover:bg-orange-400 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {saving ? 'Salvando...' : isNew ? 'Criar' : 'Salvar'}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Lightbox de imagens */}
-      {previewAnexo && (
-        <div
-          className="fixed inset-0 z-[60] flex flex-col bg-black/95"
-          onClick={() => setPreviewAnexo(null)}
+              ) : null}
+              <Button variant="secondary" asChild>
+                <a
+                  href={previewAnexo.file_url}
+                  download={previewAnexo.file_name}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Download aria-hidden="true" />
+                  Baixar
+                </a>
+              </Button>
+              <Button onClick={() => setPreviewAnexo(null)}>Fechar</Button>
+            </>
+          }
         >
-          {/* Top bar */}
-          <div className="flex items-center justify-between px-5 py-3 flex-shrink-0" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setPreviewAnexo(null)}
-                className="p-2 text-white/60 hover:text-white hover:bg-white/10 rounded-full transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-              <div>
-                <p className="text-white text-sm font-medium truncate max-w-[200px] sm:max-w-xs">{previewAnexo.file_name}</p>
-                <p className="text-white/40 text-xs">{formatFileSize(previewAnexo.file_size)}{imageAnexos.length > 1 && ` · ${previewIndex + 1} de ${imageAnexos.length}`}</p>
-              </div>
-            </div>
-            <a
-              href={previewAnexo.file_url}
-              download={previewAnexo.file_name}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-white/70 hover:text-white bg-white/10 hover:bg-white/20 rounded-lg transition-colors"
-              onClick={e => e.stopPropagation()}
-            >
-              <Download className="w-3.5 h-3.5" />
-              Download
-            </a>
-          </div>
-
-          {/* Imagem central */}
-          <div className="flex-1 flex items-center justify-center relative px-14 pb-4">
-            {/* Navegação anterior */}
-            {previewIndex > 0 && (
-              <button
-                onClick={handlePrevImage}
-                className="absolute left-3 z-10 p-2.5 bg-black/50 hover:bg-black/80 text-white rounded-full transition-colors"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </button>
-            )}
-
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={previewAnexo.file_url}
-              alt={previewAnexo.file_name}
-              className="rounded-lg shadow-2xl"
-              style={{
-                maxHeight: 'calc(100vh - 140px)',
-                maxWidth: '100%',
-                width: '100%',
-                height: 'auto',
-                objectFit: 'contain',
-              }}
-              onClick={e => e.stopPropagation()}
-            />
-
-            {/* Navegação próxima */}
-            {previewIndex < imageAnexos.length - 1 && (
-              <button
-                onClick={handleNextImage}
-                className="absolute right-3 z-10 p-2.5 bg-black/50 hover:bg-black/80 text-white rounded-full transition-colors"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
-            )}
-          </div>
-
-          {/* Miniaturas de navegação (quando há múltiplas imagens) */}
-          {imageAnexos.length > 1 && (
-            <div className="flex justify-center gap-2 pb-4 flex-shrink-0" onClick={e => e.stopPropagation()}>
-              {imageAnexos.map((a, i) => (
-                <button
-                  key={a.id}
-                  onClick={() => setPreviewAnexo(a)}
-                  className={`w-2 h-2 rounded-full transition-all ${i === previewIndex ? 'bg-white scale-125' : 'bg-white/30 hover:bg-white/60'}`}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+          <img
+            src={previewAnexo.file_url}
+            alt={previewAnexo.file_name}
+            className="mx-auto max-h-[60vh] w-auto max-w-full rounded-lg"
+          />
+        </ResponsiveModal>
+      ) : null}
     </>
   )
 }

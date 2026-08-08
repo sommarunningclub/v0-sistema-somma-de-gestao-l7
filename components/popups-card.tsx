@@ -3,130 +3,166 @@
 
 import { BarChart2, Edit2, Megaphone, Trash2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
+import { Panel, StatusPill, type StatusTone } from '@/components/somma'
 import type { PopupWithStats } from '@/lib/services/popups'
 
 interface PopupsCardProps {
   popup: PopupWithStats
   onEdit: (popup: PopupWithStats) => void
-  onDelete: (id: string) => void
+  onDelete: (popup: PopupWithStats) => void
   onToggle: (id: string, value: boolean) => void
+}
+
+const dateFormatter = new Intl.DateTimeFormat('pt-BR', {
+  day: '2-digit',
+  month: '2-digit',
+  year: '2-digit',
+})
+const numberFormatter = new Intl.NumberFormat('pt-BR')
+
+/** Situação de exibição do pop-up — combina o interruptor com a janela de datas. */
+export function popupStatus(popup: {
+  is_active: boolean
+  start_date: string
+  end_date: string | null
+}): { label: string; tone: StatusTone } {
+  if (!popup.is_active) return { label: 'Inativo', tone: 'neutral' }
+
+  const now = Date.now()
+  const start = new Date(popup.start_date).getTime()
+  const end = popup.end_date ? new Date(popup.end_date).getTime() : null
+
+  if (Number.isFinite(start) && start > now) return { label: 'Agendado', tone: 'warning' }
+  if (end !== null && Number.isFinite(end) && end < now) return { label: 'Expirado', tone: 'danger' }
+  return { label: 'Ativo', tone: 'success' }
 }
 
 export default function PopupsCard({ popup, onEdit, onDelete, onToggle }: PopupsCardProps) {
   const router = useRouter()
 
-  const fmt = (d: string) =>
-    new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+  const fmt = (value: string) => {
+    const date = new Date(value)
+    return Number.isNaN(date.getTime()) ? '—' : dateFormatter.format(date)
+  }
+
+  const status = popupStatus(popup)
+  const period = `${fmt(popup.start_date)} até ${popup.end_date ? fmt(popup.end_date) : 'sem fim definido'}`
 
   return (
-    <div className="bg-neutral-900 border border-neutral-800 rounded-xl overflow-hidden flex flex-col group">
-      {/* Image preview */}
-      <div className="relative aspect-video bg-neutral-800 flex-shrink-0">
+    <Panel className="group flex flex-col overflow-hidden">
+      <div className="relative aspect-video shrink-0 bg-surface-sunken">
         {popup.image_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
+           
           <img
             src={popup.image_url}
-            alt={popup.title}
-            className="w-full h-full object-cover"
+            alt={`Imagem do pop-up ${popup.title}`}
+            className="h-full w-full object-cover"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <Megaphone className="w-8 h-8 text-neutral-600" />
+          <div className="flex h-full w-full items-center justify-center">
+            <Megaphone aria-hidden="true" className="h-8 w-8 text-ink-subtle" />
           </div>
         )}
-        {/* Status badge */}
-        <span
-          className={`absolute top-2 right-2 text-xs px-2 py-0.5 rounded-full font-medium border ${
-            popup.is_active
-              ? 'bg-green-500/20 text-green-400 border-green-500/30'
-              : 'bg-neutral-700/80 text-neutral-400 border-neutral-600'
-          }`}
-        >
-          {popup.is_active ? 'Ativo' : 'Inativo'}
-        </span>
+        <StatusPill tone={status.tone} className="absolute right-2 top-2 backdrop-blur-md">
+          {status.label}
+        </StatusPill>
       </div>
 
-      {/* Body */}
-      <div className="p-4 flex flex-col gap-2 flex-1">
-        <h3 className="font-semibold text-white text-sm leading-snug line-clamp-2">
+      <div className="flex flex-1 flex-col gap-2 p-4">
+        <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-ink-strong">
           {popup.title}
         </h3>
 
-        {/* Period */}
-        <p className="text-xs text-neutral-500">
-          {fmt(popup.start_date)} → {popup.end_date ? fmt(popup.end_date) : '∞'}
+        <p className="text-meta text-ink-muted">
+          <span className="ds-eyebrow mr-1.5">Período</span>
+          {period}
         </p>
 
-        {/* Pages */}
         {popup.pages.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {popup.pages.slice(0, 3).map((p) => (
-              <span
-                key={p}
-                className="text-xs bg-neutral-800 text-neutral-400 px-1.5 py-0.5 rounded border border-neutral-700 truncate max-w-[80px]"
-                title={p}
+          <ul className="flex flex-wrap gap-1" aria-label="Páginas onde o pop-up é exibido">
+            {popup.pages.slice(0, 3).map((page) => (
+              <li
+                key={page}
+                title={page}
+                className="max-w-[7rem] truncate rounded border border-line bg-surface-sunken px-1.5 py-0.5 text-micro text-ink-muted"
               >
-                {p}
-              </span>
+                {page}
+              </li>
             ))}
             {popup.pages.length > 3 && (
-              <span className="text-xs text-neutral-600">
+              <li className="px-1 py-0.5 text-micro text-ink-subtle">
                 +{popup.pages.length - 3}
-              </span>
+              </li>
             )}
-          </div>
+          </ul>
         )}
 
-        {/* Click count */}
-        <p className="text-xs text-neutral-500 flex items-center gap-1.5 mt-auto">
-          <BarChart2 className="w-3.5 h-3.5" />
-          <span>{popup.views_7d} impressões</span>
-          <span className="text-neutral-700">·</span>
-          <span>{popup.clicks_7d} cliques (7d)</span>
-        </p>
+        <dl className="ds-well mt-auto grid grid-cols-2 gap-2 px-3 py-2.5">
+          <div>
+            <dt className="ds-eyebrow">Impressões 7d</dt>
+            <dd className="font-mono text-sm font-semibold tabular-nums text-ink-strong">
+              {numberFormatter.format(popup.views_7d)}
+            </dd>
+          </div>
+          <div>
+            <dt className="ds-eyebrow">Cliques 7d</dt>
+            <dd className="font-mono text-sm font-semibold tabular-nums text-ink-strong">
+              {numberFormatter.format(popup.clicks_7d)}
+            </dd>
+          </div>
+        </dl>
 
-        {/* Actions */}
-        <div className="flex items-center gap-2 pt-2 border-t border-neutral-800 mt-1">
-          {/* Toggle */}
+        <div className="mt-1 flex items-center gap-1 border-t border-line-soft pt-2">
           <button
+            type="button"
+            role="switch"
+            aria-checked={popup.is_active}
             onClick={() => onToggle(popup.id, !popup.is_active)}
-            title={popup.is_active ? 'Desativar' : 'Ativar'}
-            className={`relative w-8 h-4 rounded-full transition-colors flex-shrink-0 ${
-              popup.is_active ? 'bg-orange-500' : 'bg-neutral-700'
-            }`}
+            className="ds-tap -ml-2 inline-flex items-center gap-2 rounded-lg px-2 text-meta text-ink-muted transition-colors hover:text-ink-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
           >
             <span
-              className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${
-                popup.is_active ? 'translate-x-4' : 'translate-x-0.5'
+              aria-hidden="true"
+              className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${
+                popup.is_active ? 'bg-brand' : 'bg-surface-active border border-line-strong'
               }`}
-            />
+            >
+              <span
+                className={`absolute top-1 h-3 w-3 rounded-full bg-white shadow transition-transform ${
+                  popup.is_active ? 'translate-x-5' : 'translate-x-1'
+                }`}
+              />
+            </span>
+            {popup.is_active ? 'Ativo' : 'Inativo'}
           </button>
 
-          <div className="flex items-center gap-0.5 ml-auto">
+          <div className="ml-auto flex items-center gap-0.5">
             <button
+              type="button"
               onClick={() => onEdit(popup)}
-              title="Editar"
-              className="p-1.5 text-neutral-500 hover:text-white transition-colors rounded"
+              aria-label={`Editar ${popup.title}`}
+              className="ds-tap inline-flex w-11 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-surface-hover hover:text-ink-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
             >
-              <Edit2 className="w-3.5 h-3.5" />
+              <Edit2 aria-hidden="true" className="h-4 w-4" />
             </button>
             <button
+              type="button"
               onClick={() => router.push(`/popups/${popup.id}/analytics`)}
-              title="Ver analytics"
-              className="p-1.5 text-neutral-500 hover:text-blue-400 transition-colors rounded"
+              aria-label={`Ver analytics de ${popup.title}`}
+              className="ds-tap inline-flex w-11 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-surface-hover hover:text-info focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
             >
-              <BarChart2 className="w-3.5 h-3.5" />
+              <BarChart2 aria-hidden="true" className="h-4 w-4" />
             </button>
             <button
-              onClick={() => onDelete(popup.id)}
-              title="Excluir"
-              className="p-1.5 text-neutral-500 hover:text-red-400 transition-colors rounded"
+              type="button"
+              onClick={() => onDelete(popup)}
+              aria-label={`Excluir ${popup.title}`}
+              className="ds-tap inline-flex w-11 items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-danger-soft hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
             >
-              <Trash2 className="w-3.5 h-3.5" />
+              <Trash2 aria-hidden="true" className="h-4 w-4" />
             </button>
           </div>
         </div>
       </div>
-    </div>
+    </Panel>
   )
 }

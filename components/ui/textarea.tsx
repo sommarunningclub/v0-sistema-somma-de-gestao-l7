@@ -2,6 +2,10 @@ import * as React from 'react'
 
 import { cn } from '@/lib/utils'
 
+/**
+ * Campo de texto multilinha. Fica em `text-base` (16px) em todas as larguras:
+ * abaixo disso o iOS dá zoom automático ao focar o campo.
+ */
 const Textarea = React.forwardRef<
   HTMLTextAreaElement,
   React.ComponentProps<'textarea'>
@@ -9,7 +13,13 @@ const Textarea = React.forwardRef<
   return (
     <textarea
       className={cn(
-        'flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm',
+        'flex min-h-[88px] w-full rounded-lg border border-line bg-surface-sunken px-3 py-2.5',
+        'text-base leading-relaxed text-ink placeholder:text-ink-subtle',
+        'transition-colors duration-150 ease-somma',
+        'hover:border-line-strong',
+        'focus-visible:border-brand-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-canvas',
+        'disabled:cursor-not-allowed disabled:border-line-soft disabled:text-ink-disabled disabled:opacity-60',
+        'aria-[invalid=true]:border-danger-border aria-[invalid=true]:focus-visible:ring-danger',
         className,
       )}
       ref={ref}

@@ -11,54 +11,52 @@ export function PWAUpdateNotifier() {
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return
 
-    let reg: ServiceWorkerRegistration
+    let checkInterval: ReturnType<typeof setInterval> | undefined
+    let cancelled = false
 
-    const handleUpdate = (reg: ServiceWorkerRegistration) => {
-      if (reg.waiting) {
-        setUpdateAvailable(true)
-        setRegistration(reg)
-      }
+    const announce = (reg: ServiceWorkerRegistration) => {
+      if (cancelled || !reg.waiting) return
+      setUpdateAvailable(true)
+      setRegistration(reg)
     }
 
-    navigator.serviceWorker.ready
-      .then((r) => {
-        reg = r
-        reg.addEventListener('controllerchange', () => {
-          window.location.reload()
+    const watchForNewWorker = (reg: ServiceWorkerRegistration) => {
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing
+        if (!newWorker) return
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            announce(reg)
+          }
         })
+      })
+    }
+
+    const reload = () => window.location.reload()
+    navigator.serviceWorker.addEventListener('controllerchange', reload)
+
+    navigator.serviceWorker.ready
+      .then((reg) => {
+        if (cancelled) return
+        // Uma versão já pode estar esperando desde antes de montarmos.
+        announce(reg)
+        watchForNewWorker(reg)
+        checkInterval = setInterval(() => {
+          reg.update().catch((err) => console.error('[PWA] SW update failed:', err))
+        }, 60000)
       })
       .catch((err) => console.error('[PWA] SW ready failed:', err))
 
-    const handleNewSW = (reg: ServiceWorkerRegistration) => {
-      reg.addEventListener('updatefound', () => {
-        const newWorker = reg.installing
-        if (newWorker) {
-          newWorker.addEventListener('statechange', () => {
-            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              handleUpdate(reg)
-            }
-          })
-        }
-      })
-    }
-
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      window.location.reload()
-    })
-
-    if (reg) {
-      handleNewSW(reg)
-      const checkInterval = setInterval(() => {
-        reg.update().then(() => handleNewSW(reg))
-      }, 60000) // Check every minute
-      return () => clearInterval(checkInterval)
+    return () => {
+      cancelled = true
+      if (checkInterval) clearInterval(checkInterval)
+      navigator.serviceWorker.removeEventListener('controllerchange', reload)
     }
   }, [])
 
   const handleUpdate = () => {
     if (!registration?.waiting) return
 
-    // Tell the waiting service worker to take control
     registration.waiting.postMessage({ type: 'SKIP_WAITING' })
   }
 
@@ -69,26 +67,29 @@ export function PWAUpdateNotifier() {
   if (!updateAvailable) return null
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:max-w-sm bg-orange-500 text-black rounded-lg p-4 flex items-center gap-3 shadow-lg z-50 animate-in slide-in-from-bottom">
-      <RefreshCw className="w-4 h-4 animate-spin shrink-0" />
-      <div className="flex-1 text-sm font-medium">
-        Nova versão disponível
+    <div
+      role="status"
+      aria-live="polite"
+      className="fixed inset-x-4 bottom-4 z-50 mb-safe flex items-center gap-3 rounded-xl border border-brand-border bg-surface-raised p-3 shadow-overlay animate-rise-in sm:left-auto sm:right-4 sm:max-w-sm"
+    >
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-soft text-brand">
+        <RefreshCw className="h-4 w-4" aria-hidden="true" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[0.8125rem] font-semibold text-ink-strong">Nova versão disponível</p>
+        <p className="text-meta text-ink-muted">Recarregue para aplicar a atualização.</p>
       </div>
-      <div className="flex items-center gap-2">
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-auto px-2 py-1 text-xs bg-black text-white hover:bg-neutral-800"
-          onClick={handleUpdate}
-        >
+      <div className="flex shrink-0 items-center gap-1">
+        <Button size="sm" onClick={handleUpdate}>
           Atualizar
         </Button>
         <button
+          type="button"
           onClick={handleDismiss}
-          className="p-1 hover:bg-orange-600 rounded transition-colors"
+          className="ds-tap flex items-center justify-center rounded-lg text-ink-muted transition-colors hover:bg-surface-hover hover:text-ink-strong"
           aria-label="Descartar"
         >
-          <X className="w-4 h-4" />
+          <X className="h-4 w-4" aria-hidden="true" />
         </button>
       </div>
     </div>

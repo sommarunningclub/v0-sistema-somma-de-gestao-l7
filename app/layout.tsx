@@ -1,14 +1,28 @@
 import type React from "react"
-import type { Metadata } from "next"
-import { Geist_Mono as GeistMono } from "next/font/google"
+import type { Metadata, Viewport } from "next"
+import { Inter, Geist_Mono as GeistMono } from "next/font/google"
 import "./globals.css"
-import { Toaster } from "@/components/ui/toaster"
+import { Toaster } from "@/components/somma/toast"
 import { PWAUpdateNotifier } from "@/components/pwa-update-notifier"
 import { dynamicCacheInvalidation } from "@/lib/cache-invalidation"
 
-const geistMono = GeistMono({ subsets: ["latin"] })
+/**
+ * Inter para texto e interface; Geist Mono reservada a números, códigos e
+ * identificadores. Antes o painel inteiro era monoespaçado, o que prejudicava
+ * a leitura de nomes, descrições e formulários.
+ */
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
+})
 
-// Force cache invalidation timestamp
+const geistMono = GeistMono({
+  subsets: ["latin"],
+  variable: "--font-mono",
+  display: "swap",
+})
+
 const _cacheKey = dynamicCacheInvalidation
 
 export const metadata: Metadata = {
@@ -18,18 +32,20 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Somma"
+    title: "Somma",
   },
-  generator: 'v0.app'
+  generator: "v0.app",
 }
 
-export const viewport = {
-  width: 'device-width',
+export const viewport: Viewport = {
+  width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
-  viewportFit: 'cover',
-  themeColor: '#f97316'
+  // Zoom liberado: bloquear escala viola a WCAG 1.4.4 e atrapalha quem
+  // depende de ampliação no iPhone.
+  maximumScale: 5,
+  userScalable: true,
+  viewportFit: "cover",
+  themeColor: "#08090B",
 }
 
 export default function RootLayout({
@@ -38,39 +54,43 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="pt-BR">
+    <html lang="pt-BR" className="dark">
       <head>
         <link rel="manifest" href="/manifest.json" />
         <link rel="apple-touch-icon" href="/icon-192.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="Somma" />
-        <meta name="theme-color" content="#f97316" />
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
-      <body className={`${geistMono.className} bg-black text-white antialiased`}>
+      <body
+        className={`${inter.variable} ${geistMono.variable} font-sans bg-canvas text-ink antialiased`}
+      >
+        <a
+          href="#main-content-scroll"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-brand focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white"
+        >
+          Pular para o conteúdo
+        </a>
         {children}
         <Toaster />
         <PWAUpdateNotifier />
-        <script dangerouslySetInnerHTML={{
-          __html: `
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
             if ('serviceWorker' in navigator) {
               window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/sw.js')
                   .then((reg) => {
-                    console.log('[PWA] Service Worker registered:', reg.scope)
-                    // Check for updates every 60 seconds
-                    setInterval(() => {
-                      reg.update()
-                    }, 60000)
+                    setInterval(() => { reg.update() }, 60000)
                   })
-                  .catch((err) => console.log('[PWA] SW registration failed:', err))
+                  .catch(() => {})
               })
             }
-          `
-        }} />
+          `,
+          }}
+        />
       </body>
     </html>
   )
 }
-

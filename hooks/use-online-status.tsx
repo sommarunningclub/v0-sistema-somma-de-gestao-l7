@@ -6,7 +6,6 @@ export function useOnlineStatus() {
   const [isOnline, setIsOnline] = useState(true)
 
   useEffect(() => {
-    // Set initial state
     setIsOnline(navigator.onLine)
 
     const handleOnline = () => {
@@ -31,15 +30,27 @@ export function useOnlineStatus() {
   return isOnline
 }
 
+/**
+ * Aviso de conexão perdida para as rotas que não usam o `AdminShell` — ele já
+ * tem o seu próprio. Fica ancorado no rodapé, respeitando a safe area, para
+ * não competir com o cabeçalho nem esconder ações do topo.
+ */
 export function OfflineBanner() {
   const isOnline = useOnlineStatus()
 
   if (isOnline) return null
 
   return (
-    <div className="fixed top-14 left-0 right-0 bg-red-600 text-white px-4 py-2 flex items-center justify-center text-sm font-medium z-40 lg:top-16">
-      <div className="flex items-center gap-2">
-        <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+    <div
+      role="status"
+      aria-live="polite"
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center px-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
+    >
+      <div className="flex items-center gap-2 rounded-full border border-warning-border bg-warning-soft px-4 py-2 text-meta font-medium text-warning shadow-raised backdrop-blur-sm">
+        <span
+          className="h-2 w-2 shrink-0 rounded-full bg-warning animate-brand-pulse"
+          aria-hidden="true"
+        />
         Você está offline — algumas funcionalidades podem estar limitadas
       </div>
     </div>
