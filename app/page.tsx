@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ChevronRight, Monitor, Settings, Shield, Users, Bell, RefreshCw, LogOut, CheckSquare, Briefcase, ChevronLeft, Star, X as CloseIcon, Handshake, Calendar, KanbanSquare, Megaphone, CalendarRange } from "lucide-react"
+import { ChevronRight, Monitor, Settings, Shield, Users, Bell, RefreshCw, LogOut, CheckSquare, Briefcase, ChevronLeft, Star, X as CloseIcon, Handshake, Calendar, KanbanSquare, Megaphone, CalendarRange, Mail } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { UserProfile } from "@/components/user-profile"
 import ProtectedRouteComponent from "@/components/protected-route"
@@ -21,6 +21,7 @@ import EventosSommaPage from "./eventos/page"
 import EscalaPage from "./escala/page"
 import TarefasPage from "./tarefas/page"
 import PopupsPage from "./popups/page"
+import EmailMarketingPage from "./email-marketing/page"
 import { TarefasFiltersProvider } from "@/lib/context/tarefas-filters-context"
 
 function TacticalDashboard() {
@@ -46,6 +47,7 @@ function TacticalDashboard() {
         crm: hasPermission('crm'),
         tarefas: hasPermission('tarefas'),
         popups: hasPermission('popups'),
+        email: hasPermission('email'),
         insiders: hasPermission('pagamentos'),
         admin: hasPermission('admin'),
       }
@@ -165,6 +167,7 @@ function TacticalDashboard() {
                 { id: "crm", icon: Handshake, label: "CRM", permissionKey: "crm" },
                 { id: "tarefas", icon: KanbanSquare, label: "TAREFAS", permissionKey: "tarefas" },
                 { id: "popups", icon: Megaphone, label: "POP-UPS", permissionKey: "popups" },
+                { id: "email", icon: Mail, label: "E-MAIL MKT", permissionKey: "email" },
                 { id: "insiders", icon: Star, label: "INSIDERS", permissionKey: "insiders" },
               ].map((item) => {
                 const hasAccess = permissions[item.permissionKey] !== false
@@ -262,6 +265,7 @@ function TacticalDashboard() {
                   { id: "crm",           icon: Handshake,    label: "CRM",         permissionKey: "crm" },
                   { id: "tarefas",       icon: KanbanSquare, label: "Tarefas",     permissionKey: "tarefas" },
                   { id: "popups",        icon: Megaphone,    label: "Pop-ups",     permissionKey: "popups" },
+                  { id: "email",         icon: Mail,         label: "E-mail Mkt",  permissionKey: "email" },
                   { id: "systems",       icon: Settings,     label: "Admin",       permissionKey: "admin" },
                 ].filter(m => permissions[m.permissionKey] !== false).map(m => (
                   <button
@@ -352,6 +356,7 @@ function TacticalDashboard() {
             {activeSection === "crm" && permissions.crm && <CRMPage />}
             {activeSection === "tarefas" && permissions.tarefas && <TarefasFiltersProvider><TarefasPage /></TarefasFiltersProvider>}
             {activeSection === "popups" && permissions.popups && <PopupsPage />}
+            {activeSection === "email" && permissions.email && <EmailMarketingPage />}
             {activeSection === "systems" && permissions.admin && <SystemsPage />}
           </div>
         </main>

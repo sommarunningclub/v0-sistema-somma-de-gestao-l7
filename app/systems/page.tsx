@@ -23,6 +23,7 @@ interface ModulePermissions {
   crm: boolean
   tarefas: boolean
   popups: boolean
+  email: boolean
   admin: boolean
 }
 
@@ -46,6 +47,7 @@ const DEFAULT_PERMISSIONS: ModulePermissions = {
   crm: false,
   tarefas: false,
   popups: false,
+  email: false,
   admin: false,
 }
 
@@ -59,6 +61,7 @@ const MODULE_LABELS: Record<keyof ModulePermissions, string> = {
   crm: "CRM",
   tarefas: "Tarefas",
   popups: "Pop-ups",
+  email: "E-mail Marketing",
   admin: "Administração",
 }
 
@@ -141,6 +144,7 @@ export default function AdminPage() {
           crm: true,
           tarefas: true,
           popups: true,
+          email: true,
           admin: true,
         }
       }
@@ -262,6 +266,7 @@ export default function AdminPage() {
           crm: true,
           tarefas: true,
           popups: true,
+          email: true,
           admin: true,
         }
       }
