@@ -37,6 +37,14 @@ function jsonResponse(body: unknown, ok = true) {
   return { ok, json: async () => body } as Response
 }
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((res) => {
+    resolve = res
+  })
+  return { promise, resolve }
+}
+
 function setupFetchMock() {
   mockedApiFetch.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
@@ -130,6 +138,65 @@ describe('EmailAudiencePicker', () => {
     )
     await waitFor(() => expect(screen.getByText('0 destinatários únicos')).toBeTruthy())
     expect(screen.queryByText('Calculando...')).toBeNull()
+  })
+
+  it('descarta resposta de preview desatualizada que chegue fora de ordem', async () => {
+    const onChange = jest.fn()
+    const deferreds: Array<ReturnType<typeof createDeferred<Response>>> = []
+
+    // Substitui o mock padrão: GET continua respondendo na hora, mas o POST
+    // de preview devolve uma promise controlada manualmente pelo teste, para
+    // simular duas requisições em voo ao mesmo tempo, resolvidas fora de ordem.
+    mockedApiFetch.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      const method = init?.method ?? 'GET'
+      if (url === '/api/email-audiences/preview' && method === 'GET') return jsonResponse({ sources: SOURCES })
+      if (url === '/api/eventos/ativos') return jsonResponse({ proximos_eventos: [], historico: [] })
+      if (url === '/api/email-audiences/preview' && method === 'POST') {
+        const deferred = createDeferred<Response>()
+        deferreds.push(deferred)
+        return deferred.promise
+      }
+      throw new Error(`unexpected apiFetch call: ${method} ${url}`)
+    })
+
+    const { rerender } = render(<EmailAudiencePicker value={{ bases: [] }} onChange={onChange} />)
+    await waitFor(() => expect(screen.getByText('Membros do clube')).toBeTruthy())
+
+    // Requisição 1 (vai ficar "mais lenta"): só a base "membros".
+    rerender(<EmailAudiencePicker value={{ bases: [{ key: 'membros', filtros: {} }] }} onChange={onChange} />)
+    await act(async () => {
+      jest.advanceTimersByTime(500)
+    })
+
+    // Requisição 2 (a mais recente): "membros" + "checkins".
+    rerender(
+      <EmailAudiencePicker
+        value={{ bases: [{ key: 'membros', filtros: {} }, { key: 'checkins', filtros: {} }] }}
+        onChange={onChange}
+      />,
+    )
+    await act(async () => {
+      jest.advanceTimersByTime(500)
+    })
+
+    expect(deferreds).toHaveLength(2)
+
+    // Resolve a requisição 2 (mais recente) primeiro, e só depois a 1
+    // (desatualizada) — exatamente o cenário de corrida da revisão.
+    await act(async () => {
+      deferreds[1].resolve(jsonResponse({ total: 14, porBase: { membros: 7, checkins: 7 } }))
+    })
+    await waitFor(() => expect(screen.getByText('14 destinatários únicos')).toBeTruthy())
+
+    await act(async () => {
+      deferreds[0].resolve(jsonResponse({ total: 7, porBase: { membros: 7 } }))
+    })
+
+    // A resposta desatualizada não pode sobrescrever o resultado correto,
+    // mesmo chegando depois.
+    expect(screen.getByText('14 destinatários únicos')).toBeTruthy()
+    expect(screen.queryByText('7 destinatários únicos')).toBeNull()
   })
 
   it('expande os filtros declarados quando a base com filtros é selecionada', async () => {

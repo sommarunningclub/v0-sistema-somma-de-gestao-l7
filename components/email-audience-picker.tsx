@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Users } from 'lucide-react'
 import { apiFetch } from '@/lib/api-client'
 import { PageLoading } from '@/components/ui/page-loading'
@@ -29,6 +29,12 @@ export default function EmailAudiencePicker({ value, onChange, onTotalChange }: 
   const [previewLoading, setPreviewLoading] = useState(false)
   const [total, setTotal] = useState(0)
   const [porBase, setPorBase] = useState<Record<string, number>>({})
+  // Gera um "número de série" por requisição de preview disparada, para
+  // descartar respostas desatualizadas que cheguem fora de ordem (ex.: o
+  // usuário marca a base A, espera o debounce disparar, depois marca a base
+  // B antes da resposta de A voltar — se a resposta de A chegar DEPOIS da de
+  // B, não pode sobrescrever a contagem já atualizada).
+  const requestIdRef = useRef(0)
 
   const loadSources = async () => {
     setLoading(true)
@@ -68,6 +74,7 @@ export default function EmailAudiencePicker({ value, onChange, onTotalChange }: 
   // Recalcula a contagem ao vivo, com debounce de 500ms, sempre que a seleção muda.
   useEffect(() => {
     if (value.bases.length === 0) {
+      requestIdRef.current += 1 // invalida qualquer requisição em voo
       setTotal(0)
       setPorBase({})
       setPreviewLoading(false)
@@ -77,21 +84,29 @@ export default function EmailAudiencePicker({ value, onChange, onTotalChange }: 
 
     setPreviewLoading(true)
     const timer = setTimeout(async () => {
+      // Captura o número de série ANTES do fetch — se outra requisição
+      // disparar enquanto esta está em voo, `requestIdRef.current` avança e
+      // essa comparação abaixo passa a falhar, então a resposta é descartada.
+      const requestId = ++requestIdRef.current
       try {
         const res = await apiFetch('/api/email-audiences/preview', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(value),
         })
-        if (!res.ok) return
-        const data = await res.json()
+        const data = res.ok ? await res.json() : null
+        if (requestId !== requestIdRef.current) return // resposta desatualizada — ignora
+        if (!data) return
         setTotal(data.total ?? 0)
         setPorBase(data.porBase ?? {})
         onTotalChange?.(data.total ?? 0)
       } catch {
         // silencioso — mantém a última contagem conhecida
       } finally {
-        setPreviewLoading(false)
+        // Só a requisição mais recente pode encerrar o estado de carregamento
+        // — senão uma resposta lenta e desatualizada poderia "destravar" a UI
+        // antes da resposta de verdade (a mais nova) voltar.
+        if (requestId === requestIdRef.current) setPreviewLoading(false)
       }
     }, 500)
 
