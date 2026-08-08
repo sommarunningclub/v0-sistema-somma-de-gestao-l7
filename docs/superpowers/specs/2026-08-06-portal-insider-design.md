@@ -160,6 +160,34 @@ Unitários (jest):
 
 Verificação manual contra o banco real, ao fim de cada fatia, no mesmo formato da bateria de `/insider`: login correto, senha errada, CPF inexistente (mesma mensagem), rate limit, benefícios corretos por pessoa, e ausência da anotação interna.
 
+## Emenda de 2026-08-08 — ajustes pedidos após ver o portal rodando
+
+Três mudanças decididas pelo usuário depois de navegar na Fatia 1. Substituem o que estava definido acima onde houver conflito.
+
+### 1. Quem existe na base mas não tem senha cria a senha e entra
+
+Antes: caía no formulário de cadastro completo. Agora: tela curta com senha e confirmação, sob a nota "Encontramos seu cadastro. Crie uma senha para acessar seu perfil". Ao salvar, a sessão é emitida e a pessoa vai direto ao painel. Vale hoje para 14 dos 35 Insiders.
+
+Rota nova `POST /api/insiders/criar-senha`, pública no middleware, com rate limit de 5/min:
+- Localiza pelo CPF com `cpfCandidates`.
+- **Recusa se já houver credencial** — nesse caso o caminho é o login. Responde 409 com `{ error: 'Este cadastro já tem senha. Use a opção de entrar.' }`.
+- Aplica `validateSenha`, grava com `hashPassword` e emite o cookie de sessão.
+- CPF ausente e demais falhas respondem a mesma mensagem genérica, pelo mesmo motivo do login.
+
+**Risco aceito e registrado:** tomar posse de um cadastro sem senha passa de "preencher 13 campos" para "preencher 2". A exposição já existia pela rota de cadastro — muda a conveniência, não a natureza. Mitigação disponível se o usuário quiser depois: exigir a data de nascimento já gravada como conferência antes de aceitar a senha.
+
+O link "Prefiro atualizar meus dados sem entrar" continua disponível nessa tela.
+
+### 2. O painel mostra as sete parcerias, sempre
+
+Antes: cartões sem valor eram escondidos. Agora todos aparecem; os que a pessoa não tem ficam esmaecidos com "Não incluído". Motivo: quem tem poucos benefícios via uma tela quase vazia sem entender o porquê, e o programa inteiro deixa de ser visível.
+
+`montarBeneficios` não muda — quem decide exibir é o componente, usando `disponivel` para o estilo em vez de para filtrar.
+
+### 3. Foto do perfil no painel
+
+O `foto_url` já vem do banco e já é devolvido pela API, mas nenhum componente o renderizava. Passa a aparecer no cabeçalho, ao lado da saudação. Sem foto cadastrada, mostra as iniciais do nome num círculo com o laranja da marca — nunca um espaço quebrado.
+
 ## Achados da Fatia 1 que a Fatia 2 precisa resolver
 
 Levantados na revisão final da Fatia 1 (2026-08-06). Nenhum bloqueou aquele merge; todos passam a importar quando a Fatia 2 adicionar escrita.
