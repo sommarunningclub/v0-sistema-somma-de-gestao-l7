@@ -32,7 +32,6 @@ const ROUTE_PERMISSIONS: Array<{ pattern: RegExp; permission: PermissionKey }> =
   { pattern: /^\/api\/admin\//, permission: 'admin' },
   { pattern: /^\/api\/checkin/, permission: 'checkin' },
   { pattern: /^\/api\/escala/, permission: 'escala' },
-  { pattern: /^\/api\/asaas/, permission: 'pagamentos' },
   { pattern: /^\/api\/clicksign/, permission: 'pagamentos' },
   { pattern: /^\/api\/crm/, permission: 'crm' },
   { pattern: /^\/api\/tarefas/, permission: 'tarefas' },
@@ -42,7 +41,6 @@ const ROUTE_PERMISSIONS: Array<{ pattern: RegExp; permission: PermissionKey }> =
   { pattern: /^\/api\/partner-codes/, permission: 'parceiro' },
   { pattern: /^\/api\/insider/, permission: 'pagamentos' },
   { pattern: /^\/api\/coupons/, permission: 'pagamentos' },
-  { pattern: /^\/api\/payments/, permission: 'pagamentos' },
 ]
 
 export function getRequiredPermission(pathname: string): PermissionKey | null {

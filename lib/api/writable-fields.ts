@@ -29,16 +29,6 @@ const MEMBER_COLUMNS = [
   'whatsapp',
 ] as const
 
-const CHARGE_COLUMNS = [
-  'membro_id',
-  'valor',
-  'data_vencimento',
-  'descricao',
-  'status',
-  'asaas_payment_id',
-  'data_pagamento',
-] as const
-
 const INSIDER_COLUMNS = [
   'nome',
   'cpf',
@@ -52,5 +42,4 @@ const INSIDER_COLUMNS = [
 ] as const
 
 export const pickMemberFields = (body: unknown) => pick(body, MEMBER_COLUMNS)
-export const pickChargeFields = (body: unknown) => pick(body, CHARGE_COLUMNS)
 export const pickInsiderFields = (body: unknown) => pick(body, INSIDER_COLUMNS)

@@ -1,6 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
+
+/*
+ * Este endpoint NÃO faz parte do painel — é o ponto de entrada que o Asaas
+ * chama para notificar eventos de pagamento. Ele apenas RECEBE e grava em
+ * `webhook_events` e `payments`; nunca consulta a API do Asaas.
+ *
+ * Toda a camada Asaas do admin (proxy, serviços, tipos, telas de cobrança) foi
+ * removida por decisão de produto. Este arquivo permanece de propósito: apagá-lo
+ * faria o Asaas receber 404 e o registro de pagamentos deixaria de existir em
+ * silêncio. Antes de removê-lo, desative a notificação no painel do Asaas.
+ */
+
 export async function POST(request: NextRequest) {
   const webhookToken = process.env.ASAAS_WEBHOOK_TOKEN
   if (webhookToken) {

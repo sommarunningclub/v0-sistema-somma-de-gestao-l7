@@ -123,14 +123,3 @@ export type Professor = {
   updated_at: string;
 };
 
-export type ProfessorClient = {
-  id: string;
-  professor_id: string;
-  asaas_customer_id: string;
-  customer_name: string;
-  customer_email: string;
-  status: "active" | "inactive";
-  linked_at: string;
-  unlinked_at: string | null;
-  tag?: string;
-};
