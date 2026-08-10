@@ -70,6 +70,7 @@ export default function EmailContentForm({
   const showEventoFields = templateKey === 'evento'
 
   return (
+    <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:items-start">
     <div className="space-y-5">
       {/* Nome interno */}
       <div>
@@ -180,7 +181,7 @@ export default function EmailContentForm({
 
       {/* Data e local (evento) */}
       {showEventoFields && (
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label className={labelClass}>Data</label>
             <input
@@ -207,7 +208,7 @@ export default function EmailContentForm({
       {/* CTA */}
       <div>
         <label className={labelClass}>Botão de ação (CTA)</label>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <input
             type="text"
             value={ctaLabel}
@@ -228,7 +229,7 @@ export default function EmailContentForm({
         </p>
       </div>
 
-      {/* Salvar rascunho + preview */}
+      {/* Salvar rascunho */}
       <div className="pt-2 border-t border-neutral-800 space-y-3">
         {saveError && <p className="text-xs text-red-400">{saveError}</p>}
         <button
@@ -240,25 +241,27 @@ export default function EmailContentForm({
           {saving && <Loader2 className="w-4 h-4 animate-spin" />}
           Salvar rascunho e atualizar preview
         </button>
-
-        <div>
-          <label className={labelClass}>Preview</label>
-          {previewHtml ? (
-            <iframe
-              srcDoc={previewHtml}
-              title="Preview do e-mail"
-              sandbox=""
-              className="w-full h-96 bg-white rounded-lg border border-neutral-700"
-            />
-          ) : (
-            <div className="w-full h-32 flex items-center justify-center bg-neutral-900 border border-dashed border-neutral-700 rounded-lg">
-              <p className="text-xs text-neutral-600">
-                Salve o rascunho para ver o preview aqui.
-              </p>
-            </div>
-          )}
-        </div>
       </div>
+    </div>
+
+    {/* Preview */}
+    <div className="lg:sticky lg:top-0">
+      <label className={labelClass}>Preview</label>
+      {previewHtml ? (
+        <iframe
+          srcDoc={previewHtml}
+          title="Preview do e-mail"
+          sandbox=""
+          className="w-full h-[50vh] min-h-[16rem] lg:h-full lg:min-h-[24rem] bg-white rounded-lg border border-neutral-700"
+        />
+      ) : (
+        <div className="w-full h-[50vh] min-h-[16rem] lg:h-full lg:min-h-[24rem] flex items-center justify-center bg-neutral-900 border border-dashed border-neutral-700 rounded-lg">
+          <p className="text-xs text-neutral-600">
+            Salve o rascunho para ver o preview aqui.
+          </p>
+        </div>
+      )}
+    </div>
     </div>
   )
 }
