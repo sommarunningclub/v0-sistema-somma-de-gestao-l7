@@ -1,7 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { X, Loader2, ChevronLeft, ChevronRight, Send, Mail } from 'lucide-react'
+import { Loader2, ChevronLeft, ChevronRight, Send } from 'lucide-react'
+import { ResponsiveModal } from '@/components/somma'
 import { apiFetch } from '@/lib/api-client'
 import EmailAudiencePicker from './email-audience-picker'
 import EmailContentForm from './email-content-form'
@@ -35,6 +36,81 @@ const TEMPLATE_LABELS: Record<TemplateKey, string> = {
 }
 
 const labelClass = 'block text-xs text-neutral-400 mb-1.5 font-medium'
+
+function Stepper({ step }: { step: number }) {
+  return (
+    <div className="flex items-center gap-2 pt-1">
+      {STEPS.map((s, idx) => (
+        <div key={s.id} className="flex items-center flex-1 last:flex-none">
+          <div className="flex items-center gap-2">
+            <div
+              className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0 ${
+                step === s.id
+                  ? 'bg-orange-500 text-black'
+                  : step > s.id
+                  ? 'bg-orange-500/30 text-orange-400'
+                  : 'bg-neutral-800 text-neutral-500'
+              }`}
+            >
+              {s.id}
+            </div>
+            <span
+              className={`text-xs font-medium ${step === s.id ? 'inline' : 'hidden sm:inline'} ${
+                step === s.id ? 'text-white' : 'text-neutral-500'
+              }`}
+            >
+              {s.label}
+            </span>
+          </div>
+          {idx < STEPS.length - 1 && <div className="flex-1 h-px bg-neutral-800 mx-2" />}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function WizardFooter({
+  step,
+  saving,
+  audience,
+  canGoStep2To3,
+  onBack,
+  onNext,
+}: {
+  step: number
+  saving: boolean
+  audience: AudienceSelection
+  canGoStep2To3: boolean
+  onBack: () => void
+  onNext: () => void
+}) {
+  return (
+    <div className="flex gap-3">
+      <button
+        onClick={onBack}
+        className="w-full sm:w-auto flex-1 py-2.5 rounded-lg bg-neutral-800 text-neutral-300 hover:text-white hover:bg-neutral-700 transition-colors text-sm font-medium flex items-center justify-center gap-1.5"
+      >
+        {step > 1 && <ChevronLeft className="w-4 h-4" />}
+        {step === 1 ? 'Cancelar' : 'Voltar'}
+      </button>
+      {step < 4 && (
+        <button
+          onClick={onNext}
+          disabled={
+            (step === 1 && audience.bases.length === 0) ||
+            (step === 2 && (!canGoStep2To3 || saving)) ||
+            saving
+          }
+          className="w-full sm:w-auto flex-1 py-2.5 rounded-lg bg-orange-500 text-black font-semibold text-sm hover:bg-orange-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+        >
+          {saving && step === 2 ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+          Próximo
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      )}
+    </div>
+  )
+}
 
 export default function EmailCampaignModal({ campaign, onClose, onSaved }: EmailCampaignModalProps) {
   const [step, setStep] = useState(1)
@@ -257,56 +333,27 @@ export default function EmailCampaignModal({ campaign, onClose, onSaved }: Email
   const selectedBaseLabels = audience.bases.map((b) => AUDIENCE_LABELS[b.key] ?? b.key)
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 p-4"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
+    <ResponsiveModal
+      open
+      onOpenChange={(next) => {
+        if (!next) onClose()
       }}
+      size="xl"
+      dismissible={false}
+      title={campaign ? 'Editar campanha' : 'Nova campanha'}
+      description={<Stepper step={step} />}
+      footer={
+        <WizardFooter
+          step={step}
+          saving={saving}
+          audience={audience}
+          canGoStep2To3={Boolean(canGoStep2To3)}
+          onBack={() => (step === 1 ? onClose() : setStep((s) => s - 1))}
+          onNext={step === 1 ? goToStep2 : step === 2 ? goToStep3 : () => setStep(4)}
+        />
+      }
     >
-      <div className="bg-neutral-950 border border-neutral-800 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-neutral-800 sticky top-0 bg-neutral-950 z-10">
-          <div className="flex items-center gap-2">
-            <Mail className="w-5 h-5 text-orange-400" />
-            <h2 className="font-semibold text-white">
-              {campaign ? 'Editar campanha' : 'Nova campanha'}
-            </h2>
-          </div>
-          <button onClick={onClose} className="p-1 text-neutral-500 hover:text-white transition-colors rounded">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Step indicator */}
-        <div className="flex items-center gap-2 px-5 pt-4">
-          {STEPS.map((s, idx) => (
-            <div key={s.id} className="flex items-center flex-1 last:flex-none">
-              <div className="flex items-center gap-2">
-                <div
-                  className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold flex-shrink-0 ${
-                    step === s.id
-                      ? 'bg-orange-500 text-black'
-                      : step > s.id
-                      ? 'bg-orange-500/30 text-orange-400'
-                      : 'bg-neutral-800 text-neutral-500'
-                  }`}
-                >
-                  {s.id}
-                </div>
-                <span
-                  className={`text-xs font-medium hidden sm:inline ${
-                    step === s.id ? 'text-white' : 'text-neutral-500'
-                  }`}
-                >
-                  {s.label}
-                </span>
-              </div>
-              {idx < STEPS.length - 1 && <div className="flex-1 h-px bg-neutral-800 mx-2" />}
-            </div>
-          ))}
-        </div>
-
-        <div className="p-5 space-y-5">
+      <div className="space-y-5">
           {step === 1 && <EmailAudiencePicker value={audience} onChange={setAudience} onTotalChange={handleTotalChange} />}
 
           {step === 2 && (
@@ -440,34 +487,7 @@ export default function EmailCampaignModal({ campaign, onClose, onSaved }: Email
               </button>
             </div>
           )}
-        </div>
-
-        {/* Footer navigation */}
-        <div className="p-5 border-t border-neutral-800 flex gap-3">
-          <button
-            onClick={() => (step === 1 ? onClose() : setStep((s) => s - 1))}
-            className="flex-1 py-2.5 rounded-lg bg-neutral-800 text-neutral-300 hover:text-white hover:bg-neutral-700 transition-colors text-sm font-medium flex items-center justify-center gap-1.5"
-          >
-            {step > 1 && <ChevronLeft className="w-4 h-4" />}
-            {step === 1 ? 'Cancelar' : 'Voltar'}
-          </button>
-          {step < 4 && (
-            <button
-              onClick={step === 1 ? goToStep2 : step === 2 ? goToStep3 : () => setStep(4)}
-              disabled={
-                (step === 1 && audience.bases.length === 0) ||
-                (step === 2 && (!canGoStep2To3 || saving)) ||
-                saving
-              }
-              className="flex-1 py-2.5 rounded-lg bg-orange-500 text-black font-semibold text-sm hover:bg-orange-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
-            >
-              {saving && step === 2 ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              Próximo
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          )}
-        </div>
       </div>
-    </div>
+    </ResponsiveModal>
   )
 }
