@@ -83,4 +83,35 @@ describe('withContentRules', () => {
     })
     expect(result.success).toBe(false)
   })
+
+  // PATCH parcial não manda `template_key` junto de um `content` "vazio" — o
+  // guard antigo só olhava `template_key`, então `{"content":{}}` sozinho
+  // escapava sem validação e sobrescrevia o conteúdo salvo com um objeto
+  // vazio. Ver relatório final da revisão de branch (C2).
+  it('rejeita PATCH com content vazio, mesmo sem template_key no payload', () => {
+    const result = patchSchema.safeParse({ content: {} })
+    expect(result.success).toBe(false)
+  })
+
+  it('rejeita PATCH só com template_key (sem content resolver para um corpo válido já no payload)', () => {
+    // Sem content no payload, não há como a validação de payload isolado
+    // saber que o conteúdo salvo é insuficiente para o novo template — mas
+    // pelo menos não deve lançar/quebrar: o render de html_custom trata
+    // `content.html` ausente como string vazia (renderiza só o rodapé, não
+    // lança). O ponto crítico (C2) é `{"content":{}}`, coberto acima.
+    const result = patchSchema.safeParse({ template_key: 'html_custom' })
+    expect(result.success).toBe(true)
+  })
+
+  it('aceita PATCH parcial legítimo que só muda subject', () => {
+    const result = patchSchema.safeParse({ subject: 'Assunto novo' })
+    expect(result.success).toBe(true)
+  })
+
+  it('aceita PATCH parcial legítimo com content completo (titulo+texto)', () => {
+    const result = patchSchema.safeParse({
+      content: { titulo: 'Título', texto: 'Texto' },
+    })
+    expect(result.success).toBe(true)
+  })
 })

@@ -84,24 +84,43 @@ export const campaignFieldsSchema = z.object({
 export function withContentRules<T extends z.ZodTypeAny>(schema: T) {
   return schema.superRefine((data: any, ctx: z.RefinementCtx) => {
     // Só valida a combinação quando o template veio no payload (o PATCH é parcial).
-    if (!data?.template_key || !data?.content) return
+    if (data?.template_key && data?.content) {
+      if (data.template_key === 'html_custom') {
+        if (!data.content.html?.trim()) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['content', 'html'],
+            message: 'Envie um arquivo HTML',
+          })
+        }
+        return
+      }
 
-    if (data.template_key === 'html_custom') {
-      if (!data.content.html?.trim()) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['content', 'html'],
-          message: 'Envie um arquivo HTML',
-        })
+      if (!data.content.titulo?.trim()) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['content', 'titulo'], message: 'Título obrigatório' })
+      }
+      if (!data.content.texto?.trim()) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['content', 'texto'], message: 'Texto obrigatório' })
       }
       return
     }
 
-    if (!data.content.titulo?.trim()) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['content', 'titulo'], message: 'Título obrigatório' })
-    }
-    if (!data.content.texto?.trim()) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['content', 'texto'], message: 'Texto obrigatório' })
+    // PATCH parcial: `content` pode vir sem `template_key` (ou vice-versa).
+    // Ainda assim, se `content` veio no payload, ele precisa resolver para um
+    // corpo válido — `html` OU `titulo`+`texto` — senão um PATCH parcial como
+    // `{"content":{}}` grava um conteúdo vazio por cima do que já existia,
+    // deixando a campanha presa em "enviando" quando o disparo tentar
+    // renderizar um template sem título/texto (ver validation.ts históricos).
+    if (data?.content !== undefined) {
+      const hasHtml = !!data.content?.html?.trim()
+      const hasTituloTexto = !!data.content?.titulo?.trim() && !!data.content?.texto?.trim()
+      if (!hasHtml && !hasTituloTexto) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['content'],
+          message: 'Conteúdo incompleto: envie html ou título e texto',
+        })
+      }
     }
   })
 }
