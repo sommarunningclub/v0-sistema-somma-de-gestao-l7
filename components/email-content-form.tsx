@@ -1,7 +1,10 @@
 'use client'
 
-import { Loader2 } from 'lucide-react'
+import { useState } from 'react'
+import { Loader2, X } from 'lucide-react'
 import type { TemplateFields, TemplateKey } from '@/lib/email/templates'
+
+const HTML_FILE_LIMIT_BYTES = 100 * 1024
 
 interface EmailContentFormProps {
   nome: string
@@ -40,6 +43,11 @@ const TEMPLATE_OPTIONS: Array<{ value: TemplateKey; label: string; description: 
     label: 'Evento',
     description: 'Como o anúncio, mas com data e local em destaque.',
   },
+  {
+    value: 'html_custom',
+    label: 'HTML próprio',
+    description: 'Suba um arquivo .html pronto.',
+  },
 ]
 
 const fieldClass =
@@ -68,6 +76,30 @@ export default function EmailContentForm({
 }: EmailContentFormProps) {
   const showImagem = templateKey === 'anuncio' || templateKey === 'evento'
   const showEventoFields = templateKey === 'evento'
+  const isHtmlCustom = templateKey === 'html_custom'
+
+  const [fileName, setFileName] = useState<string | null>(null)
+  const [fileSize, setFileSize] = useState<number | null>(null)
+  const [fileError, setFileError] = useState<string | null>(null)
+
+  async function handleFile(file: File) {
+    if (file.size > HTML_FILE_LIMIT_BYTES) {
+      setFileError('O arquivo tem mais de 100 KB. O Gmail corta e-mails desse tamanho.')
+      return
+    }
+    const texto = await file.text()
+    setFileError(null)
+    onContentChange({ html: texto })
+    setFileName(file.name)
+    setFileSize(file.size)
+  }
+
+  function handleRemoveFile() {
+    onContentChange({ html: '' })
+    setFileName(null)
+    setFileSize(null)
+    setFileError(null)
+  }
 
   return (
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 lg:items-start">
@@ -90,7 +122,7 @@ export default function EmailContentForm({
       {/* Template */}
       <div>
         <label className={labelClass}>Template</label>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
           {TEMPLATE_OPTIONS.map((opt) => (
             <button
               key={opt.value}
@@ -139,34 +171,76 @@ export default function EmailContentForm({
         />
       </div>
 
+      {/* HTML próprio */}
+      {isHtmlCustom && (
+        <div>
+          <label className={labelClass}>
+            Arquivo HTML <span className="text-red-400">*</span>
+          </label>
+          <input
+            type="file"
+            accept=".html,text/html"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) handleFile(file)
+              e.target.value = ''
+            }}
+            className={`${fieldClass} file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:bg-neutral-800 file:text-white file:text-xs`}
+          />
+          {fileError && <p className="text-xs text-red-400 mt-1">{fileError}</p>}
+          {fileName && !fileError && (
+            <div className="flex items-center justify-between mt-2 bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2">
+              <span className="text-xs text-neutral-300">
+                {fileName} · {((fileSize ?? 0) / 1024).toFixed(1)} KB
+              </span>
+              <button
+                type="button"
+                onClick={handleRemoveFile}
+                className="text-neutral-500 hover:text-white transition-colors"
+                aria-label="Remover arquivo"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+          {content.html && !fileName && (
+            <p className="text-xs text-neutral-500 mt-1">Arquivo já carregado anteriormente.</p>
+          )}
+        </div>
+      )}
+
       {/* Título e texto */}
-      <div>
-        <label className={labelClass}>
-          Título <span className="text-red-400">*</span>
-        </label>
-        <input
-          type="text"
-          value={content.titulo}
-          onChange={(e) => onContentChange({ titulo: e.target.value })}
-          placeholder="Título em destaque no corpo do e-mail"
-          className={fieldClass}
-        />
-      </div>
-      <div>
-        <label className={labelClass}>
-          Texto <span className="text-red-400">*</span>
-        </label>
-        <textarea
-          value={content.texto}
-          onChange={(e) => onContentChange({ texto: e.target.value })}
-          rows={5}
-          placeholder="Corpo do e-mail"
-          className={fieldClass}
-        />
-      </div>
+      {!isHtmlCustom && (
+        <>
+        <div>
+          <label className={labelClass}>
+            Título <span className="text-red-400">*</span>
+          </label>
+          <input
+            type="text"
+            value={content.titulo}
+            onChange={(e) => onContentChange({ titulo: e.target.value })}
+            placeholder="Título em destaque no corpo do e-mail"
+            className={fieldClass}
+          />
+        </div>
+        <div>
+          <label className={labelClass}>
+            Texto <span className="text-red-400">*</span>
+          </label>
+          <textarea
+            value={content.texto}
+            onChange={(e) => onContentChange({ texto: e.target.value })}
+            rows={5}
+            placeholder="Corpo do e-mail"
+            className={fieldClass}
+          />
+        </div>
+        </>
+      )}
 
       {/* Imagem (anúncio/evento) */}
-      {showImagem && (
+      {showImagem && !isHtmlCustom && (
         <div>
           <label className={labelClass}>URL da imagem</label>
           <input
@@ -206,6 +280,7 @@ export default function EmailContentForm({
       )}
 
       {/* CTA */}
+      {!isHtmlCustom && (
       <div>
         <label className={labelClass}>Botão de ação (CTA)</label>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -228,6 +303,7 @@ export default function EmailContentForm({
           Os dois campos são necessários para o botão aparecer no e-mail.
         </p>
       </div>
+      )}
 
       {/* Salvar rascunho */}
       <div className="pt-2 border-t border-neutral-800 space-y-3">

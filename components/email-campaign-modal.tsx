@@ -33,6 +33,7 @@ const TEMPLATE_LABELS: Record<TemplateKey, string> = {
   anuncio: 'Anúncio',
   simples: 'Simples',
   evento: 'Evento',
+  html_custom: 'HTML próprio',
 }
 
 const labelClass = 'block text-xs text-neutral-400 mb-1.5 font-medium'
@@ -225,7 +226,12 @@ export default function EmailCampaignModal({ campaign, onClose, onSaved }: Email
     setStep(3)
   }
 
-  const canGoStep2To3 = nome.trim().length >= 2 && subject.trim().length >= 2 && content.titulo.trim() && content.texto.trim()
+  const conteudoValido =
+    templateKey === 'html_custom'
+      ? Boolean(content.html?.trim())
+      : Boolean(content.titulo?.trim() && content.texto?.trim())
+
+  const canGoStep2To3 = nome.trim().length >= 2 && subject.trim().length >= 2 && conteudoValido
 
   const handleSendTest = async () => {
     if (!campaignId || !testEmail.trim()) return
