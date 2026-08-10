@@ -252,10 +252,10 @@ export default function EmailContentForm({
           srcDoc={previewHtml}
           title="Preview do e-mail"
           sandbox=""
-          className="w-full h-[50vh] min-h-[16rem] lg:h-full lg:min-h-[24rem] bg-white rounded-lg border border-neutral-700"
+          className="w-full h-[50vh] min-h-[16rem] lg:h-[calc(100dvh-22rem)] lg:min-h-[24rem] bg-white rounded-lg border border-neutral-700"
         />
       ) : (
-        <div className="w-full h-[50vh] min-h-[16rem] lg:h-full lg:min-h-[24rem] flex items-center justify-center bg-neutral-900 border border-dashed border-neutral-700 rounded-lg">
+        <div className="w-full h-[50vh] min-h-[16rem] lg:h-[calc(100dvh-22rem)] lg:min-h-[24rem] flex items-center justify-center bg-neutral-900 border border-dashed border-neutral-700 rounded-lg">
           <p className="text-xs text-neutral-600">
             Salve o rascunho para ver o preview aqui.
           </p>
