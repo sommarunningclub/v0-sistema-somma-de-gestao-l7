@@ -5,7 +5,8 @@ import { Users } from 'lucide-react'
 import { apiFetch } from '@/lib/api-client'
 import { PageLoading } from '@/components/ui/page-loading'
 import { ErrorBanner } from '@/components/ui/error-banner'
-import type { AudienceKey, AudienceSelection } from '@/lib/email/types'
+import { EmailIndividualPicker } from '@/components/email-individual-picker'
+import type { AudienceIndividual, AudienceKey, AudienceSelection } from '@/lib/email/types'
 import type { AudienceSource } from '@/lib/email/audiences'
 
 interface EventoOption {
@@ -73,7 +74,7 @@ export default function EmailAudiencePicker({ value, onChange, onTotalChange }: 
 
   // Recalcula a contagem ao vivo, com debounce de 500ms, sempre que a seleção muda.
   useEffect(() => {
-    if (value.bases.length === 0) {
+    if (value.bases.length === 0 && (value.individuais ?? []).length === 0) {
       requestIdRef.current += 1 // invalida qualquer requisição em voo
       setTotal(0)
       setPorBase({})
@@ -119,14 +120,18 @@ export default function EmailAudiencePicker({ value, onChange, onTotalChange }: 
     const bases = exists
       ? value.bases.filter((b) => b.key !== key)
       : [...value.bases, { key, filtros: {} }]
-    onChange({ bases })
+    onChange({ ...value, bases })
   }
 
   const setFilter = (key: AudienceKey, filterKey: string, filterValue: string) => {
     const bases = value.bases.map((b) =>
       b.key === key ? { ...b, filtros: { ...b.filtros, [filterKey]: filterValue } } : b,
     )
-    onChange({ bases })
+    onChange({ ...value, bases })
+  }
+
+  const setIndividuais = (individuais: AudienceIndividual[]) => {
+    onChange({ ...value, individuais })
   }
 
   if (loading) return <PageLoading label="Carregando bases de audiência..." />
@@ -214,6 +219,11 @@ export default function EmailAudiencePicker({ value, onChange, onTotalChange }: 
             </div>
           )
         })}
+      </div>
+
+      <div className="space-y-2">
+        <p className="text-sm font-medium text-white">Ou envie para pessoas específicas</p>
+        <EmailIndividualPicker value={value.individuais ?? []} onChange={setIndividuais} />
       </div>
 
       <div className="rounded-lg border border-neutral-700 bg-neutral-900 p-4 flex items-start gap-3">
