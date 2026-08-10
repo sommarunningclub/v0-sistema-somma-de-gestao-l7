@@ -9,10 +9,11 @@ import {
   paragraphs,
   preheaderBlock,
 } from './shared'
+import { renderHtmlCustom } from '../html-custom'
 
 export { escapeHtml }
 
-export const TEMPLATE_KEYS = ['anuncio', 'simples', 'evento'] as const
+export const TEMPLATE_KEYS = ['anuncio', 'simples', 'evento', 'html_custom'] as const
 export type TemplateKey = (typeof TEMPLATE_KEYS)[number]
 
 export interface TemplateFields {
@@ -21,6 +22,8 @@ export interface TemplateFields {
   imagem_url?: string
   data?: string
   local?: string
+  /** Só para o template `html_custom`. */
+  html?: string
 }
 
 export interface RenderArgs {
@@ -48,6 +51,17 @@ function metaRow(label: string, value: string | undefined): string {
 
 export function renderTemplate(args: RenderArgs): string {
   const { templateKey, subject, preheader, content, ctaLabel, ctaUrl, nome, unsubscribeUrl } = args
+
+  if (templateKey === 'html_custom') {
+    // O HTML do usuário já é o documento inteiro — envolvê-lo no `document()`
+    // dos outros templates criaria <html> dentro de <html>.
+    return renderHtmlCustom({
+      html: content.html ?? '',
+      nome,
+      preheader,
+      unsubscribeUrl,
+    })
+  }
 
   let body = ''
 

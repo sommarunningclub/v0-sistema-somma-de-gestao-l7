@@ -56,14 +56,52 @@ export const campaignFieldsSchema = z.object({
   subject: z.string().min(2, 'Assunto muito curto').max(200),
   preheader: z.string().max(200).nullable().optional(),
   content: z.object({
-    titulo: z.string().min(1, 'Título obrigatório').max(200),
-    texto: z.string().min(1, 'Texto obrigatório').max(5000),
+    // `titulo`/`texto` são obrigatórios para os templates padrão e
+    // dispensados para `html_custom` — a regra por tipo vive em
+    // `withContentRules`, aplicada depois de `.partial()`/`.strict()` em
+    // cada call site (ver comentário abaixo).
+    titulo: z.string().max(200).optional(),
+    texto: z.string().max(5000).optional(),
     imagem_url: httpUrlSchema.optional(),
     data: z.string().max(120).optional(),
     local: z.string().max(200).optional(),
+    html: z.string().max(100_000, 'O HTML deve ter no máximo 100 KB').optional(),
   }),
   cta_label: z.string().max(80).nullable().optional(),
   cta_url: httpUrlSchema.nullable().optional(),
   audience: audienceSchema,
   scheduled_at: z.string().datetime().nullable().optional(),
 })
+
+/**
+ * Exige os campos certos conforme o template: `html` para `html_custom`,
+ * `titulo`/`texto` para os demais. Aplicar por último em cada call site,
+ * depois de qualquer `.partial()`/`.strict()` — `.superRefine` devolve
+ * `ZodEffects`, que não tem esses métodos, por isso a regra não pode viver
+ * dentro de `campaignFieldsSchema` (que precisa continuar sendo um
+ * `ZodObject` puro para a rota de PATCH poder chamar `.partial().strict()`).
+ */
+export function withContentRules<T extends z.ZodTypeAny>(schema: T) {
+  return schema.superRefine((data: any, ctx: z.RefinementCtx) => {
+    // Só valida a combinação quando o template veio no payload (o PATCH é parcial).
+    if (!data?.template_key || !data?.content) return
+
+    if (data.template_key === 'html_custom') {
+      if (!data.content.html?.trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['content', 'html'],
+          message: 'Envie um arquivo HTML',
+        })
+      }
+      return
+    }
+
+    if (!data.content.titulo?.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['content', 'titulo'], message: 'Título obrigatório' })
+    }
+    if (!data.content.texto?.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['content', 'texto'], message: 'Texto obrigatório' })
+    }
+  })
+}

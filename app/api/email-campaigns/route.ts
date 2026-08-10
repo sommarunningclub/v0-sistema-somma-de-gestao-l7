@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requirePermission } from '@/lib/auth/api-auth'
 import { createCampaign, getCampaigns } from '@/lib/services/email-campaigns'
-import { campaignFieldsSchema } from '@/lib/email/validation'
+import { campaignFieldsSchema, withContentRules } from '@/lib/email/validation'
 
 // Schema completo de criação — todos os campos editáveis são obrigatórios
 // (exceto os já opcionais/nullable dentro de `campaignFieldsSchema`).
 // Compartilha `httpUrlSchema`/`audienceSchema` com o schema de edição
 // (`app/api/email-campaigns/[id]/route.ts`) via `lib/email/validation.ts`,
 // para que a validação de URL (bloqueio de `javascript:` etc.) não fique
-// duplicada nem possa divergir entre criação e edição.
-const createSchema = campaignFieldsSchema
+// duplicada nem possa divergir entre criação e edição. `withContentRules`
+// exige `titulo`/`texto` ou `html` conforme o `template_key` — aplicado por
+// último porque `.superRefine` devolve `ZodEffects`.
+const createSchema = withContentRules(campaignFieldsSchema)
 
 export async function GET(req: NextRequest) {
   const auth = await requirePermission(req, 'email')

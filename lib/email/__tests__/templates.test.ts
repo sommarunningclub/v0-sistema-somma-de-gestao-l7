@@ -1,5 +1,7 @@
 import { escapeHtml, renderTemplate, TEMPLATE_KEYS } from '../templates'
 
+const RENDERED_TEMPLATE_KEYS = ['anuncio', 'simples', 'evento'] as const
+
 const base = {
   subject: 'Assunto',
   preheader: 'Prévia',
@@ -19,11 +21,11 @@ describe('escapeHtml', () => {
 })
 
 describe('renderTemplate', () => {
-  it('exposes the three templates', () => {
-    expect(TEMPLATE_KEYS).toEqual(['anuncio', 'simples', 'evento'])
+  it('exposes the four templates', () => {
+    expect(TEMPLATE_KEYS).toEqual(['anuncio', 'simples', 'evento', 'html_custom'])
   })
 
-  it.each(TEMPLATE_KEYS)('renders %s with the CTA and the unsubscribe link', (templateKey) => {
+  it.each(RENDERED_TEMPLATE_KEYS)('renders %s with the CTA and the unsubscribe link', (templateKey) => {
     const html = renderTemplate({ ...base, templateKey })
 
     expect(html).toContain('Quero participar')
@@ -112,5 +114,43 @@ describe('renderTemplate', () => {
     const html = renderTemplate({ ...base, templateKey: 'anuncio' })
     expect(html.startsWith('<!DOCTYPE html>')).toBe(true)
     expect(html).toContain('</html>')
+  })
+})
+
+describe('renderTemplate com html_custom', () => {
+  const base = {
+    templateKey: 'html_custom' as const,
+    subject: 'Assunto',
+    preheader: 'Prévia',
+    content: { titulo: '', texto: '', html: '<body><p>Oi {{nome}}</p></body>' },
+    ctaLabel: null,
+    ctaUrl: null,
+    nome: 'Ana',
+    unsubscribeUrl: 'https://admin.sommaclub.com.br/api/unsubscribe?t=abc',
+  }
+
+  it('expõe html_custom entre os templates', () => {
+    expect(TEMPLATE_KEYS).toContain('html_custom')
+  })
+
+  it('usa o html do usuário como corpo', () => {
+    expect(renderTemplate(base)).toContain('Oi Ana')
+  })
+
+  it('injeta o link de descadastro', () => {
+    expect(renderTemplate(base)).toContain('/api/unsubscribe?t=abc')
+  })
+
+  it('sanitiza o html', () => {
+    const out = renderTemplate({
+      ...base,
+      content: { titulo: '', texto: '', html: '<p>ok</p><script>alert(1)</script>' },
+    })
+    expect(out).not.toContain('alert(1)')
+  })
+
+  it('não envolve no documento padrão dos outros templates', () => {
+    const out = renderTemplate(base)
+    expect((out.match(/<body/gi) ?? []).length).toBeLessThanOrEqual(1)
   })
 })

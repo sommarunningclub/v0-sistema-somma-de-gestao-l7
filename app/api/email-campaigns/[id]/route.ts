@@ -5,7 +5,7 @@ import {
   getCampaignById,
   updateCampaign,
 } from '@/lib/services/email-campaigns'
-import { campaignFieldsSchema } from '@/lib/email/validation'
+import { campaignFieldsSchema, withContentRules } from '@/lib/email/validation'
 
 // Versão parcial de `campaignFieldsSchema`: todo campo é opcional (é um
 // patch), mas quando presente segue as mesmas regras da criação — inclusive
@@ -14,10 +14,13 @@ import { campaignFieldsSchema } from '@/lib/email/validation'
 // rejeita com 400 qualquer chave fora da lista de campos editáveis pelo
 // usuário — em especial `status`, `created_by`, `id`, `total_recipients`,
 // `started_at`, `finished_at` e `error`, que só podem ser escritos pela
-// lógica interna (rotas de dispatch/cancel, cron).
-const patchSchema = campaignFieldsSchema
-  .partial()
-  .strict('Campo não permitido em edição de campanha')
+// lógica interna (rotas de dispatch/cancel, cron). `withContentRules` vem
+// por último porque `.superRefine` devolve `ZodEffects`, que não tem
+// `.partial()`/`.strict()` — e a regra só dispara quando `template_key` E
+// `content` vierem juntos no payload (o PATCH é parcial).
+const patchSchema = withContentRules(
+  campaignFieldsSchema.partial().strict('Campo não permitido em edição de campanha'),
+)
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requirePermission(req, 'email')
