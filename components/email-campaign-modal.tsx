@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Loader2, ChevronLeft, ChevronRight, Send } from 'lucide-react'
+import { Loader2, ChevronLeft, ChevronRight, Send, Info } from 'lucide-react'
 import { ResponsiveModal, confirmAction } from '@/components/somma'
 import { apiFetch } from '@/lib/api-client'
 import EmailAudiencePicker from './email-audience-picker'
@@ -36,6 +36,13 @@ const TEMPLATE_LABELS: Record<TemplateKey, string> = {
 }
 
 const labelClass = 'block text-xs text-neutral-400 mb-1.5 font-medium'
+
+const STEP_HINTS: Record<number, string> = {
+  1: 'Escolha de onde vêm os destinatários. A contagem já desconta quem aparece em mais de uma base e quem se descadastrou.',
+  2: 'Escreva o e-mail. Use {{nome}} onde quiser o nome de cada destinatário — quem não tiver nome cadastrado recebe o texto sem ele.',
+  3: 'Confira o resumo e mande um teste para você antes de disparar. O teste não conta nas métricas da campanha.',
+  4: 'Disparar é irreversível para quem já recebeu. Agendar permite cancelar até a hora marcada.',
+}
 
 function Stepper({ step }: { step: number }) {
   return (
@@ -359,6 +366,13 @@ export default function EmailCampaignModal({ campaign, onClose, onSaved }: Email
       }
     >
       <div className="space-y-5">
+          {STEP_HINTS[step] && (
+            <p className="flex items-start gap-1.5 text-xs text-neutral-400">
+              <Info className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" aria-hidden="true" />
+              <span>{STEP_HINTS[step]}</span>
+            </p>
+          )}
+
           {step === 1 && <EmailAudiencePicker value={audience} onChange={setAudience} onTotalChange={handleTotalChange} />}
 
           {step === 2 && (
