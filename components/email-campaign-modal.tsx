@@ -105,7 +105,7 @@ function WizardFooter({
         <button
           onClick={onNext}
           disabled={
-            (step === 1 && audience.bases.length === 0) ||
+            (step === 1 && audience.bases.length === 0 && (audience.individuais ?? []).length === 0) ||
             (step === 2 && (!canGoStep2To3 || saving)) ||
             saving
           }
@@ -214,7 +214,7 @@ export default function EmailCampaignModal({ campaign, onClose, onSaved }: Email
   }, [])
 
   const goToStep2 = () => {
-    if (audience.bases.length === 0) return
+    if (audience.bases.length === 0 && (audience.individuais ?? []).length === 0) return
     setStep(2)
   }
 
