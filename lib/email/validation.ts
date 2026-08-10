@@ -18,16 +18,29 @@ export const httpUrlSchema = z
     message: 'A URL deve começar com http:// ou https://',
   })
 
-export const audienceSchema = z.object({
-  bases: z
-    .array(
-      z.object({
-        key: z.string().refine(isAudienceKey, { message: 'Base desconhecida' }),
-        filtros: z.record(z.string()).default({}),
-      }),
-    )
-    .min(1, 'Selecione ao menos uma base'),
+const individualSchema = z.object({
+  email: z.string().email('E-mail inválido'),
+  nome: z.string().max(120).nullable().default(null),
 })
+
+export const audienceSchema = z
+  .object({
+    bases: z
+      .array(
+        z.object({
+          key: z.string().refine(isAudienceKey, { message: 'Base desconhecida' }),
+          filtros: z.record(z.string()).default({}),
+        }),
+      )
+      .default([]),
+    individuais: z
+      .array(individualSchema)
+      .max(50, 'No máximo 50 destinatários individuais')
+      .default([]),
+  })
+  .refine((a) => a.bases.length > 0 || a.individuais.length > 0, {
+    message: 'Selecione ao menos uma base ou um destinatário',
+  })
 
 /**
  * Campos de campanha editáveis diretamente pelo usuário — usados tanto para

@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
-import { dedupeRecipients, type Recipient } from './normalize'
+import { dedupeRecipients, normalizeEmail, type Recipient } from './normalize'
 import { filterSuppressed } from './suppression'
-import type { AudienceKey, AudienceSelection } from './types'
+import type { AudienceIndividual, AudienceKey, AudienceSelection } from './types'
 
 // Service role — NÃO importar de lib/supabase-client.ts (chave anon).
 function getSupabase() {
@@ -172,9 +172,23 @@ async function fetchBase(
   return out
 }
 
+/** Converte destinatários avulsos em `Recipient`, descartando e-mail inválido. */
+export function individuaisToRecipients(
+  individuais: AudienceIndividual[] | undefined,
+): Recipient[] {
+  if (!individuais?.length) return []
+  const out: Recipient[] = []
+  for (const item of individuais) {
+    const email = normalizeEmail(item.email)
+    if (!email) continue
+    out.push({ email, nome: item.nome ?? null, sourceBase: 'individual' })
+  }
+  return out
+}
+
 /**
- * Resolve a seleção em destinatários finais: filtra cada base, deduplica por
- * e-mail entre todas elas e remove os suprimidos.
+ * Resolve a seleção em destinatários finais: filtra cada base, junta os
+ * individuais, deduplica por e-mail entre todos e remove os suprimidos.
  *
  * `null` quando alguma base ou a lista de supressão não pôde ser lida — o
  * chamador não deve tratar um resultado incompleto como a audiência real.
@@ -189,6 +203,10 @@ export async function resolveAudience(selection: AudienceSelection): Promise<Rec
     if (rows === null) return null
     lists.push(rows)
   }
+
+  // Bases entram primeiro: se uma pessoa também estiver na lista de
+  // individuais, o dedupe preserva a `sourceBase` da base, não 'individual'.
+  lists.push(individuaisToRecipients(selection.individuais))
 
   return filterSuppressed(dedupeRecipients(lists))
 }

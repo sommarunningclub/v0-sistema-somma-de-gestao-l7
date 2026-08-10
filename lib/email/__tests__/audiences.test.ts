@@ -1,4 +1,4 @@
-import { AUDIENCE_SOURCES, buildAudienceQuery, isAudienceKey } from '../audiences'
+import { AUDIENCE_SOURCES, buildAudienceQuery, isAudienceKey, individuaisToRecipients } from '../audiences'
 
 describe('AUDIENCE_SOURCES', () => {
   it('declares the four bases from the spec', () => {
@@ -79,5 +79,35 @@ describe('buildAudienceQuery', () => {
   it('trims filter values', () => {
     const q = buildAudienceQuery(AUDIENCE_SOURCES.lista_espera, { cidade: '  Brasília  ' })
     expect(q.eq).toEqual([['cidade', 'Brasília']])
+  })
+})
+
+describe('individuaisToRecipients', () => {
+  it('converte para destinatários com a base de origem "individual"', () => {
+    const out = individuaisToRecipients([{ email: 'a@x.com', nome: 'Ana' }])
+    expect(out).toEqual([{ email: 'a@x.com', nome: 'Ana', sourceBase: 'individual' }])
+  })
+
+  it('normaliza o e-mail', () => {
+    const out = individuaisToRecipients([{ email: '  A@X.COM ', nome: null }])
+    expect(out[0].email).toBe('a@x.com')
+  })
+
+  it('descarta e-mail inválido', () => {
+    const out = individuaisToRecipients([
+      { email: 'sem-arroba', nome: null },
+      { email: 'ok@x.com', nome: null },
+    ])
+    expect(out.map((r) => r.email)).toEqual(['ok@x.com'])
+  })
+
+  it('preserva nome nulo', () => {
+    const out = individuaisToRecipients([{ email: 'a@x.com', nome: null }])
+    expect(out[0].nome).toBeNull()
+  })
+
+  it('devolve vazio para entrada vazia ou ausente', () => {
+    expect(individuaisToRecipients([])).toEqual([])
+    expect(individuaisToRecipients(undefined)).toEqual([])
   })
 })

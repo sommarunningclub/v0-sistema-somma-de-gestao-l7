@@ -20,8 +20,15 @@ export type RecipientStatus =
 
 export type AudienceKey = 'membros' | 'checkins' | 'lista_vip' | 'lista_espera'
 
+export interface AudienceIndividual {
+  email: string
+  nome: string | null
+}
+
 export interface AudienceSelection {
   bases: Array<{ key: AudienceKey; filtros: Record<string, string> }>
+  /** Destinatários avulsos, buscados na base de membros ou digitados. */
+  individuais?: AudienceIndividual[]
 }
 
 export interface EmailCampaign {
