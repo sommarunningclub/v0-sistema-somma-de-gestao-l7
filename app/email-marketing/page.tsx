@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Mail, Plus, RefreshCw, Search, X } from 'lucide-react'
 import { Input } from '@/components/ui/input'
+import { confirmAction } from '@/components/somma'
 import { matchesTextSearch } from '@/lib/search-utils'
 import EmailCampaignCard from '@/components/email-campaign-card'
 import EmailCampaignModal from '@/components/email-campaign-modal'
@@ -28,8 +29,6 @@ export default function EmailMarketingPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [showModal, setShowModal] = useState(false)
   const [editingCampaign, setEditingCampaign] = useState<EmailCampaign | null>(null)
-  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
-  const [cancelConfirm, setCancelConfirm] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<CampaignStatus | 'todas'>('todas')
@@ -56,6 +55,16 @@ export default function EmailMarketingPage() {
   }, [loadCampaigns])
 
   const handleDelete = async (id: string) => {
+    const campaign = campaigns.find((c) => c.id === id)
+    const ok = await confirmAction({
+      title: 'Excluir campanha?',
+      description: 'A campanha e o histórico de destinatários são apagados. Não dá para desfazer.',
+      detail: campaign?.nome,
+      confirmLabel: 'Excluir',
+      tone: 'danger',
+    })
+    if (!ok) return
+
     try {
       const res = await apiFetch(`/api/email-campaigns/${id}`, { method: 'DELETE' })
       if (!res.ok) {
@@ -69,20 +78,26 @@ export default function EmailMarketingPage() {
       setCampaigns((prev) => prev.filter((c) => c.id !== id))
     } catch {
       setError('Erro ao excluir campanha')
-    } finally {
-      setDeleteConfirm(null)
     }
   }
 
   const handleCancel = async (id: string) => {
+    const campaign = campaigns.find((c) => c.id === id)
+    const ok = await confirmAction({
+      title: 'Cancelar campanha?',
+      description: 'Quem já recebeu o e-mail não é afetado. Os destinatários pendentes deixam de receber.',
+      detail: campaign?.nome,
+      confirmLabel: 'Cancelar campanha',
+      cancelLabel: 'Voltar',
+    })
+    if (!ok) return
+
     try {
       const res = await apiFetch(`/api/email-campaigns/${id}/cancel`, { method: 'POST' })
       if (!res.ok) throw new Error('Erro ao cancelar')
       loadCampaigns(true)
     } catch {
       setError('Erro ao cancelar campanha')
-    } finally {
-      setCancelConfirm(null)
     }
   }
 
@@ -214,8 +229,8 @@ export default function EmailMarketingPage() {
                 key={campaign.id}
                 campaign={campaign}
                 onEdit={openEdit}
-                onDelete={(id) => setDeleteConfirm(id)}
-                onCancel={(id) => setCancelConfirm(id)}
+                onDelete={handleDelete}
+                onCancel={handleCancel}
               />
             ))}
           </div>
@@ -232,58 +247,6 @@ export default function EmailMarketingPage() {
           }}
           onSaved={handleSaved}
         />
-      )}
-
-      {/* Delete confirmation */}
-      {deleteConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-6 max-w-sm w-full">
-            <h3 className="font-semibold text-white mb-2">Excluir campanha?</h3>
-            <p className="text-sm text-neutral-400 mb-5">
-              Esta ação é irreversível. A campanha e seus dados de envio serão removidos permanentemente.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setDeleteConfirm(null)}
-                className="flex-1 py-2 rounded-lg bg-neutral-800 text-neutral-300 hover:text-white text-sm font-medium transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={() => handleDelete(deleteConfirm)}
-                className="flex-1 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-sm font-semibold transition-colors"
-              >
-                Excluir
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Cancel confirmation */}
-      {cancelConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="bg-neutral-950 border border-neutral-800 rounded-xl p-6 max-w-sm w-full">
-            <h3 className="font-semibold text-white mb-2">Cancelar campanha?</h3>
-            <p className="text-sm text-neutral-400 mb-5">
-              Quem já recebeu o e-mail não é afetado. Os destinatários pendentes deixam de receber.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setCancelConfirm(null)}
-                className="flex-1 py-2 rounded-lg bg-neutral-800 text-neutral-300 hover:text-white text-sm font-medium transition-colors"
-              >
-                Voltar
-              </button>
-              <button
-                onClick={() => handleCancel(cancelConfirm)}
-                className="flex-1 py-2 rounded-lg bg-yellow-600 hover:bg-yellow-500 text-white text-sm font-semibold transition-colors"
-              >
-                Cancelar campanha
-              </button>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   )

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Loader2, ChevronLeft, ChevronRight, Send } from 'lucide-react'
-import { ResponsiveModal } from '@/components/somma'
+import { ResponsiveModal, confirmAction } from '@/components/somma'
 import { apiFetch } from '@/lib/api-client'
 import EmailAudiencePicker from './email-audience-picker'
 import EmailContentForm from './email-content-form'
@@ -250,13 +250,13 @@ export default function EmailCampaignModal({ campaign, onClose, onSaved }: Email
       const id = await saveDraft()
       if (!id) return
 
-      if (
-        !confirm(
-          `Disparar esta campanha agora para ${audienceTotal} destinatários? Depois de enviado, não é possível desfazer para quem já recebeu.`,
-        )
-      ) {
-        return
-      }
+      const ok = await confirmAction({
+        title: 'Disparar agora?',
+        description: `A campanha será enviada para ${audienceTotal} ${audienceTotal === 1 ? 'destinatário' : 'destinatários'}. Quem já receber não pode ser desfeito.`,
+        confirmLabel: 'Disparar',
+        tone: 'danger',
+      })
+      if (!ok) return
 
       const res = await apiFetch(`/api/email-campaigns/${id}/dispatch`, { method: 'POST' })
       const data = await res.json()
@@ -284,7 +284,12 @@ export default function EmailCampaignModal({ campaign, onClose, onSaved }: Email
       // Fuso de Brasília (UTC-3) fixo — datetime-local não devolve fuso.
       const scheduledAt = new Date(`${scheduledLocal}:00-03:00`).toISOString()
 
-      if (!confirm(`Agendar esta campanha para ${audienceTotal} destinatários?`)) return
+      const ok = await confirmAction({
+        title: 'Agendar campanha?',
+        description: `A campanha será enviada automaticamente no horário escolhido, para ${audienceTotal} ${audienceTotal === 1 ? 'destinatário' : 'destinatários'}. Dá para cancelar até a hora marcada.`,
+        confirmLabel: 'Agendar',
+      })
+      if (!ok) return
 
       // A rota PATCH de edição bloqueia a troca de `status` (só os campos de
       // conteúdo são editáveis por ali). O único caminho da API que marca uma
