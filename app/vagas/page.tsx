@@ -4,16 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ClipboardList, Download, Loader2, MessageCircle, RefreshCw } from 'lucide-react'
 import {
   EmptyState,
+  FilterButton,
+  FilterChip,
   MobileRecordCard,
   NoResultsState,
   PageHeader,
   PageShell,
   ResponsiveModal,
   SearchInput,
-  SegmentedControl,
-  StatGrid,
-  StatGridSkeleton,
-  StatTile,
   StatusPill,
   TBody,
   TD,
@@ -51,8 +49,8 @@ function formatarData(iso: string | null): string {
 
 function formatarNascimento(iso: string | null): string {
   if (!iso) return '—'
-  // Coluna `date`: chega como AAAA-MM-DD. Montar via `new Date` puxaria o
-  // fuso e podia exibir o dia anterior.
+  // Coluna `date`: chega como AAAA-MM-DD. Montar via `new Date` puxaria o fuso
+  // e podia exibir o dia anterior.
   const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/)
   if (!m) return '—'
   const idade = calcularIdade(Number(m[1]), Number(m[2]), Number(m[3]))
@@ -78,13 +76,19 @@ function enderecoCompleto(c: CandidatoVaga): string {
   return partes.length > 0 ? partes.join(', ') : '—'
 }
 
+function indicacaoTexto(c: CandidatoVaga): string {
+  if (!c.indicado) return 'Não'
+  return c.indicado_por?.trim() ? `Sim, por ${c.indicado_por.trim()}` : 'Sim'
+}
+
 export default function VagasPage() {
   const [candidatos, setCandidatos] = useState<CandidatoVaga[]>([])
   const [carregando, setCarregando] = useState(true)
   const [atualizando, setAtualizando] = useState(false)
   const [busca, setBusca] = useState('')
   const [etapa, setEtapa] = useState<FiltroEtapa>('todas')
-  const [vagaSlug, setVagaSlug] = useState<string>('todas')
+  const [vagaSlug, setVagaSlug] = useState('todas')
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false)
   const [selecionado, setSelecionado] = useState<CandidatoVaga | null>(null)
   const [salvando, setSalvando] = useState(false)
   const [baixando, setBaixando] = useState(false)
@@ -124,20 +128,30 @@ export default function VagasPage() {
         .filter((c) => etapa === 'todas' || (c.status || 'novo') === etapa)
         .filter((c) => vagaSlug === 'todas' || c.vaga_slug === vagaSlug)
         .filter((c) =>
-          matchesTextSearch(busca, [c.nome, c.email, c.instituicao, c.telefone, c.vaga_titulo]),
+          matchesTextSearch(busca, [
+            c.nome,
+            c.email,
+            c.instituicao,
+            c.telefone,
+            c.vaga_titulo,
+            c.indicado_por ?? '',
+          ]),
         ),
     [candidatos, etapa, vagaSlug, busca],
   )
 
-  const contagem = useMemo(() => {
-    const base: Record<string, number> = {}
-    for (const e of ETAPAS) base[e.value] = 0
-    for (const c of candidatos) {
-      const s = c.status || 'novo'
-      if (s in base) base[s] += 1
-    }
-    return base
-  }, [candidatos])
+  const novos = useMemo(
+    () => candidatos.filter((c) => (c.status || 'novo') === 'novo').length,
+    [candidatos],
+  )
+
+  const filtrosAtivos = (etapa !== 'todas' ? 1 : 0) + (vagaSlug !== 'todas' ? 1 : 0)
+
+  function limparFiltros() {
+    setEtapa('todas')
+    setVagaSlug('todas')
+    setBusca('')
+  }
 
   function abrir(candidato: CandidatoVaga) {
     setSelecionado(candidato)
@@ -184,219 +198,269 @@ export default function VagasPage() {
     }
   }
 
+  function botaoWhatsapp(c: CandidatoVaga, variante: 'icone' | 'texto') {
+    const zap = whatsappHref(c.telefone, mensagemWhatsapp(c.nome, c.vaga_titulo))
+    if (!zap) return null
+    return (
+      <Button asChild variant={variante === 'icone' ? 'ghost' : 'outline'} size="sm">
+        <a
+          href={zap}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <MessageCircle aria-hidden="true" />
+          {variante === 'texto' ? (
+            'WhatsApp'
+          ) : (
+            <span className="sr-only">Chamar {c.nome} no WhatsApp</span>
+          )}
+        </a>
+      </Button>
+    )
+  }
+
   const semCandidatos = !carregando && candidatos.length === 0
-  const buscaAtiva = busca.trim().length > 0 || etapa !== 'todas' || vagaSlug !== 'todas'
 
   return (
     <PageShell>
       <PageHeader
-        eyebrow="Gestão"
+        eyebrow="Operação"
         title="Vagas"
         description="Candidatos recebidos pelo formulário de Trabalhe Conosco do site."
         meta={
-          <span>
-            {candidatos.length} {candidatos.length === 1 ? 'candidato' : 'candidatos'}
-          </span>
+          candidatos.length > 0 ? (
+            <>
+              <span>
+                <span className="font-mono tabular-nums text-ink">{candidatos.length}</span> no
+                total
+              </span>
+              <span>
+                <span className="font-mono tabular-nums text-ink">{novos}</span> novos
+              </span>
+            </>
+          ) : undefined
         }
-        primaryAction={
-          <Button variant="outline" onClick={() => carregar(true)} disabled={atualizando}>
-            <RefreshCw className={`mr-2 h-4 w-4 ${atualizando ? 'animate-spin' : ''}`} />
-            Atualizar
+        actions={
+          <Button
+            variant="secondary"
+            size="icon"
+            onClick={() => void carregar(true)}
+            loading={atualizando}
+            aria-label="Atualizar lista de candidatos"
+          >
+            <RefreshCw aria-hidden="true" />
           </Button>
         }
       >
-        {!semCandidatos && (
-          <Toolbar>
-            <SearchInput
-              value={busca}
-              onValueChange={setBusca}
-              label="Buscar candidato"
-              placeholder="Buscar por nome, e-mail, telefone ou instituição"
-              placeholderShort="Buscar candidato"
-            />
-            <SegmentedControl<FiltroEtapa>
-              label="Filtrar por etapa"
-              value={etapa}
-              onChange={setEtapa}
-              options={[
-                { value: 'todas', label: 'Todas' },
-                ...ETAPAS.map((e) => ({ value: e.value as FiltroEtapa, label: e.label })),
-              ]}
-            />
-            {vagas.length > 1 && (
-              <SegmentedControl<string>
-                label="Filtrar por vaga"
-                value={vagaSlug}
-                onChange={setVagaSlug}
-                options={[
-                  { value: 'todas', label: 'Todas as vagas' },
-                  ...vagas.map((v) => ({ value: v.slug, label: v.titulo })),
-                ]}
+        {!semCandidatos ? (
+          <div className="space-y-2">
+            <Toolbar>
+              <SearchInput
+                value={busca}
+                onValueChange={setBusca}
+                label="Buscar candidato"
+                placeholder="Buscar por nome, e-mail, telefone ou instituição..."
+                placeholderShort="Buscar candidato"
               />
-            )}
-          </Toolbar>
-        )}
+              <FilterButton count={filtrosAtivos} onClick={() => setFiltrosAbertos(true)} />
+            </Toolbar>
+
+            {filtrosAtivos > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {etapa !== 'todas' ? (
+                  <FilterChip
+                    label="Etapa"
+                    value={etapaLabel(etapa)}
+                    onRemove={() => setEtapa('todas')}
+                  />
+                ) : null}
+                {vagaSlug !== 'todas' ? (
+                  <FilterChip
+                    label="Vaga"
+                    value={vagas.find((v) => v.slug === vagaSlug)?.titulo ?? vagaSlug}
+                    onRemove={() => setVagaSlug('todas')}
+                  />
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </PageHeader>
 
-      {carregando ? (
-        <div className="space-y-4">
-          <StatGridSkeleton count={5} />
+      <div aria-busy={carregando || atualizando}>
+        {carregando ? (
           <TableSkeleton rows={6} columns={6} />
-        </div>
-      ) : semCandidatos ? (
-        <EmptyState
-          icon={ClipboardList}
-          title="Nenhuma candidatura recebida"
-          description="As candidaturas enviadas em sommaclub.com.br/trabalhe-conosco-vagas aparecem aqui automaticamente, com o currículo anexado."
-        />
-      ) : (
-        <div className="space-y-4">
-          <StatGrid>
-            {ETAPAS.map((e) => (
-              <StatTile
-                key={e.value}
-                label={e.label}
-                value={contagem[e.value] ?? 0}
-                tone={e.value === 'novo' ? 'brand' : 'default'}
-                onClick={() => setEtapa(etapa === e.value ? 'todas' : e.value)}
-              />
-            ))}
-          </StatGrid>
-
-          {filtrados.length === 0 ? (
-            <NoResultsState
-              query={busca || 'os filtros aplicados'}
-              onClear={() => {
-                setBusca('')
-                setEtapa('todas')
-                setVagaSlug('todas')
-              }}
-            />
-          ) : (
-            <>
-              <div className="hidden lg:block">
-                <TableFrame busy={atualizando}>
-                  <Table caption="Candidatos das vagas abertas">
-                    <THead>
-                      <TR>
-                        <TH>Candidato</TH>
-                        <TH>Vaga</TH>
-                        <TH>Formação</TH>
-                        <TH>Recebido</TH>
-                        <TH>Etapa</TH>
-                        <TH align="right">Ações</TH>
+        ) : semCandidatos ? (
+          <EmptyState
+            icon={ClipboardList}
+            title="Nenhuma candidatura recebida"
+            description="As candidaturas enviadas em sommaclub.com.br/trabalhe-conosco-vagas aparecem aqui automaticamente, com o currículo anexado."
+          />
+        ) : filtrados.length === 0 ? (
+          <NoResultsState query={busca || 'os filtros aplicados'} onClear={limparFiltros} />
+        ) : (
+          <>
+            <div className="hidden lg:block">
+              <TableFrame busy={atualizando}>
+                <Table caption="Candidatos das vagas abertas">
+                  <THead>
+                    <TR>
+                      <TH>Candidato</TH>
+                      <TH>Vaga</TH>
+                      <TH>Formação</TH>
+                      <TH>Recebido</TH>
+                      <TH>Etapa</TH>
+                      <TH align="right">Ações</TH>
+                    </TR>
+                  </THead>
+                  <TBody>
+                    {filtrados.map((c) => (
+                      <TR key={c.id} onClick={() => abrir(c)}>
+                        <TD>
+                          <span className="block font-medium text-ink-strong">{c.nome}</span>
+                          <span className="block text-meta text-ink-muted">{c.email}</span>
+                        </TD>
+                        <TD>{c.vaga_titulo}</TD>
+                        <TD>
+                          <span className="block">{c.instituicao}</span>
+                          <span className="block text-meta text-ink-muted">{c.semestre}</span>
+                        </TD>
+                        <TD>
+                          <span className="font-mono tabular-nums">
+                            {formatarData(c.criado_em)}
+                          </span>
+                        </TD>
+                        <TD>
+                          <StatusPill tone={etapaTone(c.status)}>
+                            {etapaLabel(c.status)}
+                          </StatusPill>
+                        </TD>
+                        <TD align="right">
+                          <div className="flex items-center justify-end gap-1">
+                            {botaoWhatsapp(c, 'icone')}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={!c.curriculo_path || baixando}
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                void baixarCurriculo(c)
+                              }}
+                            >
+                              <Download aria-hidden="true" />
+                              <span className="sr-only">Baixar currículo de {c.nome}</span>
+                            </Button>
+                          </div>
+                        </TD>
                       </TR>
-                    </THead>
-                    <TBody>
-                      {filtrados.map((c) => (
-                        <TR key={c.id} onClick={() => abrir(c)}>
-                          <TD>
-                            <span className="block font-medium text-ink-strong">{c.nome}</span>
-                            <span className="block text-meta text-ink-muted">{c.email}</span>
-                          </TD>
-                          <TD>{c.vaga_titulo}</TD>
-                          <TD>
-                            <span className="block">{c.instituicao}</span>
-                            <span className="block text-meta text-ink-muted">{c.semestre}</span>
-                          </TD>
-                          <TD>
-                            <span className="font-mono tabular-nums">
-                              {formatarData(c.criado_em)}
-                            </span>
-                          </TD>
-                          <TD>
-                            <StatusPill tone={etapaTone(c.status)}>
-                              {etapaLabel(c.status)}
-                            </StatusPill>
-                          </TD>
-                          <TD align="right">
-                            <div className="flex items-center justify-end gap-1">
-                              {(() => {
-                                const zap = whatsappHref(
-                                  c.telefone,
-                                  mensagemWhatsapp(c.nome, c.vaga_titulo),
-                                )
-                                if (!zap) return null
-                                return (
-                                  <Button asChild variant="ghost" size="sm">
-                                    <a
-                                      href={zap}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      onClick={(event) => event.stopPropagation()}
-                                    >
-                                      <MessageCircle className="h-4 w-4" />
-                                      <span className="sr-only">
-                                        Chamar {c.nome} no WhatsApp
-                                      </span>
-                                    </a>
-                                  </Button>
-                                )
-                              })()}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                disabled={!c.curriculo_path || baixando}
-                                onClick={(event) => {
-                                  event.stopPropagation()
-                                  baixarCurriculo(c)
-                                }}
-                              >
-                                <Download className="h-4 w-4" />
-                                <span className="sr-only">Baixar currículo de {c.nome}</span>
-                              </Button>
-                            </div>
-                          </TD>
-                        </TR>
-                      ))}
-                    </TBody>
-                  </Table>
-                </TableFrame>
-              </div>
+                    ))}
+                  </TBody>
+                </Table>
+              </TableFrame>
+            </div>
 
-              <div className="space-y-3 lg:hidden">
-                {filtrados.map((c) => (
-                  <MobileRecordCard
-                    key={c.id}
-                    title={c.nome}
-                    subtitle={c.vaga_titulo}
-                    status={
-                      <StatusPill tone={etapaTone(c.status)}>{etapaLabel(c.status)}</StatusPill>
-                    }
-                    fields={[
-                      { label: 'Instituição', value: c.instituicao },
-                      { label: 'Semestre', value: c.semestre },
-                      { label: 'Recebido', value: formatarData(c.criado_em) },
-                    ]}
-                    actions={(() => {
-                      const zap = whatsappHref(
-                        c.telefone,
-                        mensagemWhatsapp(c.nome, c.vaga_titulo),
-                      )
-                      if (!zap) return undefined
-                      return (
-                        <Button asChild variant="outline" size="sm">
-                          <a
-                            href={zap}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(event) => event.stopPropagation()}
-                          >
-                            <MessageCircle className="mr-2 h-4 w-4" />
-                            WhatsApp
-                          </a>
-                        </Button>
-                      )
-                    })()}
-                    onClick={() => abrir(c)}
-                  />
+            <div className="space-y-3 lg:hidden">
+              {filtrados.map((c) => (
+                <MobileRecordCard
+                  key={c.id}
+                  title={c.nome}
+                  subtitle={c.vaga_titulo}
+                  status={
+                    <StatusPill tone={etapaTone(c.status)}>{etapaLabel(c.status)}</StatusPill>
+                  }
+                  fields={[
+                    { label: 'Instituição', value: c.instituicao },
+                    { label: 'Semestre', value: c.semestre },
+                    { label: 'Recebido', value: formatarData(c.criado_em) },
+                  ]}
+                  actions={botaoWhatsapp(c, 'texto') ?? undefined}
+                  onClick={() => abrir(c)}
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Filtros — sheet no celular, diálogo no desktop. */}
+      <ResponsiveModal
+        open={filtrosAbertos}
+        onOpenChange={setFiltrosAbertos}
+        title="Filtrar candidatos"
+        description="Os filtros valem junto com a busca."
+        size="sm"
+        footer={
+          <div className="flex w-full gap-2">
+            <Button variant="outline" block onClick={limparFiltros} disabled={filtrosAtivos === 0}>
+              Limpar
+            </Button>
+            <Button block onClick={() => setFiltrosAbertos(false)}>
+              Ver resultados
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-6">
+          <div>
+            <span className="ds-eyebrow text-ink-muted">Etapa</span>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Button
+                variant={etapa === 'todas' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setEtapa('todas')}
+                aria-pressed={etapa === 'todas'}
+              >
+                Todas
+              </Button>
+              {ETAPAS.map((e) => {
+                const total = candidatos.filter((c) => (c.status || 'novo') === e.value).length
+                return (
+                  <Button
+                    key={e.value}
+                    variant={etapa === e.value ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setEtapa(e.value)}
+                    aria-pressed={etapa === e.value}
+                  >
+                    {e.label}
+                    <span className="ml-1.5 font-mono tabular-nums text-ink-muted">{total}</span>
+                  </Button>
+                )
+              })}
+            </div>
+          </div>
+
+          {vagas.length > 1 ? (
+            <div>
+              <span className="ds-eyebrow text-ink-muted">Vaga</span>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Button
+                  variant={vagaSlug === 'todas' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setVagaSlug('todas')}
+                  aria-pressed={vagaSlug === 'todas'}
+                >
+                  Todas
+                </Button>
+                {vagas.map((v) => (
+                  <Button
+                    key={v.slug}
+                    variant={vagaSlug === v.slug ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setVagaSlug(v.slug)}
+                    aria-pressed={vagaSlug === v.slug}
+                  >
+                    {v.titulo}
+                  </Button>
                 ))}
               </div>
-            </>
-          )}
+            </div>
+          ) : null}
         </div>
-      )}
+      </ResponsiveModal>
 
+      {/* Ficha do candidato */}
       <ResponsiveModal
         open={selecionado !== null}
         onOpenChange={(open) => {
@@ -406,7 +470,7 @@ export default function VagasPage() {
         description={selecionado?.vaga_titulo}
         size="lg"
       >
-        {selecionado && (
+        {selecionado ? (
           <div className="space-y-6">
             <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
               {[
@@ -415,13 +479,14 @@ export default function VagasPage() {
                 { label: 'Nascimento', value: formatarNascimento(selecionado.data_nascimento) },
                 { label: 'Instituição', value: selecionado.instituicao },
                 { label: 'Semestre', value: selecionado.semestre },
+                { label: 'Indicado', value: indicacaoTexto(selecionado) },
                 { label: 'CEP', value: selecionado.cep || '—' },
-                { label: 'Endereço', value: enderecoCompleto(selecionado) },
                 { label: 'Recebido em', value: formatarData(selecionado.criado_em) },
+                { label: 'Endereço', value: enderecoCompleto(selecionado) },
               ].map((item) => (
                 <div key={item.label}>
                   <dt className="ds-eyebrow text-ink-muted">{item.label}</dt>
-                  <dd className="mt-1 text-ink-strong">{item.value}</dd>
+                  <dd className="mt-1 break-words text-ink-strong">{item.value}</dd>
                 </div>
               ))}
             </dl>
@@ -429,42 +494,41 @@ export default function VagasPage() {
             <div>
               <span className="ds-eyebrow text-ink-muted">Ações</span>
               <div className="mt-2 flex flex-wrap gap-2">
-                {(() => {
-                  const zap = whatsappHref(
-                    selecionado.telefone,
-                    mensagemWhatsapp(selecionado.nome, selecionado.vaga_titulo),
-                  )
-                  return zap ? (
-                    <Button asChild variant="outline">
-                      <a href={zap} target="_blank" rel="noopener noreferrer">
-                        <MessageCircle className="mr-2 h-4 w-4" />
-                        Chamar no WhatsApp
-                      </a>
-                    </Button>
-                  ) : (
-                    <Button variant="outline" disabled title="Telefone inválido para WhatsApp">
-                      <MessageCircle className="mr-2 h-4 w-4" />
-                      Telefone inválido
-                    </Button>
-                  )
-                })()}
+                {whatsappHref(selecionado.telefone) ? (
+                  <Button asChild variant="outline">
+                    <a
+                      href={
+                        whatsappHref(
+                          selecionado.telefone,
+                          mensagemWhatsapp(selecionado.nome, selecionado.vaga_titulo),
+                        ) ?? '#'
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <MessageCircle aria-hidden="true" />
+                      Chamar no WhatsApp
+                    </a>
+                  </Button>
+                ) : (
+                  <Button variant="outline" disabled>
+                    <MessageCircle aria-hidden="true" />
+                    Telefone inválido
+                  </Button>
+                )}
 
                 {selecionado.curriculo_path ? (
                   <Button
                     variant="outline"
-                    disabled={baixando}
-                    onClick={() => baixarCurriculo(selecionado)}
+                    loading={baixando}
+                    onClick={() => void baixarCurriculo(selecionado)}
                   >
-                    {baixando ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Download className="mr-2 h-4 w-4" />
-                    )}
+                    <Download aria-hidden="true" />
                     {selecionado.curriculo_nome ?? 'Baixar currículo'}
                   </Button>
                 ) : (
                   <Button variant="outline" disabled>
-                    <Download className="mr-2 h-4 w-4" />
+                    <Download aria-hidden="true" />
                     Sem currículo
                   </Button>
                 )}
@@ -482,7 +546,7 @@ export default function VagasPage() {
                       variant={ativo ? 'default' : 'outline'}
                       size="sm"
                       disabled={salvando}
-                      onClick={() => salvar({ status: e.value })}
+                      onClick={() => void salvar({ status: e.value })}
                       aria-pressed={ativo}
                     >
                       {e.label}
@@ -507,16 +571,16 @@ export default function VagasPage() {
               <div className="mt-2 flex justify-end">
                 <Button
                   size="sm"
-                  disabled={salvando || observacoes === (selecionado.observacoes ?? '')}
-                  onClick={() => salvar({ observacoes })}
+                  loading={salvando}
+                  disabled={observacoes === (selecionado.observacoes ?? '')}
+                  onClick={() => void salvar({ observacoes })}
                 >
-                  {salvando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Salvar observações
                 </Button>
               </div>
             </div>
           </div>
-        )}
+        ) : null}
       </ResponsiveModal>
     </PageShell>
   )

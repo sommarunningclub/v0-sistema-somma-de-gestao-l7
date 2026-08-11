@@ -83,6 +83,8 @@ export interface CandidatoVaga {
   complemento: string | null
   instituicao: string
   semestre: string
+  indicado: boolean | null
+  indicado_por: string | null
   curriculo_path: string | null
   curriculo_nome: string | null
   status: string
