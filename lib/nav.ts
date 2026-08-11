@@ -3,6 +3,7 @@ import {
   Calendar,
   CalendarRange,
   CheckSquare,
+  ClipboardList,
   Handshake,
   KanbanSquare,
   LayoutDashboard,
@@ -91,6 +92,15 @@ export const NAV_ITEMS: NavItem[] = [
     permission: 'escala',
     group: 'operacao',
     keywords: ['calendário', 'turno', 'alocação'],
+  },
+  {
+    id: 'vagas',
+    label: 'Vagas',
+    description: 'Candidatos das vagas abertas e triagem dos currículos',
+    icon: ClipboardList,
+    permission: 'vagas',
+    group: 'operacao',
+    keywords: ['currículo', 'curriculo', 'candidato', 'estágio', 'estagio', 'recrutamento', 'contratação', 'trabalhe conosco'],
   },
 
   {

@@ -9,6 +9,7 @@ export interface ModulePermissions {
   tarefas: boolean
   popups: boolean
   email: boolean
+  vagas: boolean
   admin: boolean
 }
 

@@ -12,6 +12,7 @@ export const SECTION_LABELS: Record<string, string> = {
   tarefas: 'Tarefas',
   popups: 'Pop-ups',
   email: 'E-mail Marketing',
+  vagas: 'Vagas',
   systems: 'Administração',
 }
 
@@ -28,6 +29,7 @@ export const SECTION_PERMISSIONS: Record<string, PermissionKey | null> = {
   tarefas: 'tarefas',
   popups: 'popups',
   email: 'email',
+  vagas: 'vagas',
   systems: 'admin',
 }
 
@@ -44,6 +46,7 @@ const LEGACY_EXACT: Record<string, string> = {
   '/insiders': '/?section=insiders',
   '/popups': '/?section=popups',
   '/email-marketing': '/?section=email',
+  '/vagas': '/?section=vagas',
   '/systems': '/?section=systems',
   '/command-center': '/?section=overview',
   '/operations': '/?section=overview',
@@ -60,6 +63,7 @@ const PAGE_PERMISSIONS: Array<{ pattern: RegExp; permission: PermissionKey }> = 
   { pattern: /^\/tarefas/, permission: 'tarefas' },
   { pattern: /^\/popups/, permission: 'popups' },
   { pattern: /^\/email-marketing/, permission: 'email' },
+  { pattern: /^\/vagas/, permission: 'vagas' },
   { pattern: /^\/insiders/, permission: 'pagamentos' },
 ]
 

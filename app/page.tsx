@@ -18,6 +18,7 @@ import { EventosModule } from "@/components/modules/eventos-module"
 import EscalaPage from "./escala/page"
 import PopupsPage from "./popups/page"
 import EmailMarketingPage from "./email-marketing/page"
+import VagasPage from "./vagas/page"
 
 /**
  * O painel é uma SPA: o middleware redireciona as rotas legadas para
@@ -135,6 +136,8 @@ function SommaAdmin() {
         return <PopupsPage />
       case "email":
         return <EmailMarketingPage />
+      case "vagas":
+        return <VagasPage />
       case "systems":
         return <SystemsPage />
       default:

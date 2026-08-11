@@ -92,6 +92,7 @@ const DEFAULT_PERMISSIONS: ModulePermissions = {
   tarefas: false,
   popups: false,
   email: false,
+  vagas: false,
   admin: false,
 }
 
@@ -106,6 +107,7 @@ const ALL_PERMISSIONS: ModulePermissions = {
   tarefas: true,
   popups: true,
   email: true,
+  vagas: true,
   admin: true,
 }
 
