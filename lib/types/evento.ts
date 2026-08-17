@@ -6,6 +6,8 @@ export interface Evento {
   horario_inicio: string
   local: string
   local_url: string | null
+  /** Quando preenchido, o /check-in público manda para a LP em vez de abrir o wizard. */
+  lp_url: string | null
   tipo: 'corrida' | 'personalizado'
   checkin_abertura: string | null
   checkin_fechamento: string | null
@@ -23,6 +25,7 @@ export interface EventoCreate {
   horario_inicio?: string
   local?: string
   local_url?: string
+  lp_url?: string
   tipo?: 'corrida' | 'personalizado'
   checkin_abertura?: string
   checkin_fechamento?: string

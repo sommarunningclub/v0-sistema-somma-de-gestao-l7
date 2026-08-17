@@ -100,6 +100,7 @@ const DEFAULT_FORM = {
   horario_inicio: '07:00',
   local: 'Parque da Cidade — Brasília, DF',
   local_url: '',
+  lp_url: '',
   tipo: 'corrida' as 'corrida' | 'personalizado',
   checkin_abertura: '',
   checkin_fechamento: '',
@@ -247,6 +248,7 @@ export function EventosModule({ onViewCheckins }: { onViewCheckins?: (eventoId: 
       horario_inicio: evento.horario_inicio || '07:00',
       local: evento.local || '',
       local_url: evento.local_url || '',
+      lp_url: evento.lp_url || '',
       tipo: evento.tipo || 'corrida',
       checkin_abertura: toDatetimeLocal(evento.checkin_abertura),
       checkin_fechamento: toDatetimeLocal(evento.checkin_fechamento),
@@ -280,6 +282,7 @@ export function EventosModule({ onViewCheckins }: { onViewCheckins?: (eventoId: 
       horario_inicio: evento.horario_inicio || '07:00',
       local: evento.local || '',
       local_url: evento.local_url || '',
+      lp_url: evento.lp_url || '',
       tipo: evento.tipo || 'corrida',
       checkin_abertura: '',
       checkin_fechamento: '',
@@ -314,6 +317,10 @@ export function EventosModule({ onViewCheckins }: { onViewCheckins?: (eventoId: 
         horario_inicio: form.horario_inicio || '07:00',
         local: form.local || 'Parque da Cidade — Brasília, DF',
         local_url: form.local_url || undefined,
+        // String sempre presente (nunca undefined): no PUT é assim que apagar o
+        // campo chega ao banco como null — `undefined` sumiria do body e a
+        // coluna ficaria com o valor antigo.
+        lp_url: form.lp_url.trim(),
         tipo: form.tipo,
         checkin_abertura: form.checkin_abertura ? new Date(form.checkin_abertura).toISOString() : undefined,
         checkin_fechamento: form.checkin_fechamento ? new Date(form.checkin_fechamento).toISOString() : undefined,
@@ -917,6 +924,23 @@ export function EventosModule({ onViewCheckins }: { onViewCheckins?: (eventoId: 
                   onChange={e => setForm(f => ({ ...f, local_url: e.target.value }))}
                   placeholder="https://maps.app.goo.gl/..."
                   aria-describedby={id('local-url-hint')}
+                />
+              </Field>
+
+              <Field
+                label="Link da LP"
+                htmlFor={id('lp-url')}
+                hint="Se preenchido, o card deste evento no check-in público leva direto para esta página, sem abrir o formulário de check-in. Deixe vazio para o check-in normal."
+                errorId={id('lp-url-hint')}
+              >
+                <Input
+                  id={id('lp-url')}
+                  type="url"
+                  inputMode="url"
+                  value={form.lp_url}
+                  onChange={e => setForm(f => ({ ...f, lp_url: e.target.value }))}
+                  placeholder="https://sommaclub.com.br/nome-da-lp"
+                  aria-describedby={id('lp-url-hint')}
                 />
               </Field>
 

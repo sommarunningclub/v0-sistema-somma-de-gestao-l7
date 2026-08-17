@@ -85,6 +85,7 @@ export async function POST(request: NextRequest) {
         horario_inicio: body.horario_inicio || '07:00',
         local: body.local || 'Parque da Cidade — Brasília, DF',
         local_url: body.local_url || null,
+        lp_url: body.lp_url || null,
         tipo: body.tipo || 'corrida',
         checkin_abertura: body.checkin_abertura || null,
         checkin_fechamento: body.checkin_fechamento || null,
