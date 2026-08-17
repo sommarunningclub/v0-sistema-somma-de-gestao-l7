@@ -13,6 +13,7 @@ import type {
 import {
   agregarPresencaInsiders,
   type EscalaPresencaRow,
+  type InsiderCadastro,
 } from '@/lib/dashboard/agregar-presenca-insiders'
 
 export const dynamic = 'force-dynamic'
@@ -318,20 +319,25 @@ async function carregarProximosEventos(
 async function carregarPresencaInsiders(
   supabase: AdminClient
 ): Promise<DashboardPresencaInsidersBloco> {
-  const [{ data: eventos, error: erroEventos }, { rows, parcial }] = await Promise.all([
-    supabase.from('eventos').select('id').lte('data_evento', hojeISO()),
+  const [eventosRes, escala, cadastroRes] = await Promise.all([
+    supabase.from('eventos').select('id, data_evento').lte('data_evento', hojeISO()),
     lerEscalaPresenca(supabase),
+    supabase.from('dados_insiders').select('id, nome'),
   ])
 
-  if (erroEventos) throw erroEventos
+  if (eventosRes.error) throw eventosRes.error
+  if (cadastroRes.error) throw cadastroRes.error
 
-  const realizados = new Set((eventos ?? []).map((evento) => evento.id as string))
-  const agregado = agregarPresencaInsiders(rows, realizados)
+  const agregado = agregarPresencaInsiders(
+    escala.rows,
+    (eventosRes.data ?? []) as Array<{ id: string; data_evento: string }>,
+    (cadastroRes.data ?? []) as InsiderCadastro[]
+  )
 
   return {
-    totalEventos: agregado.totalEventos,
-    insiders: agregado.insiders,
-    parcial,
+    meses: agregado.meses,
+    todos: agregado.todos,
+    parcial: escala.parcial,
   }
 }
 

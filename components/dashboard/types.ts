@@ -46,10 +46,21 @@ export interface InsiderPresenca {
   eventos: number
 }
 
-export interface DashboardPresencaInsidersBloco {
-  /** Sommas já realizados que tiveram escala montada — o denominador. */
+export interface DashboardPresencaMes {
+  /** `YYYY-MM` */
+  mes: string
   totalEventos: number
   insiders: InsiderPresenca[]
+}
+
+export interface DashboardPresencaInsidersBloco {
+  /** Um bloco por mês que já teve somma realizado com escala. */
+  meses: DashboardPresencaMes[]
+  /** Consolidado de todos os meses. Inclui insiders com presença zero. */
+  todos: {
+    totalEventos: number
+    insiders: InsiderPresenca[]
+  }
   parcial: boolean
 }
 
