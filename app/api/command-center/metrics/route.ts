@@ -322,16 +322,18 @@ async function carregarPresencaInsiders(
   const [eventosRes, escala, cadastroRes] = await Promise.all([
     supabase.from('eventos').select('id, data_evento').lte('data_evento', hojeISO()),
     lerEscalaPresenca(supabase),
-    supabase.from('dados_insiders').select('id, nome'),
+    supabase.from('dados_insiders').select('id, nome').eq('ativo', true),
   ])
 
   if (eventosRes.error) throw eventosRes.error
   if (cadastroRes.error) throw cadastroRes.error
 
+  const cadastro = (cadastroRes.data ?? []) as InsiderCadastro[]
+  const ativos = new Set(cadastro.map((insider) => insider.id))
   const agregado = agregarPresencaInsiders(
-    escala.rows,
+    escala.rows.filter((row) => ativos.has(row.insider_id)),
     (eventosRes.data ?? []) as Array<{ id: string; data_evento: string }>,
-    (cadastroRes.data ?? []) as InsiderCadastro[]
+    cadastro
   )
 
   return {

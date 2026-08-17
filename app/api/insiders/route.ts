@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAdminClient, requirePermission } from '@/lib/auth/api-auth'
-import { pickInsiderFields } from '@/lib/api/writable-fields'
+import { InsiderWriteError, prepareInsiderWrite } from '@/lib/insider/admin-write'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
   if (auth instanceof NextResponse) return auth
 
   try {
-    const fields = pickInsiderFields(await request.json())
+    const fields = prepareInsiderWrite(await request.json())
 
     if (!fields.nome || !fields.cpf) {
       return NextResponse.json({ error: 'Nome e CPF são obrigatórios' }, { status: 400 })
@@ -68,6 +68,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ data }, { status: 201 })
   } catch (err) {
+    if (err instanceof InsiderWriteError) {
+      return NextResponse.json({ error: err.message }, { status: 400 })
+    }
     console.error('[insiders] Erro inesperado no POST:', err)
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Erro interno' },

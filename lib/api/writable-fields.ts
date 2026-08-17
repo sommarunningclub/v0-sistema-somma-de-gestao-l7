@@ -39,6 +39,20 @@ const INSIDER_COLUMNS = [
   'big_box',
   'cupom_loja_somma',
   'assessoria_somma',
+  'estamina_recovery',
+  'email',
+  'telefone',
+  'data_nascimento',
+  'sexo',
+  'cep',
+  'logradouro',
+  'numero',
+  'complemento',
+  'bairro',
+  'cidade',
+  'estado',
+  'foto_url',
+  'ativo',
 ] as const
 
 export const pickMemberFields = (body: unknown) => pick(body, MEMBER_COLUMNS)

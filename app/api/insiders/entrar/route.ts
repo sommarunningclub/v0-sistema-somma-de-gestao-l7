@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     // round-trips, senão o tempo de resposta vira um oráculo de quem é Insider.
     const { data: linhas, error: findError } = await supabase
       .from('dados_insiders')
-      .select('id, cpf, nome, insider_credentials(senha_hash)')
+      .select('id, cpf, nome, ativo, insider_credentials(senha_hash)')
       .in('cpf', cpfCandidates(cpf))
       .limit(1)
 
@@ -66,6 +66,10 @@ export async function POST(req: NextRequest) {
 
     const { valid } = await verifyPassword(senha, senhaHash)
     if (!valid) {
+      return NextResponse.json({ error: FALHA }, { status: 401 })
+    }
+
+    if (insider.ativo === false) {
       return NextResponse.json({ error: FALHA }, { status: 401 })
     }
 

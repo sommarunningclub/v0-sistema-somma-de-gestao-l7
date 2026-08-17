@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAdminClient, requirePermission } from '@/lib/auth/api-auth'
-import { pickInsiderFields } from '@/lib/api/writable-fields'
+import { InsiderWriteError, prepareInsiderWrite } from '@/lib/insider/admin-write'
 
 export const dynamic = 'force-dynamic'
 
 /**
  * Atualiza um insider.
  *
- * Usa a MESMA whitelist do POST (`pickInsiderFields`): o corpo da requisição
+ * Usa a MESMA whitelist do POST (`prepareInsiderWrite`): o corpo da requisição
  * nunca chega cru ao banco, então um cliente não consegue escrever em colunas
  * que não são de cadastro. Nome e CPF são obrigatórios aqui como são na
  * criação — permitir esvaziá-los pela edição deixaria o registro inconsistente
@@ -24,7 +24,7 @@ export async function PATCH(
   if (!id) return NextResponse.json({ error: 'ID é obrigatório' }, { status: 400 })
 
   try {
-    const fields = pickInsiderFields(await request.json())
+    const fields = prepareInsiderWrite(await request.json())
 
     if (Object.keys(fields).length === 0) {
       return NextResponse.json({ error: 'Nenhum campo válido para atualizar' }, { status: 400 })
@@ -53,6 +53,9 @@ export async function PATCH(
 
     return NextResponse.json({ data })
   } catch (err) {
+    if (err instanceof InsiderWriteError) {
+      return NextResponse.json({ error: err.message }, { status: 400 })
+    }
     console.error('[insiders] Erro inesperado no PATCH:', err)
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Erro interno' },

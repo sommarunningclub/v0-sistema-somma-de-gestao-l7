@@ -1,9 +1,11 @@
-"use client"
+'use client'
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from "react"
 import { apiFetch } from "@/lib/api-client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Switch } from "@/components/ui/switch"
 import {
   AlertCircle,
   BadgeCheck,
@@ -12,13 +14,23 @@ import {
   Pencil,
   Plus,
   RefreshCw,
-  Star,
   Ticket,
   Trash2,
+  UserCheck,
+  UserMinus,
   Users,
 } from "lucide-react"
 import { searchAndRank } from "@/lib/search-utils"
-import { TAMANHOS_CAMISA } from '@/lib/insider/validation'
+import { idadeDeNascimento } from '@/lib/insider/admin-write'
+import {
+  TAMANHOS_CAMISA,
+  isoToBrDate,
+  maskCep,
+  maskCpf,
+  maskDate,
+  maskPhone,
+  maskUf,
+} from '@/lib/insider/validation'
 import {
   CardListSkeleton,
   EmptyState,
@@ -52,27 +64,81 @@ interface Insider {
   id: string
   nome: string
   cpf: string
+  email: string | null
+  telefone: string | null
+  data_nascimento: string | null
+  sexo: string | null
+  tamanho_camisa: string | null
+  foto_url: string | null
+  cep: string | null
+  logradouro: string | null
+  numero: string | null
+  complemento: string | null
+  bairro: string | null
+  cidade: string | null
+  estado: string | null
+  evolve: string | null
+  dopahmina: string | null
+  tex_barbearia: string | null
+  big_box: string | null
+  cupom_loja_somma: string | null
+  assessoria_somma: string | null
+  estamina_recovery: string | null
+  consent_lgpd: boolean | null
+  consent_imagem: boolean | null
+  ativo: boolean | null
+}
+
+type InsiderForm = {
+  nome: string
+  cpf: string
+  email: string
+  telefone: string
+  data_nascimento: string
+  sexo: string
   tamanho_camisa: string
+  foto_url: string
+  cep: string
+  logradouro: string
+  numero: string
+  complemento: string
+  bairro: string
+  cidade: string
+  estado: string
   evolve: string
   dopahmina: string
   tex_barbearia: string
   big_box: string
   cupom_loja_somma: string
   assessoria_somma: string
+  estamina_recovery: string
+  ativo: boolean
 }
 
-type InsiderForm = Omit<Insider, 'id'>
-
 const EMPTY_FORM: InsiderForm = {
-  nome: "",
-  cpf: "",
-  tamanho_camisa: "",
-  evolve: "",
-  dopahmina: "",
-  tex_barbearia: "",
-  big_box: "",
-  cupom_loja_somma: "",
-  assessoria_somma: "",
+  nome: '',
+  cpf: '',
+  email: '',
+  telefone: '',
+  data_nascimento: '',
+  sexo: '',
+  tamanho_camisa: '',
+  foto_url: '',
+  cep: '',
+  logradouro: '',
+  numero: '',
+  complemento: '',
+  bairro: '',
+  cidade: '',
+  estado: '',
+  evolve: '',
+  dopahmina: '',
+  tex_barbearia: '',
+  big_box: '',
+  cupom_loja_somma: '',
+  assessoria_somma: '',
+  estamina_recovery: '',
+  ativo: true,
 }
 
 const BENEFIT_FIELDS: Array<{ key: keyof InsiderForm; label: string; placeholder: string }> = [
@@ -85,32 +151,106 @@ const BENEFIT_FIELDS: Array<{ key: keyof InsiderForm; label: string; placeholder
 const SOMMA_FIELDS: Array<{ key: keyof InsiderForm; label: string; placeholder: string }> = [
   { key: 'cupom_loja_somma', label: 'Cupom Somma', placeholder: 'Código do cupom' },
   { key: 'assessoria_somma', label: 'Assessoria Somma', placeholder: 'Descrição do benefício' },
+  { key: 'estamina_recovery', label: 'Estamina Recovery', placeholder: 'Voucher ou descrição' },
+]
+
+const ADDRESS_FIELDS: Array<{ key: keyof InsiderForm; label: string; placeholder: string; span?: boolean }> = [
+  { key: 'cep', label: 'CEP', placeholder: '00000-000' },
+  { key: 'estado', label: 'UF', placeholder: 'DF' },
+  { key: 'logradouro', label: 'Logradouro', placeholder: 'Rua, avenida...', span: true },
+  { key: 'numero', label: 'Número', placeholder: '123' },
+  { key: 'complemento', label: 'Complemento', placeholder: 'Apto, bloco...' },
+  { key: 'bairro', label: 'Bairro', placeholder: 'Bairro' },
+  { key: 'cidade', label: 'Cidade', placeholder: 'Cidade' },
 ]
 
 const PAGE_SIZE = 20
+const BENEFIT_TOTAL = BENEFIT_FIELDS.length + SOMMA_FIELDS.length
 
 const inputLabel = 'mb-1.5 block text-meta font-medium text-ink-muted'
 const selectClass =
   'flex h-11 w-full rounded-lg border border-line bg-surface-sunken px-3.5 text-base text-ink transition-colors hover:border-line-strong focus-visible:border-brand focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand lg:h-10 lg:text-sm'
+
+function texto(value: string | null | undefined): string {
+  return value ?? ''
+}
+
+function isAtivo(insider: Pick<Insider, 'ativo'>): boolean {
+  return insider.ativo !== false
+}
+
+function formFromInsider(insider: Insider): InsiderForm {
+  return {
+    nome: texto(insider.nome),
+    cpf: texto(insider.cpf),
+    email: texto(insider.email),
+    telefone: texto(insider.telefone),
+    data_nascimento: isoToBrDate(insider.data_nascimento),
+    sexo: texto(insider.sexo),
+    tamanho_camisa: texto(insider.tamanho_camisa),
+    foto_url: texto(insider.foto_url),
+    cep: texto(insider.cep),
+    logradouro: texto(insider.logradouro),
+    numero: texto(insider.numero),
+    complemento: texto(insider.complemento),
+    bairro: texto(insider.bairro),
+    cidade: texto(insider.cidade),
+    estado: texto(insider.estado),
+    evolve: texto(insider.evolve),
+    dopahmina: texto(insider.dopahmina),
+    tex_barbearia: texto(insider.tex_barbearia),
+    big_box: texto(insider.big_box),
+    cupom_loja_somma: texto(insider.cupom_loja_somma),
+    assessoria_somma: texto(insider.assessoria_somma),
+    estamina_recovery: texto(insider.estamina_recovery),
+    ativo: isAtivo(insider),
+  }
+}
+
+function rotuloSexo(value: string | null | undefined): string {
+  if (value === 'masculino') return 'Masculino'
+  if (value === 'feminino') return 'Feminino'
+  return value?.trim() || '—'
+}
+
+function rotuloNascimento(iso: string | null | undefined): string {
+  return isoToBrDate(iso) || '—'
+}
+
+function rotuloIdade(iso: string | null | undefined): string {
+  const idade = idadeDeNascimento(iso)
+  if (idade == null) return '—'
+  return idade === 1 ? '1 ano' : `${idade} anos`
+}
+
+function rotuloSimNao(value: boolean | null | undefined): string {
+  if (value === true) return 'Sim'
+  if (value === false) return 'Não'
+  return '—'
+}
+
+function Dado({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div>
+      <dt className="ds-eyebrow">{label}</dt>
+      <dd className="mt-0.5 break-words text-sm text-ink">{value || '—'}</dd>
+    </div>
+  )
+}
 
 export default function InsidersPage() {
   const [insiders, setInsiders] = useState<Insider[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
+  const [mostrarInativos, setMostrarInativos] = useState(false)
   const [selectedInsider, setSelectedInsider] = useState<Insider | null>(null)
-  /*
-   * Um único modal de formulário serve criação e edição. Em modo edição
-   * `editingInsider` guarda o registro original — usado para o id do PATCH e
-   * para saber o que de fato mudou.
-   */
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [editingInsider, setEditingInsider] = useState<Insider | null>(null)
   const [creating, setCreating] = useState(false)
   const [page, setPage] = useState(1)
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof InsiderForm, string>>>({})
   const [formData, setFormData] = useState<InsiderForm>(EMPTY_FORM)
-  /** Valores de partida: vazios na criação, os do registro na edição. */
   const [formBaseline, setFormBaseline] = useState<InsiderForm>(EMPTY_FORM)
 
   const fetchInsiders = useCallback(async () => {
@@ -140,10 +280,15 @@ export default function InsidersPage() {
     fetchInsiders()
   }, [fetchInsiders])
 
+  const upsertLocal = (atualizado: Insider) => {
+    setInsiders((current) => current.map((i) => (i.id === atualizado.id ? atualizado : i)))
+    setSelectedInsider((current) => (current?.id === atualizado.id ? atualizado : current))
+  }
+
   const handleDelete = async (insider: Insider) => {
     const confirmed = await confirmAction({
       title: 'Excluir insider?',
-      description: 'Esta ação não pode ser desfeita. Os benefícios associados deixam de valer.',
+      description: 'Esta ação não pode ser desfeita. Prefira inativar se quiser preservar o histórico.',
       detail: insider.nome,
       tone: 'danger',
     })
@@ -168,19 +313,39 @@ export default function InsidersPage() {
     }
   }
 
-  /** Abre o formulário em modo edição, pré-preenchido com o registro. */
-  const openEditInsider = (insider: Insider) => {
-    const valores: InsiderForm = {
-      nome: insider.nome ?? '',
-      cpf: insider.cpf ?? '',
-      tamanho_camisa: insider.tamanho_camisa ?? '',
-      evolve: insider.evolve ?? '',
-      dopahmina: insider.dopahmina ?? '',
-      tex_barbearia: insider.tex_barbearia ?? '',
-      big_box: insider.big_box ?? '',
-      cupom_loja_somma: insider.cupom_loja_somma ?? '',
-      assessoria_somma: insider.assessoria_somma ?? '',
+  const handleSetAtivo = async (insider: Insider, ativo: boolean) => {
+    if (!ativo) {
+      const confirmed = await confirmAction({
+        title: 'Inativar insider?',
+        description: 'O insider some da escala e do ranking e não entra no portal. O cadastro e o histórico ficam salvos.',
+        detail: insider.nome,
+        confirmLabel: 'Inativar',
+        tone: 'danger',
+      })
+      if (!confirmed) return
     }
+
+    try {
+      const res = await apiFetch(`/api/insiders/${insider.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ativo }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok || !body.data) {
+        notify.error(body?.error || 'Erro ao atualizar o status')
+        return
+      }
+      upsertLocal(body.data)
+      notify.success(ativo ? 'Insider reativado' : 'Insider inativado')
+    } catch (err) {
+      console.error('[insiders] Erro ao alterar status:', err)
+      notify.error('Erro ao atualizar o status')
+    }
+  }
+
+  const openEditInsider = (insider: Insider) => {
+    const valores = formFromInsider(insider)
     setFormData(valores)
     setFormBaseline(valores)
     setFormErrors({})
@@ -189,7 +354,6 @@ export default function InsidersPage() {
     setShowCreateModal(true)
   }
 
-  /** Abre o formulário em modo criação. */
   const openCreateInsider = () => {
     setFormData(EMPTY_FORM)
     setFormBaseline(EMPTY_FORM)
@@ -198,15 +362,13 @@ export default function InsidersPage() {
     setShowCreateModal(true)
   }
 
-  /**
-   * Salva o formulário. Criar e editar compartilham validação e corpo; muda
-   * apenas o verbo e a rota — manter dois handlers separados faria as regras
-   * divergirem com o tempo.
-   */
   const handleSaveInsider = async () => {
     const errors: Partial<Record<keyof InsiderForm, string>> = {}
     if (!formData.nome.trim()) errors.nome = 'Nome é obrigatório'
     if (!formData.cpf.trim()) errors.cpf = 'CPF é obrigatório'
+    if (formData.data_nascimento && formData.data_nascimento.length < 10) {
+      errors.data_nascimento = 'Use DD/MM/AAAA'
+    }
     setFormErrors(errors)
     if (Object.keys(errors).length > 0) {
       document.getElementById(`insider-${Object.keys(errors)[0]}`)?.focus()
@@ -256,11 +418,6 @@ export default function InsidersPage() {
     }
   }
 
-  /*
-   * Compara com o baseline, não com vazio: na edição o formulário já nasce
-   * preenchido, e o critério antigo o consideraria "sujo" desde o primeiro
-   * instante — pedindo confirmação de descarte mesmo sem nenhuma alteração.
-   */
   const isFormDirty = useMemo(
     () =>
       (Object.keys(EMPTY_FORM) as Array<keyof InsiderForm>).some(
@@ -289,39 +446,67 @@ export default function InsidersPage() {
     setShowCreateModal(false)
   }
 
-  const filteredInsiders = useMemo(
-    () => searchAndRank(insiders, searchTerm, (insider) => [insider.nome, insider.cpf]),
-    [insiders, searchTerm],
-  )
+  const filteredInsiders = useMemo(() => {
+    const base = mostrarInativos ? insiders : insiders.filter(isAtivo)
+    return searchAndRank(base, searchTerm, (insider) => [
+      insider.nome,
+      insider.cpf,
+      insider.email,
+      insider.telefone,
+    ])
+  }, [insiders, searchTerm, mostrarInativos])
 
   useEffect(() => {
     setPage(1)
-  }, [searchTerm])
+  }, [searchTerm, mostrarInativos])
 
   const pagedInsiders = useMemo(
     () => filteredInsiders.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
     [filteredInsiders, page],
   )
 
-  const stats = useMemo(() => ({
-    total: insiders.length,
-    evolve: insiders.filter((i) => i.evolve).length,
-    cupom: insiders.filter((i) => i.cupom_loja_somma).length,
-    assessoria: insiders.filter((i) => i.assessoria_somma).length,
-  }), [insiders])
+  const stats = useMemo(() => {
+    const ativos = insiders.filter(isAtivo)
+    return {
+      total: ativos.length,
+      inativos: insiders.length - ativos.length,
+      evolve: ativos.filter((i) => i.evolve).length,
+      cupom: ativos.filter((i) => i.cupom_loja_somma).length,
+      assessoria: ativos.filter((i) => i.assessoria_somma).length,
+    }
+  }, [insiders])
 
   const exportToCSV = () => {
-    const headers = ["Nome", "CPF", "Tamanho Camiseta", "Evolve", "Dopamina", "Tex Barbearia", "Big Box", "Cupom Somma", "Assessoria Somma"]
+    const headers = [
+      'Nome', 'CPF', 'E-mail', 'Telefone', 'Nascimento', 'Idade', 'Sexo',
+      'Camiseta', 'CEP', 'Logradouro', 'Número', 'Complemento', 'Bairro', 'Cidade', 'UF',
+      'Evolve', 'Dopamina', 'Tex Barbearia', 'Big Box', 'Cupom Somma', 'Assessoria Somma',
+      'Estamina Recovery', 'Ativo',
+    ]
     const data = filteredInsiders.map((i) => [
       i.nome,
       i.cpf,
-      i.tamanho_camisa || "—",
-      i.evolve || "—",
-      i.dopahmina || "—",
-      i.tex_barbearia || "—",
-      i.big_box || "—",
-      i.cupom_loja_somma || "—",
-      i.assessoria_somma || "—",
+      i.email || '—',
+      i.telefone || '—',
+      rotuloNascimento(i.data_nascimento),
+      rotuloIdade(i.data_nascimento),
+      rotuloSexo(i.sexo),
+      i.tamanho_camisa || '—',
+      i.cep || '—',
+      i.logradouro || '—',
+      i.numero || '—',
+      i.complemento || '—',
+      i.bairro || '—',
+      i.cidade || '—',
+      i.estado || '—',
+      i.evolve || '—',
+      i.dopahmina || '—',
+      i.tex_barbearia || '—',
+      i.big_box || '—',
+      i.cupom_loja_somma || '—',
+      i.assessoria_somma || '—',
+      i.estamina_recovery || '—',
+      isAtivo(i) ? 'Sim' : 'Não',
     ])
 
     const csv = [headers, ...data].map((row) => row.map((cell) => `"${cell}"`).join(",")).join("\n")
@@ -347,14 +532,16 @@ export default function InsidersPage() {
 
   const benefitCount = (insider: Insider) =>
     [insider.evolve, insider.dopahmina, insider.tex_barbearia, insider.big_box,
-      insider.cupom_loja_somma, insider.assessoria_somma].filter(Boolean).length
+      insider.cupom_loja_somma, insider.assessoria_somma, insider.estamina_recovery].filter(Boolean).length
+
+  const inativarId = useId()
 
   return (
     <PageShell>
       <PageHeader
         eyebrow="Relacionamento"
         title="Insiders"
-        description="Membros VIP do clube e os benefícios liberados para cada um."
+        description="Cadastro completo dos membros VIP, benefícios e situação de cada um."
         meta={
           <>
             <span>
@@ -413,10 +600,15 @@ export default function InsidersPage() {
           <StatGridSkeleton count={4} />
         ) : (
           <StatGrid>
-            <StatTile label="Total" value={stats.total} icon={Users} hint="Insiders cadastrados" />
+            <StatTile label="Ativos" value={stats.total} icon={Users} hint="Insiders no clube" />
             <StatTile label="Com Evolve" value={stats.evolve} icon={Dumbbell} tone="brand" />
             <StatTile label="Com cupom" value={stats.cupom} icon={Ticket} />
-            <StatTile label="Com assessoria" value={stats.assessoria} icon={Star} />
+            <StatTile
+              label="Inativos"
+              value={stats.inativos}
+              icon={UserMinus}
+              hint="Ocultos da escala"
+            />
           </StatGrid>
         )}
 
@@ -424,9 +616,17 @@ export default function InsidersPage() {
           <SearchInput
             value={searchTerm}
             onValueChange={setSearchTerm}
-            placeholder="Buscar por nome ou CPF..."
+            placeholder="Buscar por nome, CPF, e-mail ou telefone..."
             label="Buscar insiders"
           />
+          <label className="ds-tap inline-flex items-center gap-2 rounded-lg border border-line bg-surface-raised px-3 text-sm text-ink">
+            <Checkbox
+              checked={mostrarInativos}
+              onCheckedChange={(value) => setMostrarInativos(value === true)}
+              aria-label="Mostrar insiders inativos"
+            />
+            Mostrar inativos
+          </label>
         </Toolbar>
 
         {loading ? (
@@ -435,11 +635,11 @@ export default function InsidersPage() {
               <CardListSkeleton count={4} />
             </div>
             <div className="hidden lg:block">
-              <TableSkeleton rows={6} columns={5} />
+              <TableSkeleton rows={6} columns={6} />
             </div>
           </>
         ) : filteredInsiders.length === 0 ? (
-          insiders.length === 0 ? (
+          insiders.filter((i) => mostrarInativos || isAtivo(i)).length === 0 ? (
             <EmptyState
               icon={BadgeCheck}
               title="Nenhum insider cadastrado"
@@ -456,7 +656,6 @@ export default function InsidersPage() {
           )
         ) : (
           <>
-            {/* Celular: cards */}
             <ul className="space-y-3 lg:hidden">
               {pagedInsiders.map((insider) => (
                 <li key={insider.id}>
@@ -464,28 +663,30 @@ export default function InsidersPage() {
                     title={insider.nome}
                     subtitle={insider.cpf}
                     status={
-                      <StatusPill tone={benefitCount(insider) > 0 ? 'success' : 'neutral'}>
-                        {benefitCount(insider)} benefício{benefitCount(insider) === 1 ? '' : 's'}
+                      <StatusPill tone={isAtivo(insider) ? 'success' : 'neutral'}>
+                        {isAtivo(insider) ? 'Ativo' : 'Inativo'}
                       </StatusPill>
                     }
                     fields={[
+                      { label: 'Nascimento', value: rotuloNascimento(insider.data_nascimento) },
+                      { label: 'Idade', value: rotuloIdade(insider.data_nascimento) },
+                      { label: 'E-mail', value: insider.email || '—' },
                       { label: 'Camiseta', value: insider.tamanho_camisa || '—' },
-                      { label: 'Cupom Somma', value: insider.cupom_loja_somma || '—' },
                     ]}
                     onClick={() => setSelectedInsider(insider)}
                     actions={
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="ml-auto text-danger hover:text-danger"
-                        aria-label={`Excluir ${insider.nome}`}
+                        className="ml-auto"
+                        aria-label={isAtivo(insider) ? `Inativar ${insider.nome}` : `Reativar ${insider.nome}`}
                         onClick={(event) => {
                           event.stopPropagation()
-                          handleDelete(insider)
+                          void handleSetAtivo(insider, !isAtivo(insider))
                         }}
                       >
-                        <Trash2 aria-hidden="true" />
-                        Excluir
+                        {isAtivo(insider) ? <UserMinus aria-hidden="true" /> : <UserCheck aria-hidden="true" />}
+                        {isAtivo(insider) ? 'Inativar' : 'Reativar'}
                       </Button>
                     }
                   />
@@ -493,14 +694,14 @@ export default function InsidersPage() {
               ))}
             </ul>
 
-            {/* Desktop: tabela */}
             <TableFrame className="hidden lg:block">
-              <Table caption="Insiders cadastrados, com CPF, tamanho de camiseta e benefícios ativos.">
+              <Table caption="Insiders cadastrados, com nascimento, idade, status e benefícios.">
                 <THead>
                   <TH>Insider</TH>
+                  <TH>Nascimento</TH>
+                  <TH>Idade</TH>
+                  <TH>Status</TH>
                   <TH>Camiseta</TH>
-                  <TH>Cupom Somma</TH>
-                  <TH>Assessoria</TH>
                   <TH>Benefícios</TH>
                   <TH align="right">Ações</TH>
                 </THead>
@@ -511,30 +712,30 @@ export default function InsidersPage() {
                         <span className="block truncate font-medium text-ink-strong">{insider.nome}</span>
                         <span className="block font-mono text-micro text-ink-subtle">{insider.cpf}</span>
                       </TD>
+                      <TD className="font-mono tabular-nums">{rotuloNascimento(insider.data_nascimento)}</TD>
+                      <TD className="tabular-nums">{rotuloIdade(insider.data_nascimento)}</TD>
+                      <TD>
+                        <StatusPill tone={isAtivo(insider) ? 'success' : 'neutral'}>
+                          {isAtivo(insider) ? 'Ativo' : 'Inativo'}
+                        </StatusPill>
+                      </TD>
                       <TD>{insider.tamanho_camisa || <span className="text-ink-subtle">—</span>}</TD>
                       <TD>
-                        {insider.cupom_loja_somma || <span className="text-ink-subtle">—</span>}
-                      </TD>
-                      <TD>
-                        {insider.assessoria_somma || <span className="text-ink-subtle">—</span>}
-                      </TD>
-                      <TD>
                         <StatusPill tone={benefitCount(insider) > 0 ? 'success' : 'neutral'}>
-                          {benefitCount(insider)} de 6
+                          {benefitCount(insider)} de {BENEFIT_TOTAL}
                         </StatusPill>
                       </TD>
                       <TD align="right">
                         <Button
                           variant="ghost"
                           size="icon-sm"
-                          aria-label={`Excluir ${insider.nome}`}
-                          className="text-danger hover:text-danger"
+                          aria-label={isAtivo(insider) ? `Inativar ${insider.nome}` : `Reativar ${insider.nome}`}
                           onClick={(event) => {
                             event.stopPropagation()
-                            handleDelete(insider)
+                            void handleSetAtivo(insider, !isAtivo(insider))
                           }}
                         >
-                          <Trash2 aria-hidden="true" />
+                          {isAtivo(insider) ? <UserMinus aria-hidden="true" /> : <UserCheck aria-hidden="true" />}
                         </Button>
                       </TD>
                     </TR>
@@ -562,8 +763,6 @@ export default function InsidersPage() {
         )}
       </div>
 
-
-      {/* Detalhe */}
       <ResponsiveModal
         open={!!selectedInsider}
         onOpenChange={(open) => {
@@ -588,9 +787,10 @@ export default function InsidersPage() {
                 variant="secondary"
                 block
                 className="sm:w-auto"
-                onClick={() => setSelectedInsider(null)}
+                onClick={() => void handleSetAtivo(selectedInsider, !isAtivo(selectedInsider))}
               >
-                Fechar
+                {isAtivo(selectedInsider) ? <UserMinus aria-hidden="true" /> : <UserCheck aria-hidden="true" />}
+                {isAtivo(selectedInsider) ? 'Inativar' : 'Reativar'}
               </Button>
               <Button block className="sm:w-auto" onClick={() => openEditInsider(selectedInsider)}>
                 <Pencil aria-hidden="true" />
@@ -606,18 +806,56 @@ export default function InsidersPage() {
               <SectionTitle as="h3" title="Identificação" />
               <Well className="p-4">
                 <dl className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <dt className="ds-eyebrow">Nome</dt>
-                    <dd className="mt-0.5 text-sm text-ink">{selectedInsider.nome}</dd>
-                  </div>
-                  <div>
-                    <dt className="ds-eyebrow">CPF</dt>
-                    <dd className="mt-0.5 font-mono text-sm text-ink">{selectedInsider.cpf}</dd>
-                  </div>
-                  <div>
-                    <dt className="ds-eyebrow">Tamanho da camiseta</dt>
-                    <dd className="mt-0.5 text-sm text-ink">{selectedInsider.tamanho_camisa || '—'}</dd>
-                  </div>
+                  <Dado label="Nome" value={selectedInsider.nome} />
+                  <Dado label="CPF" value={<span className="font-mono">{selectedInsider.cpf}</span>} />
+                  <Dado label="Nascimento" value={rotuloNascimento(selectedInsider.data_nascimento)} />
+                  <Dado label="Idade" value={rotuloIdade(selectedInsider.data_nascimento)} />
+                  <Dado label="Sexo" value={rotuloSexo(selectedInsider.sexo)} />
+                  <Dado label="E-mail" value={selectedInsider.email} />
+                  <Dado label="Telefone" value={selectedInsider.telefone} />
+                  <Dado label="Tamanho da camiseta" value={selectedInsider.tamanho_camisa} />
+                  <Dado
+                    label="Status"
+                    value={
+                      <StatusPill tone={isAtivo(selectedInsider) ? 'success' : 'neutral'}>
+                        {isAtivo(selectedInsider) ? 'Ativo' : 'Inativo'}
+                      </StatusPill>
+                    }
+                  />
+                  <Dado
+                    label="Foto"
+                    value={
+                      selectedInsider.foto_url ? (
+                        <a
+                          href={selectedInsider.foto_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-brand underline-offset-2 hover:underline"
+                        >
+                          Abrir URL
+                        </a>
+                      ) : (
+                        '—'
+                      )
+                    }
+                  />
+                  <Dado label="Consentimento LGPD" value={rotuloSimNao(selectedInsider.consent_lgpd)} />
+                  <Dado label="Uso de imagem" value={rotuloSimNao(selectedInsider.consent_imagem)} />
+                </dl>
+              </Well>
+            </section>
+
+            <section>
+              <SectionTitle as="h3" title="Endereço" />
+              <Well className="p-4">
+                <dl className="grid gap-4 sm:grid-cols-2">
+                  <Dado label="CEP" value={selectedInsider.cep} />
+                  <Dado label="UF" value={selectedInsider.estado} />
+                  <Dado label="Logradouro" value={selectedInsider.logradouro} />
+                  <Dado label="Número" value={selectedInsider.numero} />
+                  <Dado label="Complemento" value={selectedInsider.complemento} />
+                  <Dado label="Bairro" value={selectedInsider.bairro} />
+                  <Dado label="Cidade" value={selectedInsider.cidade} />
                 </dl>
               </Well>
             </section>
@@ -627,10 +865,7 @@ export default function InsidersPage() {
               <Well className="p-4">
                 <dl className="grid gap-4 sm:grid-cols-2">
                   {BENEFIT_FIELDS.map((field) => (
-                    <div key={field.key}>
-                      <dt className="ds-eyebrow">{field.label}</dt>
-                      <dd className="mt-0.5 text-sm text-ink">{selectedInsider[field.key] || '—'}</dd>
-                    </div>
+                    <Dado key={field.key} label={field.label} value={selectedInsider[field.key as keyof Insider]} />
                   ))}
                 </dl>
               </Well>
@@ -641,10 +876,7 @@ export default function InsidersPage() {
               <Well className="p-4">
                 <dl className="grid gap-4 sm:grid-cols-2">
                   {SOMMA_FIELDS.map((field) => (
-                    <div key={field.key}>
-                      <dt className="ds-eyebrow">{field.label}</dt>
-                      <dd className="mt-0.5 text-sm text-ink">{selectedInsider[field.key] || '—'}</dd>
-                    </div>
+                    <Dado key={field.key} label={field.label} value={selectedInsider[field.key as keyof Insider]} />
                   ))}
                 </dl>
               </Well>
@@ -653,7 +885,6 @@ export default function InsidersPage() {
         ) : null}
       </ResponsiveModal>
 
-      {/* Cadastro */}
       <ResponsiveModal
         open={showCreateModal}
         onOpenChange={(open) => {
@@ -664,8 +895,8 @@ export default function InsidersPage() {
         title={editingInsider ? 'Editar insider' : 'Novo insider'}
         description={
           editingInsider
-            ? 'Atualize os dados e os benefícios liberados para este insider.'
-            : 'Cadastre o membro VIP e os benefícios liberados para ele.'
+            ? 'Atualize os dados pessoais, o endereço e os benefícios deste insider.'
+            : 'Cadastre o membro VIP. Só nome e CPF são obrigatórios agora.'
         }
         footer={
           <>
@@ -686,7 +917,7 @@ export default function InsidersPage() {
       >
         <div className="space-y-6">
           <section>
-            <SectionTitle as="h3" title="Identificação" meta="Obrigatório" />
+            <SectionTitle as="h3" title="Dados básicos" meta="Nome e CPF obrigatórios" />
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="sm:col-span-2">
                 <label htmlFor="insider-nome" className={inputLabel}>
@@ -699,11 +930,10 @@ export default function InsidersPage() {
                   placeholder="Nome completo"
                   value={formData.nome}
                   aria-invalid={formErrors.nome ? true : undefined}
-                  aria-describedby={formErrors.nome ? 'insider-nome-error' : undefined}
                   onChange={(e) => setField('nome', e.target.value)}
                 />
                 {formErrors.nome ? (
-                  <p id="insider-nome-error" className="mt-1.5 flex items-center gap-1.5 text-meta text-danger">
+                  <p className="mt-1.5 flex items-center gap-1.5 text-meta text-danger">
                     <AlertCircle aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
                     {formErrors.nome}
                   </p>
@@ -721,16 +951,77 @@ export default function InsidersPage() {
                   placeholder="000.000.000-00"
                   value={formData.cpf}
                   aria-invalid={formErrors.cpf ? true : undefined}
-                  aria-describedby={formErrors.cpf ? 'insider-cpf-error' : undefined}
-                  onChange={(e) => setField('cpf', e.target.value)}
+                  onChange={(e) => setField('cpf', maskCpf(e.target.value))}
                   className="font-mono"
                 />
                 {formErrors.cpf ? (
-                  <p id="insider-cpf-error" className="mt-1.5 flex items-center gap-1.5 text-meta text-danger">
+                  <p className="mt-1.5 flex items-center gap-1.5 text-meta text-danger">
                     <AlertCircle aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
                     {formErrors.cpf}
                   </p>
                 ) : null}
+              </div>
+              <div>
+                <label htmlFor="insider-data_nascimento" className={inputLabel}>
+                  Data de nascimento
+                </label>
+                <Input
+                  id="insider-data_nascimento"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="DD/MM/AAAA"
+                  value={formData.data_nascimento}
+                  aria-invalid={formErrors.data_nascimento ? true : undefined}
+                  onChange={(e) => setField('data_nascimento', maskDate(e.target.value))}
+                  className="font-mono"
+                />
+                {formErrors.data_nascimento ? (
+                  <p className="mt-1.5 flex items-center gap-1.5 text-meta text-danger">
+                    <AlertCircle aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
+                    {formErrors.data_nascimento}
+                  </p>
+                ) : null}
+              </div>
+              <div>
+                <label htmlFor="insider-sexo" className={inputLabel}>
+                  Sexo
+                </label>
+                <select
+                  id="insider-sexo"
+                  value={formData.sexo}
+                  onChange={(e) => setField('sexo', e.target.value)}
+                  className={selectClass}
+                >
+                  <option value="">Selecione</option>
+                  <option value="masculino">Masculino</option>
+                  <option value="feminino">Feminino</option>
+                </select>
+              </div>
+              <div>
+                <label htmlFor="insider-email" className={inputLabel}>
+                  E-mail
+                </label>
+                <Input
+                  id="insider-email"
+                  type="email"
+                  autoComplete="email"
+                  placeholder="email@exemplo.com"
+                  value={formData.email}
+                  onChange={(e) => setField('email', e.target.value)}
+                />
+              </div>
+              <div>
+                <label htmlFor="insider-telefone" className={inputLabel}>
+                  Telefone
+                </label>
+                <Input
+                  id="insider-telefone"
+                  type="tel"
+                  inputMode="tel"
+                  placeholder="(61) 99999-0000"
+                  value={formData.telefone}
+                  onChange={(e) => setField('telefone', maskPhone(e.target.value))}
+                />
               </div>
               <div>
                 <label htmlFor="insider-tamanho" className={inputLabel}>
@@ -750,6 +1041,60 @@ export default function InsidersPage() {
                   ))}
                 </select>
               </div>
+              <div>
+                <label htmlFor="insider-foto_url" className={inputLabel}>
+                  URL da foto
+                </label>
+                <Input
+                  id="insider-foto_url"
+                  type="url"
+                  placeholder="https://"
+                  value={formData.foto_url}
+                  onChange={(e) => setField('foto_url', e.target.value)}
+                />
+              </div>
+              <div className="sm:col-span-2 flex items-center justify-between gap-3 rounded-lg border border-line bg-surface-sunken px-3.5 py-3">
+                <div>
+                  <p className="text-sm font-medium text-ink-strong">Insider ativo</p>
+                  <p className="text-meta text-ink-muted">
+                    Inativos saem da escala, do ranking e do portal.
+                  </p>
+                </div>
+                <Switch
+                  id={inativarId}
+                  checked={formData.ativo}
+                  onCheckedChange={(checked) =>
+                    setFormData((current) => ({ ...current, ativo: checked }))
+                  }
+                  aria-label="Insider ativo"
+                />
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <SectionTitle as="h3" title="Endereço" meta="Opcional" />
+            <div className="grid gap-4 sm:grid-cols-2">
+              {ADDRESS_FIELDS.map((field) => (
+                <div key={field.key} className={field.span ? 'sm:col-span-2' : undefined}>
+                  <label htmlFor={`insider-${field.key}`} className={inputLabel}>
+                    {field.label}
+                  </label>
+                  <Input
+                    id={`insider-${field.key}`}
+                    type="text"
+                    autoComplete="off"
+                    placeholder={field.placeholder}
+                    value={formData[field.key] as string}
+                    onChange={(e) => {
+                      const raw = e.target.value
+                      if (field.key === 'cep') setField('cep', maskCep(raw))
+                      else if (field.key === 'estado') setField('estado', maskUf(raw))
+                      else setField(field.key, raw)
+                    }}
+                  />
+                </div>
+              ))}
             </div>
           </section>
 
@@ -766,7 +1111,7 @@ export default function InsidersPage() {
                     type="text"
                     autoComplete="off"
                     placeholder={field.placeholder}
-                    value={formData[field.key]}
+                    value={formData[field.key] as string}
                     onChange={(e) => setField(field.key, e.target.value)}
                   />
                 </div>
@@ -787,7 +1132,7 @@ export default function InsidersPage() {
                     type="text"
                     autoComplete="off"
                     placeholder={field.placeholder}
-                    value={formData[field.key]}
+                    value={formData[field.key] as string}
                     onChange={(e) => setField(field.key, e.target.value)}
                   />
                 </div>

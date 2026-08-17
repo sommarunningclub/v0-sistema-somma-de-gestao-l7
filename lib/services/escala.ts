@@ -327,6 +327,7 @@ export async function listInsiders(): Promise<InsiderOption[]> {
   const { data, error } = await getAdminClient()
     .from('dados_insiders')
     .select('id, nome')
+    .eq('ativo', true)
     .order('nome')
 
   if (error) {
