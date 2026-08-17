@@ -12,7 +12,7 @@ import type {
 } from '@/components/dashboard/types'
 import {
   agregarPresencaInsiders,
-  type InsiderCadastro,
+  type EscalaPresencaRow,
 } from '@/lib/dashboard/agregar-presenca-insiders'
 
 export const dynamic = 'force-dynamic'
@@ -28,6 +28,8 @@ type AdminClient = ReturnType<typeof getAdminClient>
 const PAGINA_CHECKINS = 1000
 /** Teto de segurança: acima disto o resultado é declarado parcial em vez de mentir. */
 const TETO_CHECKINS = 50_000
+/** Teto de segurança da leitura de `escala_insiders` para o ranking de presença. */
+const TETO_ESCALA = 10_000
 /** Quantos eventos olhamos para trás/para frente em busca de uma escala montada. */
 const JANELA_EVENTOS_ESCALA = 20
 const LIMITE_PROXIMOS_EVENTOS = 5
@@ -313,57 +315,79 @@ async function carregarProximosEventos(
   }
 }
 
-async function carregarInsiders(supabase: AdminClient): Promise<InsiderCadastro[]> {
-  const { data, error } = await supabase.from('dados_insiders').select('id, nome, cpf')
-  if (error) throw error
-  return (data ?? []) as InsiderCadastro[]
-}
+async function carregarPresencaInsiders(
+  supabase: AdminClient
+): Promise<DashboardPresencaInsidersBloco> {
+  const [{ data: eventos, error: erroEventos }, { rows, parcial }] = await Promise.all([
+    supabase.from('eventos').select('id').lte('data_evento', hojeISO()),
+    lerEscalaPresenca(supabase),
+  ])
 
-function montarPresencaInsiders(
-  rows: CheckinRow[],
-  insiders: InsiderCadastro[],
-  totalEventos: number,
-  parcial: boolean
-): DashboardPresencaInsidersBloco {
+  if (erroEventos) throw erroEventos
+
+  const realizados = new Set((eventos ?? []).map((evento) => evento.id as string))
+  const agregado = agregarPresencaInsiders(rows, realizados)
+
   return {
-    totalEventos,
-    insiders: agregarPresencaInsiders(rows, insiders),
+    totalEventos: agregado.totalEventos,
+    insiders: agregado.insiders,
     parcial,
   }
 }
 
+interface EscalaPresencaQueryRow {
+  insider_id: string
+  evento_id: string
+  status: EscalaStatus
+  dados_insiders: { nome: string | null } | null
+}
+
+async function lerEscalaPresenca(
+  supabase: AdminClient
+): Promise<{ rows: EscalaPresencaRow[]; parcial: boolean }> {
+  const rows: EscalaPresencaRow[] = []
+
+  for (let inicio = 0; inicio < TETO_ESCALA; inicio += PAGINA_CHECKINS) {
+    const fim = Math.min(inicio + PAGINA_CHECKINS, TETO_ESCALA) - 1
+    const { data, error } = await supabase
+      .from('escala_insiders')
+      .select('insider_id, evento_id, status, dados_insiders ( nome )')
+      .order('id', { ascending: true })
+      .range(inicio, fim)
+
+    if (error) throw error
+
+    const pagina = (data ?? []) as unknown as EscalaPresencaQueryRow[]
+    for (const row of pagina) {
+      rows.push({
+        insider_id: row.insider_id,
+        evento_id: row.evento_id,
+        status: row.status,
+        nome: row.dados_insiders?.nome ?? null,
+      })
+    }
+
+    if (pagina.length < PAGINA_CHECKINS) return { rows, parcial: false }
+  }
+
+  return { rows, parcial: true }
+}
+
 async function carregarBlocos(supabase: AdminClient): Promise<DashboardBlocos> {
-  const [checkins, insiders, escalaInsiders, proximosEventos] = await Promise.all([
-    // Uma única varredura de `checkins` alimenta os rankings de membros e de insiders.
-    bloco('checkins', () => lerCheckins(supabase)),
-    bloco('insiders', () => carregarInsiders(supabase)),
+  const [agregado, presencaInsiders, escalaInsiders, proximosEventos] = await Promise.all([
+    bloco('checkins', async () => {
+      const { rows, parcial } = await lerCheckins(supabase)
+      return agregarCheckins(rows, parcial)
+    }),
+    bloco('presenca-insiders', () => carregarPresencaInsiders(supabase)),
     bloco('escala', () => carregarEscala(supabase)),
     bloco('proximos-eventos', () => carregarProximosEventos(supabase)),
   ])
 
-  if (!checkins) {
-    return {
-      topCheckins: null,
-      presencaEventos: null,
-      presencaInsiders: null,
-      escalaInsiders,
-      proximosEventos,
-    }
-  }
-
-  const agregado = agregarCheckins(checkins.rows, checkins.parcial)
-
   return {
-    topCheckins: agregado.topCheckins,
-    presencaEventos: agregado.presencaEventos,
-    presencaInsiders: insiders
-      ? montarPresencaInsiders(
-          checkins.rows,
-          insiders,
-          agregado.presencaEventos.totalEventos,
-          checkins.parcial
-        )
-      : null,
+    topCheckins: agregado?.topCheckins ?? null,
+    presencaEventos: agregado?.presencaEventos ?? null,
+    presencaInsiders,
     escalaInsiders,
     proximosEventos,
   }

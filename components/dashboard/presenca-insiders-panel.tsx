@@ -43,14 +43,14 @@ export function PresencaInsidersPanel({
       title="Top 10 insiders em presença nos sommas"
       description={
         bloco
-          ? `Critério: eventos distintos com check-in do insider (CPF do cadastro), sobre os ${formatarNumero(total)} eventos que já tiveram check-in`
+          ? `Critério: escala como corre ou apoio, sobre os ${formatarNumero(total)} sommas já realizados com escala montada`
           : undefined
       }
       loading={loading}
       indisponivel={bloco === null}
       aviso={
         bloco?.parcial
-          ? 'Amostra parcial: o volume de check-ins excedeu o limite de leitura, então a cobertura pode estar subestimada.'
+          ? 'Amostra parcial: o volume da escala excedeu o limite de leitura, então a cobertura pode estar subestimada.'
           : undefined
       }
     >
@@ -58,8 +58,8 @@ export function PresencaInsidersPanel({
         <EmptyState
           compact
           icon={Medal}
-          title="Nenhum insider com presença ainda"
-          description="O ranking aparece quando um insider cadastrado tiver check-in em algum somma."
+          title="Nenhuma presença na escala ainda"
+          description="O ranking aparece quando a escala de um somma já realizado marcar insiders como corre ou apoio."
         />
       ) : (
         <>
@@ -79,7 +79,7 @@ export function PresencaInsidersPanel({
           <div className="hidden overflow-x-auto lg:block">
             <Table
               className="min-w-[420px]"
-              caption="Insiders com maior número de sommas com check-in registrado, com a cobertura sobre o total de eventos."
+              caption="Insiders com maior número de sommas em que a escala registrou presença (corre ou apoio)."
             >
               <THead>
                 <TH width="3rem">#</TH>

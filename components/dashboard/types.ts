@@ -42,12 +42,12 @@ export interface DashboardPresencaBloco {
 export interface InsiderPresenca {
   id: string
   nome: string
-  /** Eventos distintos em que o insider tem check-in registrado. */
+  /** Sommas distintos em que a escala marcou o insider como corre ou apoio. */
   eventos: number
 }
 
 export interface DashboardPresencaInsidersBloco {
-  /** Mesmo denominador do ranking de membros: eventos que já tiveram check-in. */
+  /** Sommas já realizados que tiveram escala montada — o denominador. */
   totalEventos: number
   insiders: InsiderPresenca[]
   parcial: boolean

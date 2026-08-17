@@ -1,16 +1,15 @@
-import { onlyDigits } from '@/lib/insider/validation'
+import type { EscalaStatus } from '@/lib/escala-constants'
 
 export const LIMITE_RANKING_INSIDERS = 10
 
-export interface InsiderCadastro {
-  id: string
-  nome: string | null
-  cpf: string | null
-}
+/** Na escala, presença é quem correu ou apoiou — "não vai" é ausência. */
+export const STATUS_PRESENCA_ESCALA = ['corre', 'apoio'] as const
 
-export interface CheckinPresenca {
-  cpf: string | null
-  evento_id: string | null
+export interface EscalaPresencaRow {
+  insider_id: string
+  evento_id: string
+  status: EscalaStatus
+  nome: string | null
 }
 
 export interface InsiderPresencaRank {
@@ -19,45 +18,59 @@ export interface InsiderPresencaRank {
   eventos: number
 }
 
+export interface AgregadoPresencaInsiders {
+  totalEventos: number
+  insiders: InsiderPresencaRank[]
+}
+
 interface AgregadoInsider {
   id: string
   nome: string
   eventos: Set<string>
 }
 
+function estevePresente(status: EscalaStatus): boolean {
+  return (STATUS_PRESENCA_ESCALA as readonly string[]).includes(status)
+}
+
 /**
- * Ranking de presença dos insiders nos sommas.
+ * Ranking de presença dos insiders nos sommas, a partir da escala.
  *
- * Mesmo critério do Top 10 de membros: eventos distintos com check-in
- * registrado. A diferença é o universo — só entra quem está em
- * `dados_insiders`, identificado pelo CPF (com ou sem máscara). O nome
- * exibido é o do cadastro de insider, não a grafia do check-in.
+ * O denominador é o número de sommas já realizados que tiveram escala
+ * montada. O numerador, por insider, são os eventos distintos em que o
+ * status foi `corre` ou `apoio`. Eventos futuros não entram — escala
+ * futura é convocação, não presença.
  */
 export function agregarPresencaInsiders(
-  checkins: CheckinPresenca[],
-  insiders: InsiderCadastro[]
-): InsiderPresencaRank[] {
-  const porCpf = new Map<string, AgregadoInsider>()
+  escalas: EscalaPresencaRow[],
+  eventosRealizados: ReadonlySet<string>
+): AgregadoPresencaInsiders {
+  const eventosComEscala = new Set<string>()
+  const porInsider = new Map<string, AgregadoInsider>()
 
-  for (const insider of insiders) {
-    const cpf = onlyDigits(insider.cpf ?? '')
-    if (!cpf || porCpf.has(cpf)) continue
-    porCpf.set(cpf, {
-      id: insider.id,
-      nome: (insider.nome ?? '').trim() || 'Insider sem nome',
-      eventos: new Set(),
-    })
+  for (const row of escalas) {
+    if (!row.insider_id || !row.evento_id) continue
+    if (!eventosRealizados.has(row.evento_id)) continue
+
+    eventosComEscala.add(row.evento_id)
+
+    if (!estevePresente(row.status)) continue
+
+    const insider =
+      porInsider.get(row.insider_id) ??
+      {
+        id: row.insider_id,
+        nome: '',
+        eventos: new Set<string>(),
+      }
+
+    const nome = (row.nome ?? '').trim()
+    if (nome) insider.nome = nome
+    insider.eventos.add(row.evento_id)
+    porInsider.set(row.insider_id, insider)
   }
 
-  for (const row of checkins) {
-    if (!row.evento_id) continue
-    const cpf = onlyDigits(row.cpf ?? '')
-    if (!cpf) continue
-    const insider = porCpf.get(cpf)
-    if (insider) insider.eventos.add(row.evento_id)
-  }
-
-  return Array.from(porCpf.values())
+  const insiders = Array.from(porInsider.values())
     .filter((insider) => insider.eventos.size > 0)
     .sort(
       (a, b) =>
@@ -66,7 +79,9 @@ export function agregarPresencaInsiders(
     .slice(0, LIMITE_RANKING_INSIDERS)
     .map((insider) => ({
       id: insider.id,
-      nome: insider.nome,
+      nome: insider.nome || 'Insider sem nome',
       eventos: insider.eventos.size,
     }))
+
+  return { totalEventos: eventosComEscala.size, insiders }
 }
