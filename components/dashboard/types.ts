@@ -39,6 +39,20 @@ export interface DashboardPresencaBloco {
   parcial: boolean
 }
 
+export interface InsiderPresenca {
+  id: string
+  nome: string
+  /** Eventos distintos em que o insider tem check-in registrado. */
+  eventos: number
+}
+
+export interface DashboardPresencaInsidersBloco {
+  /** Mesmo denominador do ranking de membros: eventos que já tiveram check-in. */
+  totalEventos: number
+  insiders: InsiderPresenca[]
+  parcial: boolean
+}
+
 export type EscalaStatus = 'corre' | 'apoio' | 'nao_vai'
 
 export interface EscalaInsiderResumo {
@@ -81,6 +95,7 @@ export interface DashboardProximosEventosBloco {
 export interface DashboardBlocos {
   topCheckins: DashboardTopCheckinsBloco | null
   presencaEventos: DashboardPresencaBloco | null
+  presencaInsiders: DashboardPresencaInsidersBloco | null
   escalaInsiders: DashboardEscalaBloco | null
   proximosEventos: DashboardProximosEventosBloco | null
 }

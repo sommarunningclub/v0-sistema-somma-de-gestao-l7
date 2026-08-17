@@ -4,11 +4,16 @@ import type {
   DashboardBlocos,
   DashboardEscalaBloco,
   DashboardPresencaBloco,
+  DashboardPresencaInsidersBloco,
   DashboardProximosEventosBloco,
   DashboardTopCheckinsBloco,
   EscalaInsiderResumo,
   EscalaStatus,
 } from '@/components/dashboard/types'
+import {
+  agregarPresencaInsiders,
+  type InsiderCadastro,
+} from '@/lib/dashboard/agregar-presenca-insiders'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -308,20 +313,57 @@ async function carregarProximosEventos(
   }
 }
 
+async function carregarInsiders(supabase: AdminClient): Promise<InsiderCadastro[]> {
+  const { data, error } = await supabase.from('dados_insiders').select('id, nome, cpf')
+  if (error) throw error
+  return (data ?? []) as InsiderCadastro[]
+}
+
+function montarPresencaInsiders(
+  rows: CheckinRow[],
+  insiders: InsiderCadastro[],
+  totalEventos: number,
+  parcial: boolean
+): DashboardPresencaInsidersBloco {
+  return {
+    totalEventos,
+    insiders: agregarPresencaInsiders(rows, insiders),
+    parcial,
+  }
+}
+
 async function carregarBlocos(supabase: AdminClient): Promise<DashboardBlocos> {
-  const [agregado, escalaInsiders, proximosEventos] = await Promise.all([
-    // Uma única varredura de `checkins` alimenta os dois primeiros blocos.
-    bloco('checkins', async () => {
-      const { rows, parcial } = await lerCheckins(supabase)
-      return agregarCheckins(rows, parcial)
-    }),
+  const [checkins, insiders, escalaInsiders, proximosEventos] = await Promise.all([
+    // Uma única varredura de `checkins` alimenta os rankings de membros e de insiders.
+    bloco('checkins', () => lerCheckins(supabase)),
+    bloco('insiders', () => carregarInsiders(supabase)),
     bloco('escala', () => carregarEscala(supabase)),
     bloco('proximos-eventos', () => carregarProximosEventos(supabase)),
   ])
 
+  if (!checkins) {
+    return {
+      topCheckins: null,
+      presencaEventos: null,
+      presencaInsiders: null,
+      escalaInsiders,
+      proximosEventos,
+    }
+  }
+
+  const agregado = agregarCheckins(checkins.rows, checkins.parcial)
+
   return {
-    topCheckins: agregado?.topCheckins ?? null,
-    presencaEventos: agregado?.presencaEventos ?? null,
+    topCheckins: agregado.topCheckins,
+    presencaEventos: agregado.presencaEventos,
+    presencaInsiders: insiders
+      ? montarPresencaInsiders(
+          checkins.rows,
+          insiders,
+          agregado.presencaEventos.totalEventos,
+          checkins.parcial
+        )
+      : null,
     escalaInsiders,
     proximosEventos,
   }
@@ -333,7 +375,7 @@ export async function GET(request: NextRequest) {
 
   try {
     /*
-     * O dashboard é composto apenas pelos quatro blocos operacionais.
+     * O dashboard é composto pelos blocos operacionais.
      * Métricas financeiras e de equipe saíram do produto — as tabelas
      * continuam existindo e sendo alimentadas, só não são mais lidas aqui.
      */

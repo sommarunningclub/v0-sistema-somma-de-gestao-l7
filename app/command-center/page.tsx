@@ -8,6 +8,7 @@ import { ErrorBanner } from "@/components/ui/error-banner"
 import { PageHeader, PageShell } from "@/components/somma"
 import { EscalaInsidersPanel } from "@/components/dashboard/escala-insiders-panel"
 import { PresencaEventosPanel } from "@/components/dashboard/presenca-eventos-panel"
+import { PresencaInsidersPanel } from "@/components/dashboard/presenca-insiders-panel"
 import { ProximosEventosPanel } from "@/components/dashboard/proximos-eventos-panel"
 import { TopCheckinsPanel } from "@/components/dashboard/top-checkins-panel"
 import type { DashboardBlocos } from "@/components/dashboard/types"
@@ -15,19 +16,16 @@ import type { DashboardBlocos } from "@/components/dashboard/types"
 /*
  * O dashboard é 100% operacional por decisão de produto: nenhuma informação
  * financeira (cobranças, pagamentos, receita, Asaas) aparece aqui nem em
- * qualquer outra tela. O centro da página são os quatro blocos de comunidade
- * e operação — check-ins, presença, escala e agenda.
+ * qualquer outra tela. O centro da página são os blocos de comunidade
+ * e operação — check-ins, presença de membros e insiders, escala e agenda.
  */
 
-/*
- * O endpoint devolve exatamente os quatro blocos — nada além. Métricas de
- * equipe e financeiras foram removidas do produto.
- */
 type DashboardMetricsResponse = DashboardBlocos
 
 const EMPTY_BLOCOS: DashboardBlocos = {
   topCheckins: null,
   presencaEventos: null,
+  presencaInsiders: null,
   escalaInsiders: null,
   proximosEventos: null,
 }
@@ -51,6 +49,7 @@ export default function CommandCenterPage() {
       setBlocos({
         topCheckins: data.topCheckins ?? null,
         presencaEventos: data.presencaEventos ?? null,
+        presencaInsiders: data.presencaInsiders ?? null,
         escalaInsiders: data.escalaInsiders ?? null,
         proximosEventos: data.proximosEventos ?? null,
       })
@@ -73,7 +72,7 @@ export default function CommandCenterPage() {
       <PageHeader
         eyebrow="Visão geral"
         title="Dashboard"
-        description="O pulso do clube: presença nos eventos, escala dos insiders e a agenda do que vem por aí."
+        description="O pulso do clube: presença nos eventos, ranking dos insiders, escala e a agenda do que vem por aí."
         meta={
           updatedAt ? <span>Atualizado em {updatedAt}</span> : <span>Carregando…</span>
         }
@@ -99,7 +98,6 @@ export default function CommandCenterPage() {
         </div>
       ) : null}
 
-      {/* Os quatro blocos pedidos pelo produto — o coração da página. */}
       <section aria-labelledby="comunidade-operacao">
         {/*
           Heading apenas para leitores de tela: com uma seção só na página, um
@@ -115,6 +113,7 @@ export default function CommandCenterPage() {
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:items-start lg:gap-6">
           <TopCheckinsPanel bloco={blocos.topCheckins} loading={loading} />
           <PresencaEventosPanel bloco={blocos.presencaEventos} loading={loading} />
+          <PresencaInsidersPanel bloco={blocos.presencaInsiders} loading={loading} />
           <EscalaInsidersPanel bloco={blocos.escalaInsiders} loading={loading} />
           <ProximosEventosPanel bloco={blocos.proximosEventos} loading={loading} />
         </div>
