@@ -1,6 +1,12 @@
 /** Meta de insiders corredores por pelotão. É alvo visual, nunca trava. */
 export const META_POR_PELOTAO = 2
 
+/**
+ * Teto de insiders por escalação em lote. Segura o tamanho do payload e do
+ * upsert em massa — é folgado de propósito, ninguém escala tanta gente de uma vez.
+ */
+export const LIMITE_ESCALA_LOTE = 100
+
 export const ESCALA_STATUS = ['corre', 'apoio', 'nao_vai'] as const
 export type EscalaStatus = (typeof ESCALA_STATUS)[number]
 

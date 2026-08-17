@@ -1,7 +1,8 @@
-import { ESCALA_STATUS, META_POR_PELOTAO } from '@/lib/escala-constants'
+import { ESCALA_STATUS, LIMITE_ESCALA_LOTE, META_POR_PELOTAO } from '@/lib/escala-constants'
 import type {
   CelulaCalendario,
   EscalaInsiderInput,
+  EscalaLoteInput,
   EstadoPreenchimento,
   PelotaoResumo,
 } from '@/lib/types/escala'
@@ -57,6 +58,39 @@ export function validarEscalacao(
   }
 
   return null
+}
+
+/**
+ * Mesma validação da escalação individual, aplicada a uma seleção de insiders.
+ * Como todos recebem a mesma presença/pelotão/atividades, basta validar os
+ * campos comuns uma vez — só a lista de ids é conferida à parte.
+ */
+export function validarEscalacaoLote(
+  input: EscalaLoteInput,
+  pelotoesDoEvento: string[]
+): string | null {
+  const ids = input.insider_ids
+
+  if (!Array.isArray(ids) || ids.length === 0) return 'Selecione ao menos um insider'
+  if (ids.some((id) => !id)) return 'Selecione o insider'
+  // O upsert em massa é um único INSERT ... ON CONFLICT: id repetido faria o
+  // Postgres recusar a instrução inteira ("cannot affect row a second time").
+  if (new Set(ids).size !== ids.length) return 'O mesmo insider foi selecionado mais de uma vez'
+  if (ids.length > LIMITE_ESCALA_LOTE) {
+    return `Selecione no máximo ${LIMITE_ESCALA_LOTE} insiders por vez`
+  }
+
+  return validarEscalacao(
+    {
+      insider_id: ids[0],
+      status: input.status,
+      pelotao: input.pelotao,
+      motivo: input.motivo,
+      observacao: input.observacao,
+      atividade_ids: input.atividade_ids,
+    },
+    pelotoesDoEvento
+  )
 }
 
 function toISODate(d: Date): string {

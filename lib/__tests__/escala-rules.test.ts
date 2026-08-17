@@ -2,9 +2,10 @@ import {
   resumirPelotoes,
   estadoDoDia,
   validarEscalacao,
+  validarEscalacaoLote,
   buildMonthGrid,
 } from '@/lib/escala-rules'
-import { META_POR_PELOTAO } from '@/lib/escala-constants'
+import { LIMITE_ESCALA_LOTE, META_POR_PELOTAO } from '@/lib/escala-constants'
 
 const PELOTOES = ['4km', '6km', '8km']
 
@@ -117,6 +118,49 @@ describe('validarEscalacao', () => {
   it('recusa status inválido', () => {
     expect(validarEscalacao({ insider_id: 'i1', status: 'correndo' as never }, PELOTOES))
       .toBe('Status inválido')
+  })
+})
+
+describe('validarEscalacaoLote', () => {
+  it('aceita vários insiders no mesmo pelotão', () => {
+    expect(validarEscalacaoLote(
+      { insider_ids: ['i1', 'i2', 'i3'], status: 'corre', pelotao: '6km' },
+      PELOTOES
+    )).toBeNull()
+  })
+
+  it('recusa seleção vazia', () => {
+    expect(validarEscalacaoLote({ insider_ids: [], status: 'apoio' }, PELOTOES))
+      .toBe('Selecione ao menos um insider')
+  })
+
+  it('recusa id vazio no meio da seleção', () => {
+    expect(validarEscalacaoLote({ insider_ids: ['i1', ''], status: 'apoio' }, PELOTOES))
+      .toBe('Selecione o insider')
+  })
+
+  it('recusa o mesmo insider repetido', () => {
+    expect(validarEscalacaoLote({ insider_ids: ['i1', 'i2', 'i1'], status: 'apoio' }, PELOTOES))
+      .toBe('O mesmo insider foi selecionado mais de uma vez')
+  })
+
+  it('recusa uma seleção acima do limite', () => {
+    const ids = Array.from({ length: LIMITE_ESCALA_LOTE + 1 }, (_, i) => `i${i}`)
+    expect(validarEscalacaoLote({ insider_ids: ids, status: 'apoio' }, PELOTOES))
+      .toBe(`Selecione no máximo ${LIMITE_ESCALA_LOTE} insiders por vez`)
+  })
+
+  it('aplica as mesmas regras de presença da escalação individual', () => {
+    expect(validarEscalacaoLote({ insider_ids: ['i1', 'i2'], status: 'corre' }, PELOTOES))
+      .toBe('Selecione o pelotão de quem vai correr')
+    expect(validarEscalacaoLote(
+      { insider_ids: ['i1', 'i2'], status: 'corre', pelotao: '10km' },
+      PELOTOES
+    )).toBe('Pelotão "10km" não existe neste evento')
+    expect(validarEscalacaoLote(
+      { insider_ids: ['i1', 'i2'], status: 'nao_vai', motivo: ' ' },
+      PELOTOES
+    )).toBe('Informe o motivo da ausência')
   })
 })
 

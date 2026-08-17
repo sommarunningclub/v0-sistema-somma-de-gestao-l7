@@ -9,13 +9,16 @@ interface EscalaInsiderPickerProps {
   insiders: InsiderOption[]
   /** ids já escalados neste evento — ficam desabilitados */
   jaEscalados: string[]
-  onSelecionar: (insider: InsiderOption) => void
+  /** ids marcados agora, para escalar em lote */
+  selecionados: string[]
+  onAlternar: (insider: InsiderOption) => void
 }
 
 export function EscalaInsiderPicker({
   insiders,
   jaEscalados,
-  onSelecionar,
+  selecionados,
+  onAlternar,
 }: EscalaInsiderPickerProps) {
   const [busca, setBusca] = useState('')
 
@@ -39,32 +42,38 @@ export function EscalaInsiderPicker({
       >
         {filtrados.map((insider) => {
           const escalado = jaEscalados.includes(insider.id)
+          const marcado = selecionados.includes(insider.id)
           return (
             <li key={insider.id}>
-              <button
-                type="button"
-                disabled={escalado}
-                onClick={() => onSelecionar(insider)}
-                aria-label={
-                  escalado
-                    ? `${insider.nome} — já escalado neste evento`
-                    : `Escalar ${insider.nome}`
-                }
+              <label
                 className={[
-                  'ds-tap flex w-full items-center justify-between gap-2 rounded-lg px-3 text-left text-sm transition-colors',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-canvas',
+                  'flex min-h-[44px] items-center gap-3 rounded-lg border px-3 py-2 text-sm transition-colors',
                   escalado
-                    ? 'cursor-not-allowed text-ink-disabled'
-                    : 'text-ink hover:bg-surface-hover hover:text-ink-strong',
+                    ? 'cursor-not-allowed border-transparent text-ink-disabled'
+                    : marcado
+                      ? 'cursor-pointer border-brand-border bg-brand-soft text-ink-strong'
+                      : 'cursor-pointer border-transparent text-ink hover:border-line hover:bg-surface-hover hover:text-ink-strong',
                 ].join(' ')}
               >
-                <span className="truncate">{insider.nome}</span>
+                <input
+                  type="checkbox"
+                  checked={marcado}
+                  disabled={escalado}
+                  onChange={() => onAlternar(insider)}
+                  aria-label={
+                    escalado
+                      ? `${insider.nome} — já escalado neste evento`
+                      : `Selecionar ${insider.nome}`
+                  }
+                  className="h-5 w-5 shrink-0 cursor-pointer rounded border-line-strong bg-surface-sunken accent-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand disabled:cursor-not-allowed"
+                />
+                <span className="min-w-0 flex-1 truncate">{insider.nome}</span>
                 {escalado ? (
                   <span className="shrink-0 text-micro uppercase tracking-wide text-ink-subtle">
                     já escalado
                   </span>
                 ) : null}
-              </button>
+              </label>
             </li>
           )
         })}

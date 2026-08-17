@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useId, useState } from 'react'
-import { Plus, Trash2, Edit3, UserPlus } from 'lucide-react'
+import { Trash2, Edit3, UserPlus, X } from 'lucide-react'
 import { apiFetch } from '@/lib/api-client'
 import { ErrorBanner } from '@/components/ui/error-banner'
 import { Button } from '@/components/ui/button'
@@ -34,12 +34,27 @@ interface EscalaDiaPanelProps {
   onAlterado: () => void
 }
 
+/** Um rascunho vale para todos os insiders escolhidos — a escalação é a mesma. */
 interface Rascunho {
-  insider: InsiderOption
+  insiders: InsiderOption[]
   status: EscalaStatus
   pelotao: string
   motivo: string
   atividadeIds: string[]
+}
+
+/** Frase de apoio do formulário, conforme quantos insiders estão no rascunho. */
+function dicaDoRascunho(total: number): string {
+  if (total === 0) return 'Cancele e marque ao menos um insider.'
+  if (total === 1) return 'Escolha onde este insider entra.'
+  return 'Todos entram na mesma presença, pelotão e atividades.'
+}
+
+/** Nomes para o toast: cita os primeiros e resume o resto, para não virar um parágrafo. */
+function resumirNomes(insiders: InsiderOption[]): string {
+  if (insiders.length <= 3) return insiders.map((i) => i.nome).join(', ')
+  const primeiros = insiders.slice(0, 3).map((i) => i.nome).join(', ')
+  return `${primeiros} e mais ${insiders.length - 3}`
 }
 
 const TOM_ESTADO: Record<EstadoPreenchimento, StatusTone> = {
@@ -63,6 +78,7 @@ export function EscalaDiaPanel({ eventoId, onFechar, onAlterado }: EscalaDiaPane
   const [rascunho, setRascunho] = useState<Rascunho | null>(null)
   const [salvando, setSalvando] = useState(false)
   const [mostrarPicker, setMostrarPicker] = useState(false)
+  const [selecionados, setSelecionados] = useState<InsiderOption[]>([])
 
   const uid = useId()
   const id = (name: string) => `${uid}-${name}`
@@ -91,16 +107,32 @@ export function EscalaDiaPanel({ eventoId, onFechar, onAlterado }: EscalaDiaPane
     carregar()
   }, [carregar])
 
+  const alternarSelecao = (insider: InsiderOption) => {
+    setSelecionados((atual) =>
+      atual.some((i) => i.id === insider.id)
+        ? atual.filter((i) => i.id !== insider.id)
+        : [...atual, insider]
+    )
+  }
+
+  /** Tira o insider do rascunho e também da lista marcada, para o picker não desencontrar. */
+  const tirarDoRascunho = (insiderId: string) => {
+    setRascunho((atual) =>
+      atual ? { ...atual, insiders: atual.insiders.filter((i) => i.id !== insiderId) } : atual
+    )
+    setSelecionados((atual) => atual.filter((i) => i.id !== insiderId))
+  }
+
   const salvar = async () => {
-    if (!rascunho) return
+    if (!rascunho || rascunho.insiders.length === 0) return
     setSalvando(true)
     setErro(null)
     try {
-      const res = await apiFetch(`/api/escala/evento/${eventoId}`, {
+      const res = await apiFetch(`/api/escala/evento/${eventoId}/lote`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          insider_id: rascunho.insider.id,
+          insider_ids: rascunho.insiders.map((i) => i.id),
           status: rascunho.status,
           pelotao: rascunho.status === 'corre' ? rascunho.pelotao : null,
           motivo: rascunho.status === 'nao_vai' ? rascunho.motivo : null,
@@ -109,8 +141,12 @@ export function EscalaDiaPanel({ eventoId, onFechar, onAlterado }: EscalaDiaPane
       })
       const body = await res.json()
       if (!res.ok) throw new Error(body.error || 'Erro ao salvar')
-      notify.success('Escalação salva.', { description: rascunho.insider.nome })
+      const total = rascunho.insiders.length
+      notify.success(total === 1 ? 'Escalação salva.' : `${total} escalações salvas.`, {
+        description: resumirNomes(rascunho.insiders),
+      })
       setRascunho(null)
+      setSelecionados([])
       setMostrarPicker(false)
       await carregar()
       onAlterado()
@@ -167,7 +203,7 @@ export function EscalaDiaPanel({ eventoId, onFechar, onAlterado }: EscalaDiaPane
             size="icon-sm"
             onClick={() =>
               setRascunho({
-                insider: { id: item.insider_id, nome: item.insider_nome },
+                insiders: [{ id: item.insider_id, nome: item.insider_nome }],
                 status: item.status,
                 pelotao: item.pelotao ?? '',
                 motivo: item.motivo ?? '',
@@ -288,7 +324,37 @@ export function EscalaDiaPanel({ eventoId, onFechar, onAlterado }: EscalaDiaPane
             {/* Formulário */}
             {rascunho ? (
               <Well className="space-y-3 p-3">
-                <p className="text-sm font-semibold text-ink-strong">{rascunho.insider.nome}</p>
+                {rascunho.insiders.length === 1 ? (
+                  <p className="text-sm font-semibold text-ink-strong">{rascunho.insiders[0].nome}</p>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold text-ink-strong">
+                      {rascunho.insiders.length === 0
+                        ? 'Nenhum insider selecionado'
+                        : `${rascunho.insiders.length} insiders selecionados`}
+                    </p>
+                    <ul className="flex flex-wrap gap-1.5">
+                      {rascunho.insiders.map((insider) => (
+                        <li
+                          key={insider.id}
+                          className="flex items-center gap-1 rounded-full border border-line bg-surface-raised py-0.5 pl-2.5 pr-1 text-xs text-ink"
+                        >
+                          <span className="truncate">{insider.nome}</span>
+                          <button
+                            type="button"
+                            onClick={() => tirarDoRascunho(insider.id)}
+                            aria-label={`Tirar ${insider.nome} da seleção`}
+                            className="rounded-full p-0.5 text-ink-muted transition-colors hover:bg-danger-soft hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                          >
+                            <X aria-hidden="true" className="h-3.5 w-3.5" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <p className="text-meta text-ink-muted">{dicaDoRascunho(rascunho.insiders.length)}</p>
 
                 <fieldset>
                   <legend className="mb-1.5 text-meta font-medium text-ink-muted">Presença</legend>
@@ -394,37 +460,76 @@ export function EscalaDiaPanel({ eventoId, onFechar, onAlterado }: EscalaDiaPane
                   >
                     Cancelar
                   </Button>
-                  <Button onClick={salvar} loading={salvando} block className="sm:flex-1">
-                    Salvar escalação
+                  <Button
+                    onClick={salvar}
+                    loading={salvando}
+                    disabled={rascunho.insiders.length === 0}
+                    block
+                    className="sm:flex-1"
+                  >
+                    {rascunho.insiders.length > 1
+                      ? `Salvar ${rascunho.insiders.length} escalações`
+                      : 'Salvar escalação'}
                   </Button>
                 </div>
               </Well>
             ) : mostrarPicker ? (
               <Well className="space-y-3 p-3">
                 <div className="flex items-center justify-between gap-2">
-                  <SectionTitle as="h3" title="Escalar insider" className="mb-0" />
-                  <Button variant="ghost" size="sm" onClick={() => setMostrarPicker(false)}>
+                  <SectionTitle as="h3" title="Escalar insiders" className="mb-0" />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setMostrarPicker(false)
+                      setSelecionados([])
+                    }}
+                  >
                     Fechar
                   </Button>
                 </div>
+
                 <EscalaInsiderPicker
                   insiders={insiders}
                   jaEscalados={escala.insiders.map((i) => i.insider_id)}
-                  onSelecionar={(insider) =>
-                    setRascunho({
-                      insider,
-                      status: 'corre',
-                      pelotao: '',
-                      motivo: '',
-                      atividadeIds: [],
-                    })
-                  }
+                  selecionados={selecionados.map((i) => i.id)}
+                  onAlternar={alternarSelecao}
                 />
+
+                <div className="flex flex-col-reverse gap-2 border-t border-line pt-3 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-meta text-ink-muted" aria-live="polite">
+                    {selecionados.length === 0
+                      ? 'Marque um ou mais insiders.'
+                      : `${selecionados.length} selecionado${selecionados.length > 1 ? 's' : ''}`}
+                  </p>
+                  <div className="flex gap-2">
+                    {selecionados.length > 0 ? (
+                      <Button variant="secondary" size="sm" onClick={() => setSelecionados([])}>
+                        Limpar
+                      </Button>
+                    ) : null}
+                    <Button
+                      size="sm"
+                      disabled={selecionados.length === 0}
+                      onClick={() =>
+                        setRascunho({
+                          insiders: selecionados,
+                          status: 'corre',
+                          pelotao: '',
+                          motivo: '',
+                          atividadeIds: [],
+                        })
+                      }
+                    >
+                      Definir presença
+                    </Button>
+                  </div>
+                </div>
               </Well>
             ) : (
               <Button variant="secondary" block onClick={() => setMostrarPicker(true)}>
                 <UserPlus aria-hidden="true" />
-                Escalar insider
+                Escalar insiders
               </Button>
             )}
           </>

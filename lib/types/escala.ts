@@ -33,6 +33,16 @@ export interface EscalaInsiderInput {
   atividade_ids?: string[]
 }
 
+/** Vários insiders recebendo a mesma presença/pelotão/atividades de uma vez. */
+export interface EscalaLoteInput {
+  insider_ids: string[]
+  status: EscalaStatus
+  pelotao?: string | null
+  motivo?: string | null
+  observacao?: string | null
+  atividade_ids?: string[]
+}
+
 export interface PelotaoResumo {
   pelotao: string
   escalados: number

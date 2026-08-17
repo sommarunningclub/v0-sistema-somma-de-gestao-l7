@@ -7,6 +7,7 @@ import type {
   EscalaDiaResumo,
   EscalaInsider,
   EscalaInsiderInput,
+  EscalaLoteInput,
   InsiderOption,
 } from '@/lib/types/escala'
 
@@ -227,70 +228,90 @@ export async function getEscalaDoEvento(eventoId: string): Promise<EscalaDia | n
   }
 }
 
-/** Cria ou atualiza a escalação do insider naquele evento e sincroniza as atividades. */
-export async function upsertEscalacao(
+/**
+ * Cria ou atualiza a escalação de vários insiders no mesmo evento — todos com a
+ * mesma presença, pelotão e atividades — e sincroniza os vínculos de atividade.
+ *
+ * Os ids precisam vir sem repetição (garantido por `validarEscalacaoLote`): o
+ * upsert é uma única instrução e o Postgres recusa tocar a mesma linha duas vezes.
+ */
+export async function upsertEscalacaoLote(
   eventoId: string,
-  input: EscalaInsiderInput
-): Promise<EscalaInsider | null> {
+  input: EscalaLoteInput
+): Promise<EscalaInsider[] | null> {
   const supabase = getAdminClient()
 
-  const registro = {
+  const registros = input.insider_ids.map((insider_id) => ({
     evento_id: eventoId,
-    insider_id: input.insider_id,
+    insider_id,
     status: input.status,
     pelotao: input.status === 'corre' ? input.pelotao ?? null : null,
     motivo: input.status === 'nao_vai' ? input.motivo ?? null : null,
     observacao: input.observacao ?? null,
-  }
+  }))
 
-  const { data: salvo, error } = await supabase
+  const { data: salvos, error } = await supabase
     .from('escala_insiders')
-    .upsert(registro, { onConflict: 'evento_id,insider_id' })
+    .upsert(registros, { onConflict: 'evento_id,insider_id' })
     .select('id')
-    .single()
 
-  if (error || !salvo) {
-    console.error('[escala] upsertEscalacao:', error)
+  if (error || !salvos) {
+    console.error('[escala] upsertEscalacaoLote:', error)
     return null
   }
 
+  const ids = salvos.map((s) => s.id)
   const atividadeIds = input.status === 'nao_vai' ? [] : input.atividade_ids ?? []
 
   const { error: erroLimparVinculos } = await supabase
     .from('escala_insider_atividades')
     .delete()
-    .eq('escala_insider_id', salvo.id)
+    .in('escala_insider_id', ids)
 
   if (erroLimparVinculos) {
     console.error('[escala] limpar vínculos de atividades:', erroLimparVinculos)
-    // A linha de escala_insiders já foi salva; retornar null aqui é seguro porque
+    // As linhas de escala_insiders já foram salvas; retornar null aqui é seguro porque
     // um novo retry desta mesma chamada re-sincroniza os vínculos (operação idempotente).
     return null
   }
 
   if (atividadeIds.length > 0) {
     const { error: erroVinculo } = await supabase.from('escala_insider_atividades').insert(
-      atividadeIds.map((atividade_id) => ({
-        escala_insider_id: salvo.id,
-        atividade_id,
-      }))
+      ids.flatMap((escala_insider_id) =>
+        atividadeIds.map((atividade_id) => ({ escala_insider_id, atividade_id }))
+      )
     )
     if (erroVinculo) {
       console.error('[escala] vincular atividades:', erroVinculo)
-      // A linha de escala_insiders já foi salva (upsert efetivado) e os vínculos antigos
-      // já foram removidos; retornar null aqui é seguro porque um retry da mesma chamada
-      // re-sincroniza os vínculos do zero (operação idempotente).
+      // As linhas de escala_insiders já foram salvas (upsert efetivado) e os vínculos
+      // antigos já foram removidos; retornar null aqui é seguro porque um retry da mesma
+      // chamada re-sincroniza os vínculos do zero (operação idempotente).
       return null
     }
   }
 
-  const { data: completo } = await supabase
+  const { data: completos } = await supabase
     .from('escala_insiders')
     .select(SELECT_ESCALACAO)
-    .eq('id', salvo.id)
-    .single()
+    .in('id', ids)
 
-  return completo ? mapEscalacao(completo) : null
+  return (completos ?? []).map(mapEscalacao)
+}
+
+/** Cria ou atualiza a escalação do insider naquele evento e sincroniza as atividades. */
+export async function upsertEscalacao(
+  eventoId: string,
+  input: EscalaInsiderInput
+): Promise<EscalaInsider | null> {
+  const salvos = await upsertEscalacaoLote(eventoId, {
+    insider_ids: [input.insider_id],
+    status: input.status,
+    pelotao: input.pelotao,
+    motivo: input.motivo,
+    observacao: input.observacao,
+    atividade_ids: input.atividade_ids,
+  })
+  return salvos?.[0] ?? null
 }
 
 export async function removeEscalacao(id: string): Promise<boolean> {
