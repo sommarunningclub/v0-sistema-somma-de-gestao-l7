@@ -8,6 +8,8 @@ import {
   FilterChip,
   MobileRecordCard,
   NoResultsState,
+  Panel,
+  PanelHeader,
   PageHeader,
   PageShell,
   ResponsiveModal,
@@ -39,6 +41,18 @@ import {
 } from '@/lib/vagas-constants'
 
 type FiltroEtapa = EtapaValue | 'todas'
+
+/**
+ * Este painel não tem uma tabela de vagas — o status "aberta/encerrada" mora
+ * só no site (NOVO-SITE-SOMMA-V3/app/trabalhe-conosco-vagas/_vagas.ts, campo
+ * `ativa`). Espelha aqui manualmente: ao fechar ou reabrir uma vaga no site,
+ * atualize este set também.
+ */
+const VAGAS_ENCERRADAS = new Set<string>(['estagio-educacao-fisica'])
+
+function vagaEncerrada(slug: string): boolean {
+  return VAGAS_ENCERRADAS.has(slug)
+}
 
 function formatarData(iso: string | null): string {
   if (!iso) return '—'
@@ -144,6 +158,22 @@ export default function VagasPage() {
     () => candidatos.filter((c) => (c.status || 'novo') === 'novo').length,
     [candidatos],
   )
+
+  /** Agrupa os candidatos filtrados em um cluster por vaga — abertas primeiro. */
+  const grupos = useMemo(() => {
+    const mapa = new Map<string, { slug: string; titulo: string; candidatos: CandidatoVaga[] }>()
+    for (const c of filtrados) {
+      const grupo = mapa.get(c.vaga_slug)
+      if (grupo) grupo.candidatos.push(c)
+      else mapa.set(c.vaga_slug, { slug: c.vaga_slug, titulo: c.vaga_titulo, candidatos: [c] })
+    }
+    return Array.from(mapa.values()).sort((a, b) => {
+      const encerradaA = vagaEncerrada(a.slug)
+      const encerradaB = vagaEncerrada(b.slug)
+      if (encerradaA !== encerradaB) return encerradaA ? 1 : -1
+      return a.titulo.localeCompare(b.titulo, 'pt-BR')
+    })
+  }, [filtrados])
 
   const filtrosAtivos = (etapa !== 'todas' ? 1 : 0) + (vagaSlug !== 'todas' ? 1 : 0)
 
@@ -300,86 +330,101 @@ export default function VagasPage() {
         ) : filtrados.length === 0 ? (
           <NoResultsState query={busca || 'os filtros aplicados'} onClear={limparFiltros} />
         ) : (
-          <>
-            <div className="hidden lg:block">
-              <TableFrame busy={atualizando}>
-                <Table caption="Candidatos das vagas abertas">
-                  <THead>
-                    <TR>
-                      <TH>Candidato</TH>
-                      <TH>Vaga</TH>
-                      <TH>Formação</TH>
-                      <TH>Recebido</TH>
-                      <TH>Etapa</TH>
-                      <TH align="right">Ações</TH>
-                    </TR>
-                  </THead>
-                  <TBody>
-                    {filtrados.map((c) => (
-                      <TR key={c.id} onClick={() => abrir(c)}>
-                        <TD>
-                          <span className="block font-medium text-ink-strong">{c.nome}</span>
-                          <span className="block text-meta text-ink-muted">{c.email}</span>
-                        </TD>
-                        <TD>{c.vaga_titulo}</TD>
-                        <TD>
-                          <span className="block">{c.instituicao}</span>
-                          <span className="block text-meta text-ink-muted">{c.semestre}</span>
-                        </TD>
-                        <TD>
-                          <span className="font-mono tabular-nums">
-                            {formatarData(c.criado_em)}
-                          </span>
-                        </TD>
-                        <TD>
-                          <StatusPill tone={etapaTone(c.status)}>
-                            {etapaLabel(c.status)}
-                          </StatusPill>
-                        </TD>
-                        <TD align="right">
-                          <div className="flex items-center justify-end gap-1">
-                            {botaoWhatsapp(c, 'icone')}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              disabled={!c.curriculo_path || baixando}
-                              onClick={(event) => {
-                                event.stopPropagation()
-                                void baixarCurriculo(c)
-                              }}
-                            >
-                              <Download aria-hidden="true" />
-                              <span className="sr-only">Baixar currículo de {c.nome}</span>
-                            </Button>
-                          </div>
-                        </TD>
-                      </TR>
-                    ))}
-                  </TBody>
-                </Table>
-              </TableFrame>
-            </div>
+          <div className="space-y-4">
+            {grupos.map((grupo) => {
+              const encerrada = vagaEncerrada(grupo.slug)
+              return (
+                <Panel key={grupo.slug}>
+                  <PanelHeader
+                    title={grupo.titulo}
+                    description={`${grupo.candidatos.length} candidatura${grupo.candidatos.length === 1 ? '' : 's'}`}
+                    actions={
+                      <StatusPill tone={encerrada ? 'neutral' : 'success'}>
+                        {encerrada ? 'Encerrada' : 'Aberta'}
+                      </StatusPill>
+                    }
+                  />
 
-            <div className="space-y-3 lg:hidden">
-              {filtrados.map((c) => (
-                <MobileRecordCard
-                  key={c.id}
-                  title={c.nome}
-                  subtitle={c.vaga_titulo}
-                  status={
-                    <StatusPill tone={etapaTone(c.status)}>{etapaLabel(c.status)}</StatusPill>
-                  }
-                  fields={[
-                    { label: 'Instituição', value: c.instituicao },
-                    { label: 'Semestre', value: c.semestre },
-                    { label: 'Recebido', value: formatarData(c.criado_em) },
-                  ]}
-                  actions={botaoWhatsapp(c, 'texto') ?? undefined}
-                  onClick={() => abrir(c)}
-                />
-              ))}
-            </div>
-          </>
+                  <div className="hidden lg:block">
+                    <TableFrame busy={atualizando}>
+                      <Table caption={`Candidatos de ${grupo.titulo}`}>
+                        <THead>
+                          <TR>
+                            <TH>Candidato</TH>
+                            <TH>Formação</TH>
+                            <TH>Recebido</TH>
+                            <TH>Etapa</TH>
+                            <TH align="right">Ações</TH>
+                          </TR>
+                        </THead>
+                        <TBody>
+                          {grupo.candidatos.map((c) => (
+                            <TR key={c.id} onClick={() => abrir(c)}>
+                              <TD>
+                                <span className="block font-medium text-ink-strong">{c.nome}</span>
+                                <span className="block text-meta text-ink-muted">{c.email}</span>
+                              </TD>
+                              <TD>
+                                <span className="block">{c.instituicao}</span>
+                                <span className="block text-meta text-ink-muted">{c.semestre}</span>
+                              </TD>
+                              <TD>
+                                <span className="font-mono tabular-nums">
+                                  {formatarData(c.criado_em)}
+                                </span>
+                              </TD>
+                              <TD>
+                                <StatusPill tone={etapaTone(c.status)}>
+                                  {etapaLabel(c.status)}
+                                </StatusPill>
+                              </TD>
+                              <TD align="right">
+                                <div className="flex items-center justify-end gap-1">
+                                  {botaoWhatsapp(c, 'icone')}
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    disabled={!c.curriculo_path || baixando}
+                                    onClick={(event) => {
+                                      event.stopPropagation()
+                                      void baixarCurriculo(c)
+                                    }}
+                                  >
+                                    <Download aria-hidden="true" />
+                                    <span className="sr-only">Baixar currículo de {c.nome}</span>
+                                  </Button>
+                                </div>
+                              </TD>
+                            </TR>
+                          ))}
+                        </TBody>
+                      </Table>
+                    </TableFrame>
+                  </div>
+
+                  <div className="space-y-3 p-3 lg:hidden">
+                    {grupo.candidatos.map((c) => (
+                      <MobileRecordCard
+                        key={c.id}
+                        title={c.nome}
+                        subtitle={c.email}
+                        status={
+                          <StatusPill tone={etapaTone(c.status)}>{etapaLabel(c.status)}</StatusPill>
+                        }
+                        fields={[
+                          { label: 'Instituição', value: c.instituicao },
+                          { label: 'Semestre', value: c.semestre },
+                          { label: 'Recebido', value: formatarData(c.criado_em) },
+                        ]}
+                        actions={botaoWhatsapp(c, 'texto') ?? undefined}
+                        onClick={() => abrir(c)}
+                      />
+                    ))}
+                  </div>
+                </Panel>
+              )
+            })}
+          </div>
         )}
       </div>
 
