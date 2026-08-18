@@ -1,7 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ClipboardList, Download, Loader2, MessageCircle, RefreshCw } from 'lucide-react'
+import { ChevronDown, ClipboardList, Download, Loader2, MessageCircle, RefreshCw } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import {
   EmptyState,
   FilterButton,
@@ -104,6 +105,8 @@ export default function VagasPage() {
   const [vagaSlug, setVagaSlug] = useState('todas')
   const [filtrosAbertos, setFiltrosAbertos] = useState(false)
   const [selecionado, setSelecionado] = useState<CandidatoVaga | null>(null)
+  // Vagas encerradas já entram recolhidas — a atenção deve ir para as abertas.
+  const [recolhidos, setRecolhidos] = useState<Set<string>>(() => new Set(VAGAS_ENCERRADAS))
   const [salvando, setSalvando] = useState(false)
   const [baixando, setBaixando] = useState(false)
   const [observacoes, setObservacoes] = useState('')
@@ -181,6 +184,15 @@ export default function VagasPage() {
     setEtapa('todas')
     setVagaSlug('todas')
     setBusca('')
+  }
+
+  function alternarGrupo(slug: string) {
+    setRecolhidos((prev) => {
+      const next = new Set(prev)
+      if (next.has(slug)) next.delete(slug)
+      else next.add(slug)
+      return next
+    })
   }
 
   function abrir(candidato: CandidatoVaga) {
@@ -333,94 +345,125 @@ export default function VagasPage() {
           <div className="space-y-4">
             {grupos.map((grupo) => {
               const encerrada = vagaEncerrada(grupo.slug)
+              const recolhido = recolhidos.has(grupo.slug)
               return (
-                <Panel key={grupo.slug}>
-                  <PanelHeader
-                    title={grupo.titulo}
-                    description={`${grupo.candidatos.length} candidatura${grupo.candidatos.length === 1 ? '' : 's'}`}
-                    actions={
-                      <StatusPill tone={encerrada ? 'neutral' : 'success'}>
-                        {encerrada ? 'Encerrada' : 'Aberta'}
-                      </StatusPill>
-                    }
-                  />
+                <Panel key={grupo.slug} className="overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => alternarGrupo(grupo.slug)}
+                    aria-expanded={!recolhido}
+                    className="block w-full text-left transition-colors hover:bg-surface-hover"
+                  >
+                    <PanelHeader
+                      title={grupo.titulo}
+                      description={`${grupo.candidatos.length} candidatura${grupo.candidatos.length === 1 ? '' : 's'}`}
+                      actions={
+                        <div className="flex items-center gap-2">
+                          <StatusPill tone={encerrada ? 'neutral' : 'success'}>
+                            {encerrada ? 'Encerrada' : 'Aberta'}
+                          </StatusPill>
+                          <ChevronDown
+                            aria-hidden="true"
+                            className={cn(
+                              'h-4 w-4 shrink-0 text-ink-muted transition-transform',
+                              !recolhido && 'rotate-180',
+                            )}
+                          />
+                        </div>
+                      }
+                    />
+                  </button>
 
-                  <div className="hidden lg:block">
-                    <TableFrame busy={atualizando}>
-                      <Table caption={`Candidatos de ${grupo.titulo}`}>
-                        <THead>
-                          <TR>
-                            <TH>Candidato</TH>
-                            <TH>Formação</TH>
-                            <TH>Recebido</TH>
-                            <TH>Etapa</TH>
-                            <TH align="right">Ações</TH>
-                          </TR>
-                        </THead>
-                        <TBody>
-                          {grupo.candidatos.map((c) => (
-                            <TR key={c.id} onClick={() => abrir(c)}>
-                              <TD>
-                                <span className="block font-medium text-ink-strong">{c.nome}</span>
-                                <span className="block text-meta text-ink-muted">{c.email}</span>
-                              </TD>
-                              <TD>
-                                <span className="block">{c.instituicao}</span>
-                                <span className="block text-meta text-ink-muted">{c.semestre}</span>
-                              </TD>
-                              <TD>
-                                <span className="font-mono tabular-nums">
-                                  {formatarData(c.criado_em)}
-                                </span>
-                              </TD>
-                              <TD>
-                                <StatusPill tone={etapaTone(c.status)}>
-                                  {etapaLabel(c.status)}
-                                </StatusPill>
-                              </TD>
-                              <TD align="right">
-                                <div className="flex items-center justify-end gap-1">
-                                  {botaoWhatsapp(c, 'icone')}
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    disabled={!c.curriculo_path || baixando}
-                                    onClick={(event) => {
-                                      event.stopPropagation()
-                                      void baixarCurriculo(c)
-                                    }}
-                                  >
-                                    <Download aria-hidden="true" />
-                                    <span className="sr-only">Baixar currículo de {c.nome}</span>
-                                  </Button>
-                                </div>
-                              </TD>
-                            </TR>
-                          ))}
-                        </TBody>
-                      </Table>
-                    </TableFrame>
-                  </div>
+                  {recolhido ? null : (
+                    <>
+                      <div className="hidden lg:block">
+                        <TableFrame busy={atualizando}>
+                          <Table caption={`Candidatos de ${grupo.titulo}`}>
+                            <THead>
+                              <TR>
+                                <TH>Candidato</TH>
+                                <TH>Formação</TH>
+                                <TH>Recebido</TH>
+                                <TH>Etapa</TH>
+                                <TH align="right">Ações</TH>
+                              </TR>
+                            </THead>
+                            <TBody>
+                              {grupo.candidatos.map((c) => (
+                                <TR key={c.id} onClick={() => abrir(c)}>
+                                  <TD>
+                                    <span className="block font-medium text-ink-strong">
+                                      {c.nome}
+                                    </span>
+                                    <span className="block text-meta text-ink-muted">
+                                      {c.email}
+                                    </span>
+                                  </TD>
+                                  <TD>
+                                    <span className="block">{c.instituicao}</span>
+                                    <span className="block text-meta text-ink-muted">
+                                      {c.semestre}
+                                    </span>
+                                  </TD>
+                                  <TD>
+                                    <span className="font-mono tabular-nums">
+                                      {formatarData(c.criado_em)}
+                                    </span>
+                                  </TD>
+                                  <TD>
+                                    <StatusPill tone={etapaTone(c.status)}>
+                                      {etapaLabel(c.status)}
+                                    </StatusPill>
+                                  </TD>
+                                  <TD align="right">
+                                    <div className="flex items-center justify-end gap-1">
+                                      {botaoWhatsapp(c, 'icone')}
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        disabled={!c.curriculo_path || baixando}
+                                        onClick={(event) => {
+                                          event.stopPropagation()
+                                          void baixarCurriculo(c)
+                                        }}
+                                      >
+                                        <Download aria-hidden="true" />
+                                        <span className="sr-only">
+                                          Baixar currículo de {c.nome}
+                                        </span>
+                                      </Button>
+                                    </div>
+                                  </TD>
+                                </TR>
+                              ))}
+                            </TBody>
+                          </Table>
+                        </TableFrame>
+                      </div>
 
-                  <div className="space-y-3 p-3 lg:hidden">
-                    {grupo.candidatos.map((c) => (
-                      <MobileRecordCard
-                        key={c.id}
-                        title={c.nome}
-                        subtitle={c.email}
-                        status={
-                          <StatusPill tone={etapaTone(c.status)}>{etapaLabel(c.status)}</StatusPill>
-                        }
-                        fields={[
-                          { label: 'Instituição', value: c.instituicao },
-                          { label: 'Semestre', value: c.semestre },
-                          { label: 'Recebido', value: formatarData(c.criado_em) },
-                        ]}
-                        actions={botaoWhatsapp(c, 'texto') ?? undefined}
-                        onClick={() => abrir(c)}
-                      />
-                    ))}
-                  </div>
+                      <div className="space-y-3 p-3 lg:hidden">
+                        {grupo.candidatos.map((c) => (
+                          <MobileRecordCard
+                            key={c.id}
+                            title={c.nome}
+                            subtitle={c.email}
+                            status={
+                              <StatusPill tone={etapaTone(c.status)}>
+                                {etapaLabel(c.status)}
+                              </StatusPill>
+                            }
+                            fields={[
+                              { label: 'Instituição', value: c.instituicao },
+                              { label: 'Semestre', value: c.semestre },
+                              { label: 'Recebido', value: formatarData(c.criado_em) },
+                            ]}
+                            actions={botaoWhatsapp(c, 'texto') ?? undefined}
+                            onClick={() => abrir(c)}
+                          />
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </Panel>
               )
             })}
