@@ -5,10 +5,10 @@ import {
   CheckSquare,
   ClipboardList,
   Handshake,
-  KanbanSquare,
   LayoutDashboard,
   Mail,
   Megaphone,
+  MonitorSmartphone,
   Settings,
   Star,
   Users,
@@ -101,6 +101,15 @@ export const NAV_ITEMS: NavItem[] = [
     permission: 'vagas',
     group: 'operacao',
     keywords: ['currículo', 'curriculo', 'candidato', 'estágio', 'estagio', 'recrutamento', 'contratação', 'trabalhe conosco'],
+  },
+  {
+    id: 'pdv',
+    label: 'PDV',
+    description: 'Integração da frente de caixa, maquininha Point e Shopify',
+    icon: MonitorSmartphone,
+    permission: 'pdv',
+    group: 'operacao',
+    keywords: ['caixa', 'maquininha', 'point', 'shopify', 'mercado pago', 'terminal', 'frente de caixa'],
   },
 
   {

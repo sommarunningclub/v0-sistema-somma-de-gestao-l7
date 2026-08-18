@@ -93,6 +93,7 @@ const DEFAULT_PERMISSIONS: ModulePermissions = {
   popups: false,
   email: false,
   vagas: false,
+  pdv: false,
   admin: false,
 }
 
@@ -108,6 +109,7 @@ const ALL_PERMISSIONS: ModulePermissions = {
   popups: true,
   email: true,
   vagas: true,
+  pdv: true,
   admin: true,
 }
 

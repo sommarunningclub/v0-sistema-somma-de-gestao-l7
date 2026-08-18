@@ -41,6 +41,7 @@ const ROUTE_PERMISSIONS: Array<{ pattern: RegExp; permission: PermissionKey }> =
   { pattern: /^\/api\/partner-codes/, permission: 'parceiro' },
   { pattern: /^\/api\/insider/, permission: 'pagamentos' },
   { pattern: /^\/api\/coupons/, permission: 'pagamentos' },
+  { pattern: /^\/api\/pdv/, permission: 'pdv' },
 ]
 
 export function getRequiredPermission(pathname: string): PermissionKey | null {
