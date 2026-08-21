@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Check, Copy, KeyRound, Plus, RefreshCw, Zap } from 'lucide-react'
+import { Check, CalendarPlus, Copy, KeyRound, Plus, RefreshCw, RotateCcw, Trash2, Zap } from 'lucide-react'
 
 import { apiFetch } from '@/lib/api-client'
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,7 @@ import {
   Panel,
   PanelHeader,
   StatusPill,
+  confirmAction,
   notify,
   type StatusTone,
 } from '@/components/somma'
@@ -56,6 +57,19 @@ export function PixAutomaticoModule() {
   const [erro, setErro] = useState<string | null>(null)
   const [observacao, setObservacao] = useState('')
   const [copiado, setCopiado] = useState<string | null>(null)
+  // Códigos com prorrogação ou exclusão em andamento: desativa os botões só
+  // dessas linhas, sem travar o resto da lista. É um Set porque ações em
+  // linhas diferentes podem voar ao mesmo tempo; uma string única faria a
+  // primeira que terminasse reabilitar os botões da outra no meio do voo.
+  const [agindo, setAgindo] = useState<ReadonlySet<string>>(new Set())
+  const marcarAgindo = (codigo: string, ativo: boolean) => {
+    setAgindo((atual) => {
+      const proximo = new Set(atual)
+      if (ativo) proximo.add(codigo)
+      else proximo.delete(codigo)
+      return proximo
+    })
+  }
 
   const carregar = useCallback(async () => {
     setCarregando(true)
@@ -119,6 +133,77 @@ export function PixAutomaticoModule() {
       setTimeout(() => setCopiado(null), 2500)
     } catch {
       notify.error('Não foi possível copiar')
+    }
+  }
+
+  // Prorrogar e reativar são a MESMA chamada: a validade volta a contar 24h a
+  // partir de agora. Só o rótulo muda conforme o estado do código.
+  const prorrogar = async (token: PixAutomaticoToken) => {
+    marcarAgindo(token.codigo, true)
+    try {
+      const res = await apiFetch(`/api/pix-automatico/tokens/${token.codigo}`, { method: 'PATCH' })
+      const data = await res.json()
+      if (!res.ok) {
+        notify.error(data.error || 'Erro ao prorrogar o código')
+        // 409: o código foi usado depois que a tela carregou. 404: alguém o
+        // excluiu em outra aba. Nos dois casos a linha está defasada;
+        // recarrega para refletir o estado real. Erro de rede/500 não: a
+        // lista local continua válida e o skeleton só atrapalharia.
+        if (res.status === 409 || res.status === 404) await carregar()
+        return
+      }
+
+      const atualizado: PixAutomaticoToken = data.token
+      setTokens((atuais) => atuais.map((t) => (t.codigo === atualizado.codigo ? atualizado : t)))
+      notify.success(`Código ${atualizado.codigo} válido até ${formatarQuando(atualizado.expira_em)}`)
+    } catch (err) {
+      notify.error(err instanceof Error ? err.message : 'Erro ao prorrogar o código')
+    } finally {
+      marcarAgindo(token.codigo, false)
+    }
+  }
+
+  const excluir = async (token: PixAutomaticoToken) => {
+    const situacao = situacaoDoToken(token)
+    const ok = await confirmAction({
+      title: 'Excluir este código?',
+      description:
+        situacao.estado === 'usado'
+          ? 'O registro de quem usou este código será perdido. Esta ação não pode ser desfeita.'
+          : situacao.estado === 'disponivel'
+            ? 'O código deixa de funcionar no checkout imediatamente. Esta ação não pode ser desfeita.'
+            : 'Esta ação não pode ser desfeita.',
+      detail: (
+        <>
+          <span className="block font-mono font-medium tracking-wider text-ink-strong">
+            {token.codigo}
+          </span>
+          {token.observacao ? <span className="block text-ink-muted">{token.observacao}</span> : null}
+        </>
+      ),
+      tone: 'danger',
+    })
+    if (!ok) return
+
+    marcarAgindo(token.codigo, true)
+    try {
+      const res = await apiFetch(`/api/pix-automatico/tokens/${token.codigo}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (res.status === 404) {
+        // Outra aba (ou outro admin) excluiu antes. O resultado que o usuário
+        // queria já vale; manter a linha aqui seria um fantasma na lista.
+        setTokens((atuais) => atuais.filter((t) => t.codigo !== token.codigo))
+        notify.success(`Código ${token.codigo} já havia sido excluído`)
+        return
+      }
+      if (!res.ok) throw new Error(data.error || 'Erro ao excluir o código')
+
+      setTokens((atuais) => atuais.filter((t) => t.codigo !== token.codigo))
+      notify.success(`Código ${token.codigo} excluído`)
+    } catch (err) {
+      notify.error(err instanceof Error ? err.message : 'Erro ao excluir o código')
+    } finally {
+      marcarAgindo(token.codigo, false)
     }
   }
 
@@ -213,10 +298,11 @@ export function PixAutomaticoModule() {
             {tokens.map((token) => {
               const situacao = situacaoDoToken(token)
               const disponivel = situacao.estado === 'disponivel'
+              const emAcao = agindo.has(token.codigo)
               return (
                 <div
                   key={token.codigo}
-                  className="flex items-center gap-4 rounded border border-line p-3"
+                  className="flex flex-col gap-3 rounded border border-line p-3 sm:flex-row sm:items-center sm:gap-4"
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
@@ -233,26 +319,56 @@ export function PixAutomaticoModule() {
                     </p>
                   </div>
 
-                  {disponivel ? (
+                  <div className="flex shrink-0 items-center gap-2">
+                    {disponivel ? (
+                      <Button variant="outline" size="sm" onClick={() => void copiar(token.codigo)}>
+                        {copiado === token.codigo ? (
+                          <>
+                            <Check className="mr-2 h-4 w-4" />
+                            Copiado
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="mr-2 h-4 w-4" />
+                            Copiar
+                          </>
+                        )}
+                      </Button>
+                    ) : null}
+                    {situacao.estado !== 'usado' ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void prorrogar(token)}
+                        disabled={emAcao}
+                        title="Vale por mais 24 horas a partir de agora"
+                      >
+                        {emAcao ? (
+                          <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                        ) : disponivel ? (
+                          <CalendarPlus className="mr-2 h-4 w-4" />
+                        ) : (
+                          <RotateCcw className="mr-2 h-4 w-4" />
+                        )}
+                        {disponivel ? 'Prorrogar' : 'Reativar'}
+                      </Button>
+                    ) : null}
                     <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => void copiar(token.codigo)}
-                      className="shrink-0"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => void excluir(token)}
+                      disabled={emAcao}
+                      title="Excluir código"
+                      aria-label={`Excluir o código ${token.codigo}`}
+                      className="text-ink-muted hover:text-danger"
                     >
-                      {copiado === token.codigo ? (
-                        <>
-                          <Check className="mr-2 h-4 w-4" />
-                          Copiado
-                        </>
+                      {emAcao ? (
+                        <RefreshCw className="h-4 w-4 animate-spin" />
                       ) : (
-                        <>
-                          <Copy className="mr-2 h-4 w-4" />
-                          Copiar
-                        </>
+                        <Trash2 className="h-4 w-4" />
                       )}
                     </Button>
-                  ) : null}
+                  </div>
                 </div>
               )
             })}

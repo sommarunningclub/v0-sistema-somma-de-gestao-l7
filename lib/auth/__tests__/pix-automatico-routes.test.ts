@@ -1,11 +1,13 @@
 import { getRequiredPermission } from '../route-permissions'
 import { getPagePermission, getSpaRedirect, SECTION_PERMISSIONS, SECTION_LABELS } from '../page-routes'
-import { gerarCodigo, VALIDADE_HORAS } from '@/lib/pix-automatico/tokens'
+import { codigoValido, gerarCodigo, VALIDADE_HORAS } from '@/lib/pix-automatico/tokens'
 import { NAV_ITEMS, getNavItem } from '@/lib/nav'
 
 describe('rotas do módulo Pix Automático', () => {
   it('exige a permissão pixAutomatico nas rotas de API', () => {
     expect(getRequiredPermission('/api/pix-automatico/tokens')).toBe('pixAutomatico')
+    // Rota por código (prorrogar/excluir) fica sob o mesmo prefixo.
+    expect(getRequiredPermission('/api/pix-automatico/tokens/ABCD-EFGH')).toBe('pixAutomatico')
   })
 
   it('não afeta as rotas de outros módulos', () => {
@@ -43,5 +45,17 @@ describe('códigos de liberação', () => {
 
   it('vale por um dia', () => {
     expect(VALIDADE_HORAS).toBe(24)
+  })
+
+  it('valida o formato antes de tocar o banco', () => {
+    for (let i = 0; i < 20; i++) {
+      expect(codigoValido(gerarCodigo())).toBe(true)
+    }
+    expect(codigoValido('ABCD-EFG')).toBe(false) // curto
+    expect(codigoValido('ABCDEFGH')).toBe(false) // sem hífen
+    expect(codigoValido('ABC0-EFGH')).toBe(false) // caractere fora do alfabeto
+    expect(codigoValido('abcd-efgh')).toBe(false) // minúsculas: o código é maiúsculo
+    expect(codigoValido(null)).toBe(false)
+    expect(codigoValido(42)).toBe(false)
   })
 })

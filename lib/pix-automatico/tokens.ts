@@ -14,6 +14,13 @@ export const VALIDADE_HORAS = 24
 // se confundem entre si.
 const ALFABETO = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
+// Valida o formato XXXX-XXXX no alfabeto acima. As rotas por código usam isto
+// antes de tocar o banco: o valor vem da URL e não precisa chegar à query se
+// nem tem cara de código.
+export function codigoValido(valor: unknown): valor is string {
+  return typeof valor === "string" && /^[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/.test(valor)
+}
+
 export function gerarCodigo(): string {
   const bytes = new Uint8Array(8)
   crypto.getRandomValues(bytes)
