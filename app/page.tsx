@@ -20,6 +20,7 @@ import PopupsPage from "./popups/page"
 import EmailMarketingPage from "./email-marketing/page"
 import VagasPage from "./vagas/page"
 import { PdvModule } from "@/components/modules/pdv-module"
+import { PixAutomaticoModule } from "@/components/modules/pix-automatico-module"
 
 /**
  * O painel é uma SPA: o middleware redireciona as rotas legadas para
@@ -141,6 +142,8 @@ function SommaAdmin() {
         return <VagasPage />
       case "pdv":
         return <PdvModule />
+      case "pixAutomatico":
+        return <PixAutomaticoModule />
       case "systems":
         return <SystemsPage />
       default:

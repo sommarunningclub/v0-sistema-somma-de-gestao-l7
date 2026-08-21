@@ -12,6 +12,7 @@ import {
   Settings,
   Star,
   Users,
+  Zap,
   type LucideIcon,
 } from 'lucide-react'
 import type { PermissionKey } from './auth/types'
@@ -101,6 +102,15 @@ export const NAV_ITEMS: NavItem[] = [
     permission: 'vagas',
     group: 'operacao',
     keywords: ['currículo', 'curriculo', 'candidato', 'estágio', 'estagio', 'recrutamento', 'contratação', 'trabalhe conosco'],
+  },
+  {
+    id: 'pixAutomatico',
+    label: 'Pix Automático',
+    description: 'Códigos que liberam o débito automático no checkout do site',
+    icon: Zap,
+    permission: 'pixAutomatico',
+    group: 'operacao',
+    keywords: ['pix', 'automatico', 'automático', 'debito', 'débito', 'recorrencia', 'recorrência', 'codigo', 'código', 'liberacao', 'liberação', 'checkout'],
   },
   {
     id: 'pdv',

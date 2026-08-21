@@ -14,6 +14,7 @@ export const SECTION_LABELS: Record<string, string> = {
   email: 'E-mail Marketing',
   vagas: 'Vagas',
   pdv: 'PDV',
+  pixAutomatico: 'Pix Automático',
   systems: 'Administração',
 }
 
@@ -32,6 +33,7 @@ export const SECTION_PERMISSIONS: Record<string, PermissionKey | null> = {
   email: 'email',
   vagas: 'vagas',
   pdv: 'pdv',
+  pixAutomatico: 'pixAutomatico',
   systems: 'admin',
 }
 
@@ -50,6 +52,7 @@ const LEGACY_EXACT: Record<string, string> = {
   '/email-marketing': '/?section=email',
   '/vagas': '/?section=vagas',
   '/pdv': '/?section=pdv',
+  '/pix-automatico': '/?section=pixAutomatico',
   '/systems': '/?section=systems',
   '/command-center': '/?section=overview',
   '/operations': '/?section=overview',
@@ -68,6 +71,7 @@ const PAGE_PERMISSIONS: Array<{ pattern: RegExp; permission: PermissionKey }> = 
   { pattern: /^\/email-marketing/, permission: 'email' },
   { pattern: /^\/vagas/, permission: 'vagas' },
   { pattern: /^\/pdv/, permission: 'pdv' },
+  { pattern: /^\/pix-automatico/, permission: 'pixAutomatico' },
   { pattern: /^\/insiders/, permission: 'pagamentos' },
 ]
 

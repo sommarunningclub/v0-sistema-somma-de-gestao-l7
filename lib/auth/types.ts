@@ -11,6 +11,7 @@ export interface ModulePermissions {
   email: boolean
   vagas: boolean
   pdv: boolean
+  pixAutomatico: boolean
   admin: boolean
 }
 
