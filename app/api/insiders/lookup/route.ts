@@ -2,11 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAdminClient } from '@/lib/auth/api-auth'
 import { isValidCpf } from '@/lib/insider/validation'
 import { checkRateLimit, clientKey } from '@/lib/insider/rate-limit'
-import {
-  cpfCandidates,
-  toInsiderPublic,
-  INSIDER_PUBLIC_COLUMNS,
-} from '@/lib/insider/insider-mapper'
+import { cpfCandidates } from '@/lib/insider/insider-mapper'
+
+/*
+ * Contrato mínimo por decisão de privacidade: esta rota é pública (qualquer um
+ * pode postar um CPF) e por isso devolve apenas se o cadastro existe e se ele
+ * já tem senha — o suficiente para o formulário escolher entre "entrar",
+ * "criar senha" e "cadastrar". Nome, e-mail, telefone, endereço e foto só
+ * saem depois de autenticado, por /api/insiders/eu.
+ */
 
 export async function POST(req: NextRequest) {
   try {
@@ -30,7 +34,7 @@ export async function POST(req: NextRequest) {
 
     const { data, error } = await supabase
       .from('dados_insiders')
-      .select(INSIDER_PUBLIC_COLUMNS)
+      .select('id')
       .in('cpf', cpfCandidates(cpf))
       .limit(1)
 
@@ -61,10 +65,7 @@ export async function POST(req: NextRequest) {
       temSenha = Boolean(credencial)
     }
 
-    return NextResponse.json({
-      found: true,
-      insider: toInsiderPublic(row as Record<string, unknown>, temSenha),
-    })
+    return NextResponse.json({ found: true, tem_senha: temSenha })
   } catch (err) {
     console.error('[insiders/lookup] unexpected error:', err)
     return NextResponse.json({ error: 'Erro interno.' }, { status: 500 })

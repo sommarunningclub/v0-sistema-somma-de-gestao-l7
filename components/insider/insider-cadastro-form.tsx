@@ -18,7 +18,6 @@ import {
   TAMANHOS_CAMISA,
   validateSenha,
 } from '@/lib/insider/validation'
-import type { InsiderPublic } from '@/lib/insider/insider-mapper'
 
 type FormState = {
   cpf: string
@@ -64,9 +63,7 @@ type LookupStatus = 'idle' | 'loading' | 'found' | 'new'
 export function InsiderCadastroForm() {
   const [form, setForm] = useState<FormState>({ cpf: '', ...FORM_VAZIO })
   const [lookupStatus, setLookupStatus] = useState<LookupStatus>('idle')
-  const [nomeEncontrado, setNomeEncontrado] = useState('')
   const [temSenha, setTemSenha] = useState(false)
-  const [fotoAtual, setFotoAtual] = useState('')
   const [foto, setFoto] = useState<File | null>(null)
   const [fotoPreview, setFotoPreview] = useState('')
   const [consentLgpd, setConsentLgpd] = useState(false)
@@ -120,9 +117,7 @@ export function InsiderCadastroForm() {
 
     if (digits.length !== 11 || !isValidCpf(form.cpf)) {
       setLookupStatus('idle')
-      setNomeEncontrado('')
       setTemSenha(false)
-      setFotoAtual('')
       ultimoCepBuscado.current = ''
       setForm((f) => ({ ...FORM_VAZIO, cpf: f.cpf }))
       limparConsentEFoto()
@@ -140,7 +135,10 @@ export function InsiderCadastroForm() {
     })
       .then(async (res) => {
         const data = await res.json().catch(() => ({}))
-        return { res, data } as { res: Response; data: { found?: boolean; insider?: InsiderPublic; error?: string } }
+        return { res, data } as {
+          res: Response
+          data: { found?: boolean; tem_senha?: boolean; error?: string }
+        }
       })
       .then(({ res, data }) => {
         if (cancelado) return
@@ -149,31 +147,13 @@ export function InsiderCadastroForm() {
           setLookupStatus('idle')
           return
         }
-        if (data?.found && data.insider) {
-          const i = data.insider
-          setForm((f) => ({
-            cpf: f.cpf,
-            nome: i.nome,
-            email: i.email,
-            telefone: i.telefone,
-            data_nascimento: i.data_nascimento,
-            sexo: i.sexo,
-            cep: i.cep,
-            logradouro: i.logradouro,
-            numero: i.numero,
-            complemento: i.complemento,
-            bairro: i.bairro,
-            cidade: i.cidade,
-            estado: i.estado,
-            tamanho_camisa: i.tamanho_camisa,
-            senha_atual: '',
-            senha: '',
-            senha_confirmacao: '',
-          }))
-          ultimoCepBuscado.current = onlyDigits(i.cep)
-          setNomeEncontrado(i.nome.split(' ')[0] || '')
-          setTemSenha(i.tem_senha)
-          setFotoAtual(i.foto_url)
+        if (data?.found) {
+          // O lookup é público e não devolve dados pessoais: quem já tem
+          // cadastro segue por login/criação de senha, e os campos do perfil
+          // só aparecem autenticado, no painel.
+          setForm((f) => ({ ...FORM_VAZIO, cpf: f.cpf }))
+          ultimoCepBuscado.current = ''
+          setTemSenha(Boolean(data.tem_senha))
           limparConsentEFoto()
           setLookupStatus('found')
         } else {
@@ -181,9 +161,7 @@ export function InsiderCadastroForm() {
           // (campos de texto, consentimentos, foto) sobrevive — inclusive no
           // caso de troca direta de um CPF válido/encontrado para outro
           // válido/não encontrado, que nunca passa pelo ramo de reset acima.
-          setNomeEncontrado('')
           setTemSenha(false)
-          setFotoAtual('')
           ultimoCepBuscado.current = ''
           setForm((f) => ({ ...FORM_VAZIO, cpf: f.cpf }))
           limparConsentEFoto()
@@ -438,8 +416,7 @@ export function InsiderCadastroForm() {
 
       {lookupStatus === 'found' && (
         <p className="mt-2 text-sm text-[#737373]">
-          Encontramos seu cadastro{nomeEncontrado ? `, ${nomeEncontrado}` : ''}! Confira e atualize
-          os dados.
+          Encontramos seu cadastro! Entre para conferir e atualizar os dados.
         </p>
       )}
       {modoCriarSenha && (
@@ -738,9 +715,9 @@ export function InsiderCadastroForm() {
       <Reveal show={showFotoSenha}>
         <InsiderField id="foto" label="Foto do perfil">
           <div className="flex items-center gap-3">
-            {(fotoPreview || fotoAtual) && (
+            {fotoPreview && (
               <Image
-                src={fotoPreview || fotoAtual}
+                src={fotoPreview}
                 alt="Prévia da foto de perfil"
                 width={56}
                 height={56}
