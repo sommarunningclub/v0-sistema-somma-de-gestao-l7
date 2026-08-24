@@ -25,3 +25,19 @@ INSERT INTO tag_definitions (tag, color) VALUES
   ('alunoprofessor', 'blue'),
   ('alunosomma', 'orange')
 ON CONFLICT (tag) DO NOTHING;
+
+-- RLS: as tags são lidas e escritas por /api/entity-tags (service_role, sessão
+-- obrigatória). Sem isso as tabelas ficavam abertas à anon key, que qualquer
+-- visitante extrai do bundle do browser.
+ALTER TABLE entity_tags ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tag_definitions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Service role full access entity_tags" ON entity_tags;
+CREATE POLICY "Service role full access entity_tags" ON entity_tags
+  FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Service role full access tag_definitions" ON tag_definitions;
+CREATE POLICY "Service role full access tag_definitions" ON tag_definitions
+  FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+REVOKE ALL ON entity_tags, tag_definitions FROM anon, authenticated;

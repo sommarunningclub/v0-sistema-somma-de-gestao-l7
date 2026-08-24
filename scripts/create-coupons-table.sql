@@ -65,3 +65,21 @@ BEGIN
     AND status = 'ACTIVE';
 END;
 $$ LANGUAGE plpgsql;
+
+-- RLS: cupons e resgates são manipulados só por rotas server-side com
+-- service_role (/api/coupons, atrás de requirePermission('pagamentos'), e
+-- /api/checkout/validate-coupon, que exige CHECKOUT_API_SECRET no POST).
+-- Sem RLS ligado, a anon key lia a tabela inteira de cupons — e escrevia
+-- nela — direto pela API REST do Supabase.
+ALTER TABLE coupons ENABLE ROW LEVEL SECURITY;
+ALTER TABLE coupon_redemptions ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Service role full access coupons" ON coupons;
+CREATE POLICY "Service role full access coupons" ON coupons
+  FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Service role full access coupon_redemptions" ON coupon_redemptions;
+CREATE POLICY "Service role full access coupon_redemptions" ON coupon_redemptions
+  FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+REVOKE ALL ON coupons, coupon_redemptions FROM anon, authenticated;

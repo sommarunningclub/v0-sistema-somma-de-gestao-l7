@@ -1,0 +1,7 @@
+
+ALTER TABLE checkins
+  ALTER COLUMN qr_code DROP NOT NULL,
+  ALTER COLUMN event_date DROP NOT NULL,
+  ALTER COLUMN event_time DROP NOT NULL,
+  ALTER COLUMN validated SET DEFAULT false;
+;
