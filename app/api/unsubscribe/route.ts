@@ -5,8 +5,11 @@ import { verifyUnsubscribeToken } from '@/lib/email/unsubscribe-token'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-function getSecret(): string {
-  return process.env.SESSION_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+// Mesmo segredo que assina os links em lib/email/dispatch.ts. Não há
+// fallback: verificar contra string vazia validaria qualquer token forjado
+// com a chave vazia, então a ausência da env invalida o link.
+function getSecret(): string | null {
+  return process.env.SESSION_SECRET || null
 }
 
 function page(title: string, message: string): NextResponse {
@@ -25,7 +28,14 @@ function page(title: string, message: string): NextResponse {
 
 async function handle(token: string | null): Promise<boolean> {
   if (!token) return false
-  const payload = verifyUnsubscribeToken(token, getSecret())
+
+  const secret = getSecret()
+  if (!secret) {
+    console.error('[unsubscribe] SESSION_SECRET não configurado — link recusado')
+    return false
+  }
+
+  const payload = verifyUnsubscribeToken(token, secret)
   if (!payload) return false
   return addSuppression(payload.email, 'unsubscribe', payload.campaignId)
 }

@@ -43,8 +43,17 @@ export function chunk<T>(items: T[], size: number): T[][] {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
+// Segredo dos links de descadastro. Sem fallback para a chave de serviço (ver
+// lib/auth/session.ts) e sem string vazia: assinar com chave vazia produziria
+// links que qualquer um forja, e eles viajam dentro de e-mails já enviados.
 function getSecret(): string {
-  return process.env.SESSION_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+  const secret = process.env.SESSION_SECRET
+  if (!secret) {
+    throw new Error(
+      'SESSION_SECRET não configurado — necessário para assinar os links de descadastro.'
+    )
+  }
+  return secret
 }
 
 function unsubscribeUrl(email: string, campaignId: string | null): string {

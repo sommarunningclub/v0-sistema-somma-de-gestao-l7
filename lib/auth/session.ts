@@ -5,10 +5,19 @@ import type { ModulePermissions, SessionPayload } from './types'
 export const SESSION_COOKIE = 'somma_session'
 export const SESSION_MAX_AGE_SEC = 60 * 60 * 24 * 7 // 7 dias
 
+/*
+ * Sem fallback para SUPABASE_SERVICE_ROLE_KEY: assinar sessão com a chave de
+ * serviço acopla duas coisas que precisam girar em ritmos diferentes — rotar
+ * a chave do banco derrubaria todas as sessões, e vazar o segredo de sessão
+ * revelaria que a chave de serviço tem o mesmo valor. `SESSION_SECRET` é
+ * obrigatória; a ausência dela é erro de configuração, não modo degradado.
+ */
 function getSessionSecret(): string {
-  const secret = process.env.SESSION_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY
+  const secret = process.env.SESSION_SECRET
   if (!secret) {
-    throw new Error('SESSION_SECRET não configurado')
+    throw new Error(
+      'SESSION_SECRET não configurado. Defina a variável de ambiente (mínimo 32 caracteres aleatórios) antes de subir a aplicação.'
+    )
   }
   return secret
 }

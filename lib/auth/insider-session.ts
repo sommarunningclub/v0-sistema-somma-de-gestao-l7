@@ -2,7 +2,10 @@ import { cookies } from 'next/headers'
 import type { NextRequest, NextResponse } from 'next/server'
 
 export const INSIDER_SESSION_COOKIE = 'somma_insider_session'
-export const INSIDER_SESSION_MAX_AGE_SEC = 60 * 60 * 24 * 30 // 30 dias
+// 7 dias, alinhado à sessão do admin. Os 30 dias anteriores mantinham um
+// cookie de portador válido por um mês inteiro num dispositivo compartilhado,
+// e o portal expõe dados pessoais completos do insider.
+export const INSIDER_SESSION_MAX_AGE_SEC = 60 * 60 * 24 * 7 // 7 dias
 
 export type InsiderSession = {
   sub: string
@@ -18,9 +21,11 @@ export type InsiderSession = {
  * nome do cookie não bastaria.
  */
 function getInsiderSecret(): string {
-  const secret = process.env.SESSION_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY
+  const secret = process.env.SESSION_SECRET
   if (!secret) {
-    throw new Error('SESSION_SECRET não configurado')
+    throw new Error(
+      'SESSION_SECRET não configurado. Defina a variável de ambiente (mínimo 32 caracteres aleatórios) antes de subir a aplicação.'
+    )
   }
   return `${secret}:insider`
 }

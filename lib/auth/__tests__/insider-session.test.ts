@@ -28,11 +28,11 @@ describe('insider-session', () => {
     expect(INSIDER_SESSION_COOKIE).toBe('somma_insider_session')
   })
 
-  it('expira em 30 dias', async () => {
+  it('expira em 7 dias', async () => {
     const antes = Math.floor(Date.now() / 1000)
     const token = await createInsiderToken(insider)
     const payload = await verifyInsiderToken(token)
-    expect(INSIDER_SESSION_MAX_AGE_SEC).toBe(60 * 60 * 24 * 30)
+    expect(INSIDER_SESSION_MAX_AGE_SEC).toBe(60 * 60 * 24 * 7)
     expect(payload!.exp).toBeGreaterThanOrEqual(antes + INSIDER_SESSION_MAX_AGE_SEC - 5)
   })
 
