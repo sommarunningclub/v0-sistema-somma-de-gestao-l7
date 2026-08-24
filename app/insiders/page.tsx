@@ -9,8 +9,12 @@ import { Switch } from "@/components/ui/switch"
 import {
   AlertCircle,
   BadgeCheck,
+  Check,
+  Copy,
   Download,
   Dumbbell,
+  ExternalLink,
+  Link2,
   Pencil,
   Plus,
   RefreshCw,
@@ -227,6 +231,76 @@ function rotuloSimNao(value: boolean | null | undefined): string {
   if (value === true) return 'Sim'
   if (value === false) return 'Não'
   return '—'
+}
+
+/**
+ * Link público onde o insider se cadastra e atualiza os próprios dados
+ * (`app/insider/page.tsx`, página aberta — sem sessão).
+ *
+ * A origem sai de `window.location.origin` em vez de env: é a mesma app que
+ * serve o painel e a página pública, então o domínio correto é sempre aquele
+ * de onde o painel foi carregado — e não depende de `NEXT_PUBLIC_APP_URL`
+ * estar configurada. O valor de env, quando existe, serve só para a primeira
+ * pintura antes da hidratação, evitando o campo piscar vazio.
+ */
+function LinkPublicoInsider() {
+  const [origem, setOrigem] = useState(process.env.NEXT_PUBLIC_APP_URL ?? '')
+  const [copiado, setCopiado] = useState(false)
+
+  useEffect(() => {
+    setOrigem(window.location.origin)
+  }, [])
+
+  const url = origem ? `${origem}/insider` : ''
+
+  const copiar = async () => {
+    if (!url) return
+    try {
+      await navigator.clipboard.writeText(url)
+      setCopiado(true)
+      setTimeout(() => setCopiado(false), 2500)
+    } catch {
+      notify.error('Não foi possível copiar')
+    }
+  }
+
+  return (
+    <section>
+      <SectionTitle
+        as="h3"
+        title="Link de cadastro"
+        meta="Página pública — não exige login"
+      />
+      <Well className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <p className="flex items-center gap-2 text-sm text-ink-muted">
+            <Link2 aria-hidden="true" className="h-4 w-4 shrink-0" />
+            Envie para o insider se cadastrar ou atualizar os próprios dados.
+          </p>
+          <p className="mt-1.5 truncate font-mono text-sm text-ink" title={url}>
+            {url || '—'}
+          </p>
+        </div>
+        <div className="flex shrink-0 gap-2">
+          <Button variant="secondary" size="sm" onClick={copiar} disabled={!url}>
+            {copiado ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+            {copiado ? 'Copiado' : 'Copiar link'}
+          </Button>
+          {/* `asChild` não repassa `disabled` — um <a> não tem esse estado.
+              Por isso o botão só existe quando já há URL, em vez de virar um
+              link para '#' clicável antes da hidratação. */}
+          {url ? (
+            <Button variant="ghost" size="sm" asChild>
+              <a href={url} target="_blank" rel="noreferrer">
+                <ExternalLink aria-hidden="true" />
+                Abrir
+              </a>
+            </Button>
+          ) : null}
+        </div>
+      </Well>
+    </section>
+  )
 }
 
 function Dado({ label, value }: { label: string; value: ReactNode }) {
@@ -611,6 +685,8 @@ export default function InsidersPage() {
             />
           </StatGrid>
         )}
+
+        <LinkPublicoInsider />
 
         <Toolbar>
           <SearchInput
