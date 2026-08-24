@@ -6,7 +6,7 @@ import { Camera, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Panel, Well, notify } from '@/components/somma'
-import { supabase } from '@/lib/supabase-client'
+import { apiFetch } from '@/lib/api-client'
 
 /**
  * Edição do próprio perfil.
@@ -58,17 +58,20 @@ export function UserProfileEdit({ user, onClose, onSave }: UserProfileEditProps)
 
     setLoading(true)
     try {
-      const { error: updateError } = await supabase
-        .from('users')
-        .update({
-          full_name: fullName,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', user.id)
+      // Via PATCH /api/auth/me, que tira o id da sessão. A escrita direta com
+      // a anon key deixava a tabela `users` — hashes de senha e permissões de
+      // todo mundo — aberta a qualquer visitante; ver a migration
+      // supabase/migrations/20260824125103_harden_users_rls.sql.
+      const res = await apiFetch('/api/auth/me', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ full_name: fullName }),
+      })
 
-      if (updateError) {
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
         notify.error('Não foi possível atualizar o perfil', {
-          description: updateError.message,
+          description: data?.error,
         })
         return
       }
