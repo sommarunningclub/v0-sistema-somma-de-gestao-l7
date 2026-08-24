@@ -7,7 +7,13 @@ import {
   attachSessionCookie,
 } from './session'
 import type { ModulePermissions, PermissionKey, SessionPayload } from './types'
-export { hashPassword, verifyPassword, isBcryptHash } from './password'
+export {
+  hashPassword,
+  verifyPassword,
+  isBcryptHash,
+  validatePasswordPolicy,
+  SENHA_MIN_LENGTH,
+} from './password'
 
 export function getAdminClient() {
   const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -18,6 +24,14 @@ export function getAdminClient() {
   })
 }
 
+/*
+ * `role` e `permissions` vêm do cookie assinado, que só é reemitido no login
+ * (validade de 7 dias). Revogar um módulo no painel não podia depender desse
+ * refresh: até lá a API continuaria aceitando o token antigo. Por isso o
+ * select abaixo, que já buscava `is_active`, traz também role/permissions e a
+ * sessão devolvida ao handler é a versão do banco — o cookie passa a valer
+ * só como prova de identidade. É um select enxuto por request autenticado.
+ */
 export async function requireAuth(
   req: NextRequest
 ): Promise<{ session: SessionPayload } | NextResponse> {
@@ -29,7 +43,7 @@ export async function requireAuth(
   const supabase = getAdminClient()
   const { data: user } = await supabase
     .from('users')
-    .select('is_active')
+    .select('is_active, role, permissions')
     .eq('id', session.sub)
     .single()
 
@@ -37,7 +51,13 @@ export async function requireAuth(
     return NextResponse.json({ error: 'Usuário inativo' }, { status: 403 })
   }
 
-  return { session }
+  return {
+    session: {
+      ...session,
+      role: user.role ?? session.role,
+      permissions: (user.permissions as ModulePermissions | null) ?? null,
+    },
+  }
 }
 
 export async function requirePermission(
