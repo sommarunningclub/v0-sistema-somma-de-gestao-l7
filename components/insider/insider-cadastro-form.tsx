@@ -77,6 +77,13 @@ export function InsiderCadastroForm() {
   const [senhaNovaConfirmacao, setSenhaNovaConfirmacao] = useState('')
   const [criandoSenha, setCriandoSenha] = useState(false)
   const [modoEdicao, setModoEdicao] = useState(false)
+  // Login por código enviado ao e-mail cadastrado. Convive com a senha: é
+  // alternativa para quem tem senha e recuperação para quem esqueceu.
+  const [modoCodigo, setModoCodigo] = useState(false)
+  const [codigo, setCodigo] = useState('')
+  const [enviandoCodigo, setEnviandoCodigo] = useState(false)
+  const [verificandoCodigo, setVerificandoCodigo] = useState(false)
+  const [enviadoPara, setEnviadoPara] = useState('')
 
   const router = useRouter()
   const cep = useCepLookup()
@@ -108,6 +115,9 @@ export function InsiderCadastroForm() {
     setSenhaNovaConfirmacao('')
     setCriandoSenha(false)
     setModoEdicao(false)
+    setModoCodigo(false)
+    setCodigo('')
+    setEnviadoPara('')
     setErro(null)
   }
 
@@ -240,8 +250,8 @@ export function InsiderCadastroForm() {
   // --- Revelação progressiva ---
   const revelarTudo = lookupStatus === 'found'
   const iniciado = lookupStatus === 'found' || lookupStatus === 'new'
-  const modoLogin = lookupStatus === 'found' && temSenha && !modoEdicao
-  const modoCriarSenha = lookupStatus === 'found' && !temSenha && !modoEdicao
+  const modoLogin = lookupStatus === 'found' && temSenha && !modoEdicao && !modoCodigo
+  const modoCriarSenha = lookupStatus === 'found' && !temSenha && !modoEdicao && !modoCodigo
 
   const nomeOk = form.nome.trim().length >= 3
   const emailOk = /\S+@\S+\.\S+/.test(form.email)
@@ -288,6 +298,55 @@ export function InsiderCadastroForm() {
       setErro(err instanceof Error ? err.message : 'Não foi possível entrar.')
     } finally {
       setEntrando(false)
+    }
+  }
+
+  async function handlePedirCodigo() {
+    if (enviandoCodigo) return
+    setErro(null)
+    setEnviandoCodigo(true)
+    try {
+      const res = await fetch('/api/insiders/codigo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cpf: form.cpf }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        throw new Error(data?.error || 'Não foi possível enviar o código.')
+      }
+      // `enviado_para` só vem quando houve envio de fato; a rota é pública e
+      // omite o campo quando não há cadastro, para não confirmar o CPF.
+      setEnviadoPara(typeof data?.enviado_para === 'string' ? data.enviado_para : '')
+      setCodigo('')
+      setModoCodigo(true)
+    } catch (err) {
+      setErro(err instanceof Error ? err.message : 'Não foi possível enviar o código.')
+    } finally {
+      setEnviandoCodigo(false)
+    }
+  }
+
+  async function handleEntrarComCodigo(e: React.FormEvent) {
+    e.preventDefault()
+    if (verificandoCodigo) return
+    setErro(null)
+    setVerificandoCodigo(true)
+    try {
+      const res = await fetch('/api/insiders/entrar-codigo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cpf: form.cpf, codigo }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        throw new Error(data?.error || 'Não foi possível entrar.')
+      }
+      router.push('/insider/painel')
+    } catch (err) {
+      setErro(err instanceof Error ? err.message : 'Não foi possível entrar.')
+    } finally {
+      setVerificandoCodigo(false)
     }
   }
 
@@ -458,12 +517,84 @@ export function InsiderCadastroForm() {
           {!entrando && <ArrowRight className="h-4 w-4" />}
         </button>
 
+
+        <button
+          type="button"
+          onClick={handlePedirCodigo}
+          disabled={enviandoCodigo}
+          className="mt-3 flex w-full items-center justify-center gap-2 text-center text-sm text-[#737373] underline disabled:opacity-70"
+        >
+          {enviandoCodigo ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+          Receber um código por e-mail
+        </button>
+
         <button
           type="button"
           onClick={() => setModoEdicao(true)}
           className="mt-3 w-full text-center text-sm text-[#737373] underline"
         >
           Prefiro atualizar meus dados sem entrar
+        </button>
+      </Reveal>
+
+      <Reveal show={modoCodigo}>
+        <p className="mb-4 text-sm text-[#737373]">
+          {enviadoPara
+            ? `Enviamos um código de 6 dígitos para ${enviadoPara}.`
+            : 'Se este CPF tiver cadastro com e-mail, o código foi enviado.'}
+        </p>
+
+        <InsiderField id="codigo" label="Código de acesso">
+          <input
+            id="codigo"
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={6}
+            value={codigo}
+            onChange={(e) => setCodigo(e.target.value.replace(/\D/g, ''))}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                handleEntrarComCodigo(e)
+              }
+            }}
+            className={`${INPUT_CLS} text-center font-mono text-2xl tracking-[0.5em]`}
+            placeholder="000000"
+          />
+        </InsiderField>
+
+        <button
+          type="button"
+          onClick={handleEntrarComCodigo}
+          disabled={verificandoCodigo || codigo.length !== 6}
+          className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-[#FF2C03] px-6 py-3.5 text-base font-semibold text-white transition-colors hover:bg-[#FB4C00] disabled:opacity-70"
+        >
+          {verificandoCodigo ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
+          Entrar
+          {!verificandoCodigo && <ArrowRight className="h-4 w-4" />}
+        </button>
+
+        <button
+          type="button"
+          onClick={handlePedirCodigo}
+          disabled={enviandoCodigo}
+          className="mt-3 flex w-full items-center justify-center gap-2 text-center text-sm text-[#737373] underline disabled:opacity-70"
+        >
+          {enviandoCodigo ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+          Reenviar código
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setModoCodigo(false)
+            setCodigo('')
+            setErro(null)
+          }}
+          className="mt-3 w-full text-center text-sm text-[#737373] underline"
+        >
+          Voltar
         </button>
       </Reveal>
 
@@ -515,6 +646,18 @@ export function InsiderCadastroForm() {
           {criandoSenha ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
           Criar senha e entrar
           {!criandoSenha && <ArrowRight className="h-4 w-4" />}
+        </button>
+
+        {/* Quem ainda não tem senha é justamente quem mais se beneficia do
+            código: entra sem inventar mais uma senha para esquecer. */}
+        <button
+          type="button"
+          onClick={handlePedirCodigo}
+          disabled={enviandoCodigo}
+          className="mt-3 flex w-full items-center justify-center gap-2 text-center text-sm text-[#737373] underline disabled:opacity-70"
+        >
+          {enviandoCodigo ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+          Entrar com um código por e-mail
         </button>
 
         <button
