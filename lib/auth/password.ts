@@ -1,6 +1,12 @@
 import { createHash } from 'crypto'
 import bcrypt from 'bcryptjs'
 
+export {
+  validatePasswordPolicy,
+  SENHA_MIN_LENGTH,
+  SENHA_MAX_LENGTH,
+} from './password-policy'
+
 const SALT_ROUNDS = 12
 const BCRYPT_PREFIX = '$2'
 

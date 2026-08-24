@@ -277,7 +277,6 @@ export function TarefasTaskModal({
           file_url: urlData.publicUrl,
           file_type: file.type,
           file_size: file.size,
-          uploaded_by: session?.full_name || session?.email || 'unknown',
         }),
       })
 

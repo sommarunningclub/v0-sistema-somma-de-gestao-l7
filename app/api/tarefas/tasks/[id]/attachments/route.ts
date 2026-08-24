@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requirePermission } from '@/lib/auth/api-auth'
+import { isValidAttachmentUrl } from '@/lib/services/attachment-url'
 import { getTaskAttachments, createTaskAttachment, deleteTaskAttachment } from '@/lib/services/tarefas'
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -8,12 +10,19 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await requirePermission(req, 'tarefas')
+  if (auth instanceof NextResponse) return auth
+
   try {
     const { id } = await params
     const body = await req.json()
 
-    if (!body.file_name || !body.file_url || !body.uploaded_by) {
+    if (!body.file_name || !body.file_url) {
       return NextResponse.json({ error: 'Dados do arquivo são obrigatórios' }, { status: 400 })
+    }
+
+    if (!isValidAttachmentUrl(body.file_url)) {
+      return NextResponse.json({ error: 'URL do arquivo inválida' }, { status: 400 })
     }
 
     const attachment = await createTaskAttachment({
@@ -22,7 +31,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       file_url: body.file_url,
       file_type: body.file_type || '',
       file_size: body.file_size || 0,
-      uploaded_by: body.uploaded_by,
+      // Autoria vem da sessão: o body do client não define quem enviou.
+      uploaded_by: auth.session.full_name || auth.session.email,
     })
 
     if (!attachment) {

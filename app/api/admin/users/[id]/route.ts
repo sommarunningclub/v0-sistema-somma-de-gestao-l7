@@ -3,6 +3,7 @@ import {
   getAdminClient,
   hashPassword,
   requireAdmin,
+  validatePasswordPolicy,
 } from "@/lib/auth/api-auth"
 
 const ALLOWED_PATCH_FIELDS = new Set([
@@ -33,6 +34,10 @@ export async function PATCH(
     for (const [key, value] of Object.entries(body)) {
       if (!ALLOWED_PATCH_FIELDS.has(key)) continue
       if (key === "password") {
+        const erroSenha = validatePasswordPolicy(value)
+        if (erroSenha) {
+          return NextResponse.json({ error: erroSenha }, { status: 400 })
+        }
         updates.password_hash = await hashPassword(String(value))
       } else {
         updates[key] = value

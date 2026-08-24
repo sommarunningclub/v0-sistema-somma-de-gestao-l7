@@ -52,7 +52,10 @@ export function LoginForm({
       }
       localStorage.setItem('somma_session', JSON.stringify(sessionData))
 
-      const target = redirectTo.startsWith('/') ? redirectTo : '/'
+      // Só caminho interno: `//host` e `/\host` também começam com '/' e o
+      // router os trata como URL absoluta, virando redirect aberto.
+      const interno = /^\/(?![/\\])/.test(redirectTo)
+      const target = interno ? redirectTo : '/'
       router.push(target)
     } catch (err) {
       console.error('[v0] Login exception:', err)

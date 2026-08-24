@@ -3,6 +3,7 @@ import {
   getAdminClient,
   hashPassword,
   requireAdmin,
+  validatePasswordPolicy,
 } from "@/lib/auth/api-auth"
 
 // GET /api/admin/users — list all users
@@ -40,6 +41,11 @@ export async function POST(req: NextRequest) {
 
     if (!email || !full_name || !password) {
       return NextResponse.json({ error: "Email, nome e senha são obrigatórios" }, { status: 400 })
+    }
+
+    const erroSenha = validatePasswordPolicy(password)
+    if (erroSenha) {
+      return NextResponse.json({ error: erroSenha }, { status: 400 })
     }
 
     const finalHash = await hashPassword(password)

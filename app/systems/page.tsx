@@ -7,6 +7,7 @@ import { apiFetch } from '@/lib/api-client'
 import { searchAndRank } from '@/lib/search-utils'
 import { NAV_GROUPS, NAV_ITEMS, type NavGroupId } from '@/lib/nav'
 import type { ModulePermissions, PermissionKey } from '@/lib/auth/types'
+import { SENHA_MIN_LENGTH, validatePasswordPolicy } from '@/lib/auth/password-policy'
 
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -324,10 +325,9 @@ export default function AdminPage() {
       return
     }
 
-    if (form.password.length < 6) {
-      notify.warning('Senha muito curta', {
-        description: 'A senha deve ter pelo menos 6 caracteres.',
-      })
+    const erroSenha = validatePasswordPolicy(form.password)
+    if (erroSenha) {
+      notify.warning('Senha fora da política', { description: erroSenha })
       return
     }
 
@@ -881,11 +881,11 @@ export default function AdminPage() {
                 autoComplete="new-password"
                 value={form.password}
                 onChange={(event) => setForm({ ...form, password: event.target.value })}
-                placeholder="Mínimo de 6 caracteres"
+                placeholder={`Mínimo de ${SENHA_MIN_LENGTH} caracteres`}
                 aria-describedby="new-user-password-hint"
               />
               <p id="new-user-password-hint" className="mt-1.5 text-meta text-ink-muted">
-                Pelo menos 6 caracteres. A pessoa pode trocar depois no perfil.
+                Pelo menos {SENHA_MIN_LENGTH} caracteres. A pessoa pode trocar depois no perfil.
               </p>
             </div>
 
