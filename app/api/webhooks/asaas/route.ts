@@ -14,20 +14,32 @@ import { createClient } from '@supabase/supabase-js'
  */
 
 export async function POST(request: NextRequest) {
+  // Fail-closed, igual a app/api/cron/*: sem token configurado ninguém entra.
+  // Pular a checagem quando ASAAS_WEBHOOK_TOKEN falta transformaria um deploy
+  // com env incompleta em endpoint público de escrita em `payments`.
   const webhookToken = process.env.ASAAS_WEBHOOK_TOKEN
-  if (webhookToken) {
-    const incoming =
-      request.headers.get('asaas-access-token') ||
-      request.headers.get('x-asaas-access-token')
-    if (incoming !== webhookToken) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+  if (!webhookToken) {
+    console.error('[v0] ASAAS_WEBHOOK_TOKEN não configurado — webhook recusado')
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-  )
+  const incoming =
+    request.headers.get('asaas-access-token') ||
+    request.headers.get('x-asaas-access-token')
+  if (incoming !== webhookToken) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!supabaseUrl || !serviceKey) {
+    console.error('[v0] Credenciais Supabase ausentes — webhook recusado')
+    return NextResponse.json({ error: 'Service unavailable' }, { status: 503 })
+  }
+
+  const supabase = createClient(supabaseUrl, serviceKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  })
   try {
     const payload = await request.json()
     

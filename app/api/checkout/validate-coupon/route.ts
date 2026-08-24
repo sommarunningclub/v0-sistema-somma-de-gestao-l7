@@ -1,29 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { getAdminClient } from '@/lib/auth/api-auth'
 
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-  )
+// CORS para o checkout externo. `CHECKOUT_ALLOWED_ORIGINS` (csv) restringe a
+// origem quando configurada; sem ela cai em `*`, que é seguro só porque o
+// POST (única rota que escreve) exige `CHECKOUT_API_SECRET` — CORS nunca é a
+// camada de autorização aqui.
+function allowedOrigins(): string[] {
+  return (process.env.CHECKOUT_ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean)
 }
 
-// CORS headers para permitir chamadas do checkout externo
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+function cors(request?: NextRequest): Record<string, string> {
+  const permitidas = allowedOrigins()
+  const origin = request?.headers.get('origin') || ''
+
+  const allowOrigin = permitidas.length === 0
+    ? '*'
+    : permitidas.includes(origin)
+      ? origin
+      : permitidas[0]
+
+  const headers: Record<string, string> = {
+    'Access-Control-Allow-Origin': allowOrigin,
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  }
+  if (permitidas.length > 0) headers.Vary = 'Origin'
+  return headers
 }
 
 // Handle OPTIONS request for CORS preflight
-export async function OPTIONS() {
-  return NextResponse.json({}, { headers: corsHeaders })
+export async function OPTIONS(request: NextRequest) {
+  return NextResponse.json({}, { headers: cors(request) })
 }
 
 // GET - Validar cupom (para uso no checkout)
 // Exemplo: /api/checkout/validate-coupon?code=DESCONTO10&value=100
 export async function GET(request: NextRequest) {
-  const supabase = getSupabase()
+  const corsHeaders = cors(request)
+  const supabase = getAdminClient()
   const { searchParams } = new URL(request.url)
   const code = searchParams.get('code')
   const originalValue = searchParams.get('value')
@@ -137,18 +154,28 @@ export async function GET(request: NextRequest) {
 // POST - Aplicar cupom e registrar uso (apos pagamento confirmado)
 // Body: { code: string, value: number, customerId?: string, paymentId?: string }
 export async function POST(request: NextRequest) {
+  const corsHeaders = cors(request)
+
+  // Fail-closed: sem CHECKOUT_API_SECRET configurado, ninguém registra
+  // resgate. Antes, a falta da env liberava a escrita para a internet toda.
   const checkoutSecret = process.env.CHECKOUT_API_SECRET
-  if (checkoutSecret) {
-    const auth = request.headers.get('authorization')
-    if (auth !== `Bearer ${checkoutSecret}`) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401, headers: corsHeaders }
-      )
-    }
+  if (!checkoutSecret) {
+    console.error('[API] CHECKOUT_API_SECRET não configurado — POST recusado')
+    return NextResponse.json(
+      { success: false, error: 'Unauthorized' },
+      { status: 401, headers: corsHeaders }
+    )
   }
 
-  const supabase = getSupabase()
+  const auth = request.headers.get('authorization')
+  if (auth !== `Bearer ${checkoutSecret}`) {
+    return NextResponse.json(
+      { success: false, error: 'Unauthorized' },
+      { status: 401, headers: corsHeaders }
+    )
+  }
+
+  const supabase = getAdminClient()
   try {
     const body = await request.json()
     const { code, value, customerId, paymentId } = body
