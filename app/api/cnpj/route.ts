@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { requirePermission } from '@/lib/auth/api-auth'
 import { fetchCNPJData, getPartnerByCNPJ } from '@/lib/services/partners'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs' // Usar nodejs runtime para evitar limitacoes de edge
 
 export async function GET(request: NextRequest) {
+  const auth = await requirePermission(request, 'parceiro')
+  if (auth instanceof NextResponse) return auth
+
   try {
     const searchParams = request.nextUrl.searchParams
     const cnpj = searchParams.get('cnpj')

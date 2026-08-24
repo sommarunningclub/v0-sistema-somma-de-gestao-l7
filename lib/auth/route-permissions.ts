@@ -43,12 +43,19 @@ const ROUTE_PERMISSIONS: Array<{ pattern: RegExp; permission: PermissionKey }> =
   { pattern: /^\/api\/coupons/, permission: 'pagamentos' },
   { pattern: /^\/api\/pdv/, permission: 'pdv' },
   { pattern: /^\/api\/pix-automatico/, permission: 'pixAutomatico' },
+  // Defesa em profundidade: os handlers destas rotas já chamam
+  // requirePermission; espelhar o prefixo aqui evita que uma rota nova no
+  // mesmo módulo nasça sem checagem alguma.
+  { pattern: /^\/api\/membros/, permission: 'membros' },
+  { pattern: /^\/api\/vagas/, permission: 'vagas' },
+  { pattern: /^\/api\/command-center/, permission: 'dashboard' },
+  { pattern: /^\/api\/cnpj/, permission: 'parceiro' },
 ]
 
 export function getRequiredPermission(pathname: string): PermissionKey | null {
   for (const entry of ROUTE_PERMISSIONS) {
     if (entry.pattern.test(pathname)) return entry.permission
   }
-  // Rotas autenticadas sem permissão específica (ex: /api/cnpj, /api/auth/me)
+  // Rotas autenticadas sem permissão específica (ex: /api/auth/me)
   return null
 }

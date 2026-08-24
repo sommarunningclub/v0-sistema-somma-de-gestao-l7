@@ -1,12 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-  )
-}
+import { getAdminClient, requirePermission } from '@/lib/auth/api-auth'
 
 interface Coupon {
   id: string
@@ -31,7 +24,10 @@ interface CouponValidationResult {
 
 // GET - Validar um cupom e calcular desconto
 export async function GET(request: NextRequest) {
-  const supabase = getSupabase()
+  const auth = await requirePermission(request, 'pagamentos')
+  if (auth instanceof NextResponse) return auth
+
+  const supabase = getAdminClient()
   const { searchParams } = new URL(request.url)
   const code = searchParams.get('code')
   const originalValue = searchParams.get('value')
@@ -121,7 +117,10 @@ export async function GET(request: NextRequest) {
 
 // POST - Aplicar/resgatar um cupom (registrar uso)
 export async function POST(request: NextRequest) {
-  const supabase = getSupabase()
+  const auth = await requirePermission(request, 'pagamentos')
+  if (auth instanceof NextResponse) return auth
+
+  const supabase = getAdminClient()
   try {
     const body = await request.json()
     const { 
