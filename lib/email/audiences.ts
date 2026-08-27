@@ -78,6 +78,45 @@ export const AUDIENCE_SOURCES: Record<AudienceKey, AudienceSource> = {
       },
     ],
   },
+  /**
+   * Base de uma campanha do SITE (novo-site-somma-v3), não deste sistema.
+   *
+   * Os dois projetos dividem o banco, mas as campanhas do site vivem em
+   * `campanha_contatos`, uma tabela que guarda a base de TODAS elas de uma vez
+   * e que este módulo não conhece. A fonte aqui é a view `campanha_swr_base`
+   * (migration 20260827103000 do projeto do site), e a view é que faz duas
+   * coisas que um filtro desta tela não faria com segurança:
+   *
+   *   - fixa a campanha, para que esquecer de marcar um filtro não mande o
+   *     e-mail do Sunset Wine Run para a base do Desafio das Esteiras;
+   *   - remove quem está em `descadastros_globais`, o descadastro DO SITE. Ele
+   *     é uma lista separada de `email_suppressions` e nenhuma das duas conhece
+   *     a outra; sem isso, quem pediu para sair pelo rodapé de um e-mail do
+   *     site voltaria a receber por aqui. A supressão deste módulo continua
+   *     sendo aplicada por cima, no disparo — as duas se somam.
+   *
+   * Para publicar outra campanha do site aqui, crie a view equivalente e
+   * registre mais uma entrada; não troque isto por um filtro de campanha.
+   */
+  sunset_wine_run: {
+    key: 'sunset_wine_run',
+    label: 'Base da campanha Sunset Wine Run (site)',
+    table: 'campanha_swr_base',
+    emailCol: 'email',
+    nameCol: 'nome',
+    filters: [
+      {
+        key: 'segmento',
+        label: 'Segmento',
+        kind: 'select',
+        options: [
+          { value: 'cadastro-site', label: 'Cadastro do site' },
+          { value: 'checkins', label: 'Check-ins' },
+          { value: 'manual', label: 'Avulsos (manual)' },
+        ],
+      },
+    ],
+  },
   lista_espera: {
     key: 'lista_espera',
     label: 'Lista de espera assessoria',

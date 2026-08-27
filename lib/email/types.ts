@@ -18,7 +18,12 @@ export type RecipientStatus =
   | 'spam'
   | 'falha'
 
-export type AudienceKey = 'membros' | 'checkins' | 'lista_vip' | 'lista_espera'
+export type AudienceKey =
+  | 'membros'
+  | 'checkins'
+  | 'lista_vip'
+  | 'lista_espera'
+  | 'sunset_wine_run'
 
 export interface AudienceIndividual {
   email: string

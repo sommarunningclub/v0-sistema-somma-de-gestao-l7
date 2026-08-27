@@ -1,9 +1,13 @@
 import { AUDIENCE_SOURCES, buildAudienceQuery, isAudienceKey, individuaisToRecipients } from '../audiences'
 
 describe('AUDIENCE_SOURCES', () => {
-  it('declares the four bases from the spec', () => {
+  // A lista é travada de propósito: uma base a mais aqui é uma base a mais na
+  // tela de audiência, e ninguém deve conseguir publicar uma sem passar por
+  // este teste. `sunset_wine_run` entrou em 27/08/2026 para dar ao módulo a
+  // base de uma campanha do SITE, que vive noutra tabela do mesmo banco.
+  it('declares the five bases from the spec', () => {
     expect(Object.keys(AUDIENCE_SOURCES).sort()).toEqual(
-      ['checkins', 'lista_espera', 'lista_vip', 'membros'].sort(),
+      ['checkins', 'lista_espera', 'lista_vip', 'membros', 'sunset_wine_run'].sort(),
     )
   })
 
@@ -19,6 +23,13 @@ describe('AUDIENCE_SOURCES', () => {
 
     expect(AUDIENCE_SOURCES.lista_espera.table).toBe('lista_vip_assessoria')
     expect(AUDIENCE_SOURCES.lista_espera.nameCol).toBe('nome')
+
+    // View, não tabela: `campanha_swr_base` já sai filtrada pela campanha e
+    // sem quem está em `descadastros_globais` (o descadastro do site, que a
+    // supressão daqui não conhece). Apontar para `campanha_contatos` cru
+    // mandaria o e-mail para a base de todas as campanhas do site.
+    expect(AUDIENCE_SOURCES.sunset_wine_run.table).toBe('campanha_swr_base')
+    expect(AUDIENCE_SOURCES.sunset_wine_run.nameCol).toBe('nome')
   })
 
   it('uses email as the address column everywhere', () => {
