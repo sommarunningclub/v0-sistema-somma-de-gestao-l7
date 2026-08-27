@@ -6,7 +6,7 @@ import { apiFetch } from '@/lib/api-client'
 import { PageLoading } from '@/components/ui/page-loading'
 import { ErrorBanner } from '@/components/ui/error-banner'
 import { EmailIndividualPicker } from '@/components/email-individual-picker'
-import type { AudienceIndividual, AudienceKey, AudienceSelection } from '@/lib/email/types'
+import type { AudienceIndividual, AudienceKey, AudienceSelection, EmailCampaign } from '@/lib/email/types'
 import type { AudienceSource } from '@/lib/email/audiences'
 
 interface EventoOption {
@@ -19,17 +19,34 @@ interface EmailAudiencePickerProps {
   value: AudienceSelection
   onChange: (next: AudienceSelection) => void
   onTotalChange?: (total: number) => void
+  /** Campanha em edição — não pode aparecer como opção de exclusão de si mesma. */
+  currentCampaignId?: string | null
 }
 
-export default function EmailAudiencePicker({ value, onChange, onTotalChange }: EmailAudiencePickerProps) {
+/**
+ * Só campanhas que podem ter abertura. 'rascunho' e 'cancelada' nunca saem,
+ * então excluir os abridores delas seria excluir ninguém; 'agendada' entra
+ * porque é exatamente o caso da régua montada de uma vez (a etapa 2 é criada
+ * antes de a etapa 1 ter disparado).
+ */
+const STATUS_COM_ABERTURA = new Set(['agendada', 'enviando', 'enviada'])
+
+export default function EmailAudiencePicker({
+  value,
+  onChange,
+  onTotalChange,
+  currentCampaignId,
+}: EmailAudiencePickerProps) {
   const [sources, setSources] = useState<AudienceSource[]>([])
   const [eventos, setEventos] = useState<EventoOption[]>([])
+  const [campanhas, setCampanhas] = useState<EmailCampaign[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const [previewLoading, setPreviewLoading] = useState(false)
   const [total, setTotal] = useState(0)
   const [porBase, setPorBase] = useState<Record<string, number>>({})
+  const [excluidosPorAbertura, setExcluidosPorAbertura] = useState(0)
   // Gera um "número de série" por requisição de preview disparada, para
   // descartar respostas desatualizadas que cheguem fora de ordem (ex.: o
   // usuário marca a base A, espera o debounce disparar, depois marca a base
@@ -40,13 +57,26 @@ export default function EmailAudiencePicker({ value, onChange, onTotalChange }: 
   const loadSources = async () => {
     setLoading(true)
     try {
-      const [srcRes, evRes] = await Promise.all([
+      const [srcRes, evRes, campRes] = await Promise.all([
         apiFetch('/api/email-audiences/preview'),
         apiFetch('/api/eventos/ativos'),
+        // Best-effort: a exclusão por abertura é opcional, e derrubar a tela
+        // inteira de audiência porque a listagem de campanhas falhou seria
+        // trocar um recurso a mais por um recurso a menos.
+        apiFetch('/api/email-campaigns').catch(() => null),
       ])
       if (!srcRes.ok) throw new Error('Erro ao carregar bases')
       const srcData = await srcRes.json()
       setSources(srcData.sources ?? [])
+
+      if (campRes?.ok) {
+        const campData = (await campRes.json()) as EmailCampaign[]
+        setCampanhas(
+          (campData ?? []).filter(
+            (c) => STATUS_COM_ABERTURA.has(c.status) && c.id !== currentCampaignId,
+          ),
+        )
+      }
 
       if (evRes.ok) {
         const evData = await evRes.json()
@@ -78,6 +108,7 @@ export default function EmailAudiencePicker({ value, onChange, onTotalChange }: 
       requestIdRef.current += 1 // invalida qualquer requisição em voo
       setTotal(0)
       setPorBase({})
+      setExcluidosPorAbertura(0)
       setPreviewLoading(false)
       onTotalChange?.(0)
       return
@@ -100,6 +131,7 @@ export default function EmailAudiencePicker({ value, onChange, onTotalChange }: 
         if (!data) return
         setTotal(data.total ?? 0)
         setPorBase(data.porBase ?? {})
+        setExcluidosPorAbertura(data.excluidosPorAbertura ?? 0)
         onTotalChange?.(data.total ?? 0)
       } catch {
         // silencioso — mantém a última contagem conhecida
@@ -132,6 +164,14 @@ export default function EmailAudiencePicker({ value, onChange, onTotalChange }: 
 
   const setIndividuais = (individuais: AudienceIndividual[]) => {
     onChange({ ...value, individuais })
+  }
+
+  const toggleExclusaoAbertura = (campaignId: string) => {
+    const atual = value.excluir_abertos_de ?? []
+    const excluir_abertos_de = atual.includes(campaignId)
+      ? atual.filter((id) => id !== campaignId)
+      : [...atual, campaignId]
+    onChange({ ...value, excluir_abertos_de })
   }
 
   if (loading) return <PageLoading label="Carregando bases de audiência..." />
@@ -226,6 +266,38 @@ export default function EmailAudiencePicker({ value, onChange, onTotalChange }: 
         <EmailIndividualPicker value={value.individuais ?? []} onChange={setIndividuais} />
       </div>
 
+      {campanhas.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-white">Não enviar para quem já abriu</p>
+          <p className="text-xs text-neutral-500">
+            Para reenviar só para quem não abriu. A conta é feita na hora do disparo, então dá para
+            agendar a régua inteira de uma vez.
+          </p>
+          <div className="space-y-1.5">
+            {campanhas.map((c) => {
+              const marcada = (value.excluir_abertos_de ?? []).includes(c.id)
+              return (
+                <label
+                  key={c.id}
+                  className={`flex items-center gap-2.5 border rounded-lg px-3 py-2 cursor-pointer transition-colors ${
+                    marcada ? 'border-orange-500 bg-orange-500/5' : 'border-neutral-700 bg-neutral-900'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={marcada}
+                    onChange={() => toggleExclusaoAbertura(c.id)}
+                    className="accent-orange-500"
+                  />
+                  <span className="text-sm text-white truncate">{c.nome}</span>
+                  <span className="text-xs text-neutral-500 ml-auto flex-shrink-0">{c.status}</span>
+                </label>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="rounded-lg border border-neutral-700 bg-neutral-900 p-4 flex items-start gap-3">
         <Users className="w-5 h-5 text-orange-400 flex-shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0">
@@ -235,6 +307,12 @@ export default function EmailAudiencePicker({ value, onChange, onTotalChange }: 
           <p className="text-xs text-neutral-500 mt-0.5">
             Já descontados os duplicados e os descadastrados.
           </p>
+          {(value.excluir_abertos_de ?? []).length > 0 && (
+            <p className="text-xs text-orange-400/80 mt-1">
+              {excluidosPorAbertura} já abriram uma das campanhas marcadas e ficaram de fora. O
+              número final é recalculado na hora do disparo.
+            </p>
+          )}
           {Object.keys(porBase).length > 0 && (
             <p className="text-xs text-neutral-600 mt-1.5">
               {Object.entries(porBase)

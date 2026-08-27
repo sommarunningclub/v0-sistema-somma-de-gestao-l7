@@ -37,6 +37,13 @@ export const audienceSchema = z
       .array(individualSchema)
       .max(50, 'No máximo 50 destinatários individuais')
       .default([]),
+    // Régua de reenvio: ids das campanhas cujos abridores ficam de fora desta.
+    // O teto existe para limitar o custo da leitura em `fetchOpenedEmails`,
+    // que pagina duas tabelas a cada disparo; uma régua real tem 2 ou 3 etapas.
+    excluir_abertos_de: z
+      .array(z.string().uuid('Campanha inválida'))
+      .max(10, 'No máximo 10 campanhas na exclusão por abertura')
+      .default([]),
   })
   .refine((a) => a.bases.length > 0 || a.individuais.length > 0, {
     message: 'Selecione ao menos uma base ou um destinatário',

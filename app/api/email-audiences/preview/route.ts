@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requirePermission } from '@/lib/auth/api-auth'
-import { AUDIENCE_SOURCES, resolveAudience } from '@/lib/email/audiences'
+import { AUDIENCE_SOURCES, resolveAudienceDetailed } from '@/lib/email/audiences'
 
 export const maxDuration = 60
 
@@ -16,13 +16,13 @@ export async function POST(req: NextRequest) {
 
   try {
     const audience = await req.json()
-    const recipients = await resolveAudience(audience)
+    const resolved = await resolveAudienceDetailed(audience)
 
-    // `null` = alguma base ou a lista de supressão não pôde ser lida. Devolver
-    // uma contagem parcial aqui é pior do que devolver erro: este número é
-    // exatamente o que a tela de revisão promete ao operador antes de ele
-    // apertar "disparar".
-    if (recipients === null) {
+    // `null` = alguma base, a lista de abridores ou a lista de supressão não
+    // pôde ser lida. Devolver uma contagem parcial aqui é pior do que devolver
+    // erro: este número é exatamente o que a tela de revisão promete ao
+    // operador antes de ele apertar "disparar".
+    if (resolved === null) {
       return NextResponse.json(
         { error: 'Não foi possível calcular a audiência agora — tente de novo' },
         { status: 503 },
@@ -30,9 +30,13 @@ export async function POST(req: NextRequest) {
     }
 
     const porBase: Record<string, number> = {}
-    for (const r of recipients) porBase[r.sourceBase] = (porBase[r.sourceBase] ?? 0) + 1
+    for (const r of resolved.recipients) porBase[r.sourceBase] = (porBase[r.sourceBase] ?? 0) + 1
 
-    return NextResponse.json({ total: recipients.length, porBase })
+    return NextResponse.json({
+      total: resolved.recipients.length,
+      porBase,
+      excluidosPorAbertura: resolved.excluidosPorAbertura,
+    })
   } catch (err) {
     console.error('[email-audiences/preview] POST exception:', err)
     return NextResponse.json({ error: 'Erro ao calcular a audiência' }, { status: 500 })

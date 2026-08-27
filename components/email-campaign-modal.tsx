@@ -39,7 +39,7 @@ const TEMPLATE_LABELS: Record<TemplateKey, string> = {
 const labelClass = 'block text-xs text-neutral-400 mb-1.5 font-medium'
 
 const STEP_HINTS: Record<number, string> = {
-  1: 'Escolha de onde vêm os destinatários. A contagem já desconta quem aparece em mais de uma base e quem se descadastrou.',
+  1: 'Escolha de onde vêm os destinatários. A contagem já desconta quem aparece em mais de uma base e quem se descadastrou. Para reenviar só para quem não abriu, marque a etapa anterior em "Não enviar para quem já abriu".',
   2: 'Escreva o e-mail. Use {{nome}} onde quiser o nome de cada destinatário — quem não tiver nome cadastrado recebe o texto sem ele.',
   3: 'Confira o resumo e mande um teste para você antes de disparar. O teste não conta nas métricas da campanha.',
   4: 'Disparar é irreversível para quem já recebeu. Agendar permite cancelar até a hora marcada.',
@@ -379,7 +379,14 @@ export default function EmailCampaignModal({ campaign, onClose, onSaved }: Email
             </p>
           )}
 
-          {step === 1 && <EmailAudiencePicker value={audience} onChange={setAudience} onTotalChange={handleTotalChange} />}
+          {step === 1 && (
+            <EmailAudiencePicker
+              value={audience}
+              onChange={setAudience}
+              onTotalChange={handleTotalChange}
+              currentCampaignId={campaignId}
+            />
+          )}
 
           {step === 2 && (
             <EmailContentForm

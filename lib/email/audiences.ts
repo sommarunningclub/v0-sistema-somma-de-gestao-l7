@@ -187,13 +187,83 @@ export function individuaisToRecipients(
 }
 
 /**
- * Resolve a seleção em destinatários finais: filtra cada base, junta os
- * individuais, deduplica por e-mail entre todos e remove os suprimidos.
+ * Duas leituras da mesma verdade, propositalmente.
  *
- * `null` quando alguma base ou a lista de supressão não pôde ser lida — o
- * chamador não deve tratar um resultado incompleto como a audiência real.
+ * `email_campaign_recipients.status` é um snapshot: um evento terminal
+ * (bounce/spam/falha) sobrescreve um 'aberto' anterior — ver TERMINAL_STATUSES
+ * no webhook — e a abertura sumiria daqui. `email_campaign_events` é um log
+ * append-only, então guarda a abertura mesmo depois disso. A união das duas
+ * evita reenviar para quem já abriu por causa de um efeito colateral de status.
  */
-export async function resolveAudience(selection: AudienceSelection): Promise<Recipient[] | null> {
+const OPENED_SOURCES = [
+  { table: 'email_campaign_recipients', column: 'status', values: ['aberto', 'clicado'] },
+  { table: 'email_campaign_events', column: 'type', values: ['opened', 'clicked'] },
+] as const
+
+/**
+ * E-mails que abriram (ou clicaram em) qualquer uma das campanhas informadas.
+ *
+ * `null` quando alguma página falhou. É o ponto mais delicado da régua: uma
+ * lista parcial de abridores não parece um erro, parece uma etapa com mais
+ * gente para reenviar — e o e-mail sairia de novo para quem já tinha aberto,
+ * sem nenhum sinal. Fail-closed, igual à lista de supressão.
+ */
+async function fetchOpenedEmails(campaignIds: string[]): Promise<Set<string> | null> {
+  if (campaignIds.length === 0) return new Set()
+
+  const supabase = getSupabase()
+  const set = new Set<string>()
+
+  for (const source of OPENED_SOURCES) {
+    // Paginado e ordenado pela PK: sem ORDER BY o Postgres não garante a mesma
+    // ordem entre duas páginas, e estas tabelas são escritas pelo webhook
+    // enquanto a consulta roda (aberturas continuam chegando durante o preparo
+    // da etapa seguinte).
+    for (let from = 0; ; from += PAGE_SIZE) {
+      const { data, error } = await supabase
+        .from(source.table)
+        .select('email')
+        .in('campaign_id', campaignIds)
+        .in(source.column, source.values as unknown as string[])
+        .order('id')
+        .range(from, from + PAGE_SIZE - 1)
+
+      if (error) {
+        console.error(`[email] fetchOpenedEmails ${source.table} error:`, error)
+        return null
+      }
+      if (!data || data.length === 0) break
+
+      for (const row of data as unknown as Array<{ email: string | null }>) {
+        const email = normalizeEmail(row.email)
+        if (email) set.add(email)
+      }
+
+      if (data.length < PAGE_SIZE) break
+    }
+  }
+
+  return set
+}
+
+export interface ResolvedAudience {
+  recipients: Recipient[]
+  /** Quantos saíram por já terem aberto uma das campanhas de `excluir_abertos_de`. */
+  excluidosPorAbertura: number
+}
+
+/**
+ * Resolve a seleção em destinatários finais: filtra cada base, junta os
+ * individuais, deduplica por e-mail entre todos, tira quem já abriu as
+ * campanhas marcadas em `excluir_abertos_de` e remove os suprimidos.
+ *
+ * `null` quando alguma base, a lista de abridores ou a lista de supressão não
+ * pôde ser lida — o chamador não deve tratar um resultado incompleto como a
+ * audiência real.
+ */
+export async function resolveAudienceDetailed(
+  selection: AudienceSelection,
+): Promise<ResolvedAudience | null> {
   const bases = selection?.bases ?? []
   const lists: Recipient[][] = []
 
@@ -208,5 +278,25 @@ export async function resolveAudience(selection: AudienceSelection): Promise<Rec
   // individuais, o dedupe preserva a `sourceBase` da base, não 'individual'.
   lists.push(individuaisToRecipients(selection.individuais))
 
-  return filterSuppressed(dedupeRecipients(lists))
+  const deduped = dedupeRecipients(lists)
+
+  // A exclusão vale para a seleção inteira, individuais incluídos: a regra é
+  // "não mandar de novo para quem já abriu", e não "não mandar de novo, exceto
+  // para quem eu digitei à mão".
+  const abertos = await fetchOpenedEmails(selection?.excluir_abertos_de ?? [])
+  if (abertos === null) return null
+
+  const naoAbriram =
+    abertos.size === 0 ? deduped : deduped.filter((r) => !abertos.has(r.email))
+
+  const recipients = await filterSuppressed(naoAbriram)
+  if (recipients === null) return null
+
+  return { recipients, excluidosPorAbertura: deduped.length - naoAbriram.length }
+}
+
+/** Só os destinatários. Mantida porque é o que o disparo consome. */
+export async function resolveAudience(selection: AudienceSelection): Promise<Recipient[] | null> {
+  const resolved = await resolveAudienceDetailed(selection)
+  return resolved === null ? null : resolved.recipients
 }

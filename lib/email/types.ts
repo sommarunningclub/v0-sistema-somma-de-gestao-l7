@@ -29,6 +29,16 @@ export interface AudienceSelection {
   bases: Array<{ key: AudienceKey; filtros: Record<string, string> }>
   /** Destinatários avulsos, buscados na base de membros ou digitados. */
   individuais?: AudienceIndividual[]
+  /**
+   * Campanhas cujos abridores ficam de fora desta. É o que sustenta uma régua
+   * de reenvio: a etapa 2 aponta para a etapa 1, a etapa 3 para as duas
+   * anteriores, e assim por diante.
+   *
+   * A exclusão é resolvida na hora do disparo (`prepareCampaign`), não na hora
+   * de agendar. Isso permite agendar a régua inteira de uma vez: cada etapa
+   * enxerga as aberturas acumuladas até o próprio horário.
+   */
+  excluir_abertos_de?: string[]
 }
 
 export interface EmailCampaign {

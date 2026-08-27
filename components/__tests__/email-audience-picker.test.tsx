@@ -33,6 +33,18 @@ const SOURCES = [
   },
 ]
 
+/**
+ * Campanhas oferecidas na exclusão por abertura. 'rascunho' e 'cancelada'
+ * entram aqui de propósito: nunca saem, então nunca têm abridor, e precisam
+ * ficar fora da lista.
+ */
+const CAMPANHAS = [
+  { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', nome: 'Etapa 1 enviada', status: 'enviada' },
+  { id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', nome: 'Etapa 2 agendada', status: 'agendada' },
+  { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', nome: 'Rascunho qualquer', status: 'rascunho' },
+  { id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', nome: 'Cancelada qualquer', status: 'cancelada' },
+]
+
 function jsonResponse(body: unknown, ok = true) {
   return { ok, json: async () => body } as Response
 }
@@ -55,6 +67,9 @@ function setupFetchMock() {
     }
     if (url === '/api/eventos/ativos') {
       return jsonResponse({ proximos_eventos: [], historico: [] })
+    }
+    if (url === '/api/email-campaigns' && method === 'GET') {
+      return jsonResponse(CAMPANHAS)
     }
     if (url === '/api/email-audiences/preview' && method === 'POST') {
       const body = JSON.parse(String(init?.body ?? '{}')) as AudienceSelection
@@ -210,5 +225,95 @@ describe('EmailAudiencePicker', () => {
 
     await waitFor(() => expect(screen.getByText('Pelotão')).toBeTruthy())
     expect(screen.getByText('Sexo')).toBeTruthy()
+  })
+
+  it('só oferece para exclusão as campanhas que podem ter abertura', async () => {
+    render(<EmailAudiencePicker value={{ bases: [] }} onChange={jest.fn()} />)
+
+    await waitFor(() => expect(screen.getByText('Etapa 1 enviada')).toBeTruthy())
+    expect(screen.getByText('Etapa 2 agendada')).toBeTruthy()
+    // Rascunho e cancelada nunca saem, então não têm abridor a excluir.
+    expect(screen.queryByText('Rascunho qualquer')).toBeNull()
+    expect(screen.queryByText('Cancelada qualquer')).toBeNull()
+  })
+
+  it('não oferece a própria campanha em edição como exclusão de si mesma', async () => {
+    render(
+      <EmailAudiencePicker
+        value={{ bases: [] }}
+        onChange={jest.fn()}
+        currentCampaignId={CAMPANHAS[1].id}
+      />,
+    )
+
+    await waitFor(() => expect(screen.getByText('Etapa 1 enviada')).toBeTruthy())
+    expect(screen.queryByText('Etapa 2 agendada')).toBeNull()
+  })
+
+  it('marcar uma campanha devolve o id em excluir_abertos_de', async () => {
+    const onChange = jest.fn()
+    render(
+      <EmailAudiencePicker
+        value={{ bases: [{ key: 'membros', filtros: {} }] }}
+        onChange={onChange}
+      />,
+    )
+
+    await waitFor(() => expect(screen.getByText('Etapa 1 enviada')).toBeTruthy())
+    fireEvent.click(screen.getByText('Etapa 1 enviada'))
+
+    expect(onChange).toHaveBeenCalledWith({
+      bases: [{ key: 'membros', filtros: {} }],
+      excluir_abertos_de: [CAMPANHAS[0].id],
+    })
+  })
+
+  it('desmarcar tira só aquele id, preservando os demais', async () => {
+    const onChange = jest.fn()
+    render(
+      <EmailAudiencePicker
+        value={{
+          bases: [{ key: 'membros', filtros: {} }],
+          excluir_abertos_de: [CAMPANHAS[0].id, CAMPANHAS[1].id],
+        }}
+        onChange={onChange}
+      />,
+    )
+
+    await waitFor(() => expect(screen.getByText('Etapa 1 enviada')).toBeTruthy())
+    fireEvent.click(screen.getByText('Etapa 1 enviada'))
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ excluir_abertos_de: [CAMPANHAS[1].id] }),
+    )
+  })
+
+  it('mostra quantos saíram por já terem aberto', async () => {
+    const onChange = jest.fn()
+    mockedApiFetch.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      const method = init?.method ?? 'GET'
+      if (url === '/api/email-audiences/preview' && method === 'GET') return jsonResponse({ sources: SOURCES })
+      if (url === '/api/eventos/ativos') return jsonResponse({ proximos_eventos: [], historico: [] })
+      if (url === '/api/email-campaigns' && method === 'GET') return jsonResponse(CAMPANHAS)
+      if (url === '/api/email-audiences/preview' && method === 'POST') {
+        return jsonResponse({ total: 5, porBase: { membros: 5 }, excluidosPorAbertura: 2 })
+      }
+      throw new Error(`unexpected apiFetch call: ${method} ${url}`)
+    })
+
+    render(
+      <EmailAudiencePicker
+        value={{ bases: [{ key: 'membros', filtros: {} }], excluir_abertos_de: [CAMPANHAS[0].id] }}
+        onChange={onChange}
+      />,
+    )
+
+    await waitFor(() => expect(screen.getByText('Etapa 1 enviada')).toBeTruthy())
+    await act(async () => {
+      jest.advanceTimersByTime(500)
+    })
+
+    await waitFor(() => expect(screen.getByText(/2 já abriram/)).toBeTruthy())
   })
 })
