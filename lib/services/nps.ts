@@ -2,10 +2,15 @@
 import { randomBytes } from 'crypto'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { QUESTIONARIO_V1 } from '@/lib/nps/questionario'
-import { precisaTratativa } from '@/lib/nps/relatorio'
+import { precisaTratativa, professorDaResposta } from '@/lib/nps/relatorio'
 import { rotuloDaReferencia } from '@/lib/nps/periodo'
-import { separarNomeCompleto } from '@/lib/nps/nome'
-import type { AtualizarRodadaInput, CriarRodadaInput, SalvarTratativaInput } from '@/lib/nps/validacao'
+import { capitalizarNome, normalizarParaBusca, separarNomeCompleto } from '@/lib/nps/nome'
+import type {
+  AtualizarRodadaInput,
+  CriarRodadaInput,
+  EditarRespostaInput,
+  SalvarTratativaInput,
+} from '@/lib/nps/validacao'
 import type {
   ConviteNps,
   EventoTratativa,
@@ -341,10 +346,13 @@ export async function tratativasDaRodada(rodadaId: string): Promise<Map<string, 
 export function resumirRespostas(respostas: RespostaNps[], tratativas: Map<string, Tratativa>): RespostaResumida[] {
   return respostas.map((r) => {
     const t = tratativas.get(r.id)
+    const professor = professorDaResposta(r)
     return {
       id: r.id,
       full_name: r.full_name,
       professor_name: r.professor_name,
+      professor: professor?.nome ?? null,
+      professor_origem: professor?.origem ?? null,
       identification_method: r.identification_method,
       source: r.source,
       nps_score: r.nps_score,
@@ -466,6 +474,69 @@ export async function salvarTratativa(
   ) as EventoTratativa[]
 
   return { tratativa, eventos }
+}
+
+/**
+ * Corrige quem respondeu e o professor. O professor vem do cadastro
+ * (`professors`), para o NPS por professor agrupar pelo mesmo nome do link
+ * pessoal. Notas e textos não passam por aqui.
+ */
+export async function editarResposta(id: string, input: EditarRespostaInput, autor: string): Promise<RespostaNps> {
+  const sb = db()
+  const atual = exigir(
+    'editarResposta:atual',
+    await sb.from(TB.respostas).select('id, first_name, last_name').eq('id', id).maybeSingle(),
+  ) as Pick<RespostaNps, 'id' | 'first_name' | 'last_name'> | null
+  if (!atual) throw new ErroNps(404, 'Resposta não encontrada.')
+
+  const patch: Record<string, unknown> = { updated_by: autor }
+  if (input.first_name !== undefined || input.last_name !== undefined) {
+    const nome = capitalizarNome(input.first_name ?? atual.first_name)
+    const sobrenome = capitalizarNome(input.last_name ?? atual.last_name)
+    patch.first_name = nome
+    patch.last_name = sobrenome
+    patch.full_name_normalized = normalizarParaBusca(`${nome} ${sobrenome}`) || `${nome} ${sobrenome}`.toLowerCase()
+  }
+  if (input.professor_id === null) {
+    patch.professor_id = null
+    patch.professor_name = null
+  } else if (input.professor_id !== undefined) {
+    const professor = exigir(
+      'editarResposta:professor',
+      await sb.from('professors').select('id, name').eq('id', input.professor_id).maybeSingle(),
+    ) as { id: string; name: string | null } | null
+    if (!professor) throw new ErroNps(400, 'Professor não encontrado.')
+    patch.professor_id = professor.id
+    patch.professor_name = professor.name?.trim() || null
+  }
+
+  const resultado = await sb.from(TB.respostas).update(patch).eq('id', id).select('*').single()
+  return exigir('editarResposta', resultado) as RespostaNps
+}
+
+/**
+ * Apaga a resposta; a tratativa e o histórico vão junto (FK com cascade). Se
+ * veio de link pessoal, o convite volta a aceitar resposta.
+ */
+export async function excluirResposta(id: string, autor: string): Promise<void> {
+  const resultado = await db().from(TB.respostas).delete().eq('id', id).select('id, campaign_id')
+  const apagadas = exigir('excluirResposta', resultado) as Array<{ id: string; campaign_id: string }>
+  if (apagadas.length === 0) throw new ErroNps(404, 'Resposta não encontrada.')
+  console.info(`[nps] resposta ${id} da rodada ${apagadas[0].campaign_id} apagada por ${autor}`)
+}
+
+export interface ProfessorAtivo {
+  id: string
+  nome: string
+}
+
+export async function listarProfessores(): Promise<ProfessorAtivo[]> {
+  const resultado = await db().from('professors').select('id, name').eq('status', 'active').order('name')
+  const linhas = exigir('listarProfessores', resultado) as Array<{ id: string; name: string | null }>
+  return linhas.flatMap((p) => {
+    const nome = p.name?.trim()
+    return nome ? [{ id: p.id, nome }] : []
+  })
 }
 
 // ─── Convites ───────────────────────────────────────────────────────────────

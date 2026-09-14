@@ -1,7 +1,8 @@
-import { QUESTIONARIO_V1, type OpcaoQuestionario, type PerguntaQuestionario } from './questionario'
+import { PROFESSORES_DA_PESQUISA, QUESTIONARIO_V1, type OpcaoQuestionario, type PerguntaQuestionario } from './questionario'
 import { rotuloDaOrigem } from './links'
+import { nomeCasaCom } from './nome'
 import { formatarDataHora } from './periodo'
-import type { CategoriaNps, MetodoIdentificacao, RespostaNps } from './tipos'
+import type { CategoriaNps, MetodoIdentificacao, OrigemProfessor, RespostaNps } from './tipos'
 
 /**
  * Relatório de uma rodada, calculado a partir das respostas.
@@ -268,10 +269,47 @@ export function porIdentificacao(respostas: readonly RespostaNps[]): Fatia[] {
 }
 
 // ─── Professores ────────────────────────────────────────────────────────────
+export interface ProfessorDaResposta {
+  nome: string
+  origem: OrigemProfessor
+}
+
+type CamposDoProfessor = Pick<RespostaNps, 'professor_name' | 'declared_professor'>
+
+/** O nome como a pesquisa conhece: "Joseph pereira" do cadastro vira "Joseph Pereira". */
+function nomeDoProfessor(nome: string): string {
+  return PROFESSORES_DA_PESQUISA.find((p) => nomeCasaCom(p.nome, nome))?.nome ?? nome
+}
+
+/**
+ * De quem é a resposta: o professor do cadastro (link pessoal, nome reconhecido
+ * ou correção no painel) e, sem ele, o que o aluno marcou na pesquisa.
+ */
+export function professorDaResposta(r: CamposDoProfessor): ProfessorDaResposta | null {
+  const cadastro = r.professor_name?.trim()
+  if (cadastro) return { nome: nomeDoProfessor(cadastro), origem: 'cadastro' }
+  const marcado = PROFESSORES_DA_PESQUISA.find((p) => p.valor === r.declared_professor)
+  return marcado ? { nome: marcado.nome, origem: 'informado' } : null
+}
+
+/** O nome do professor que o aluno marcou ("Não sei" e pergunta não exibida dão nulo). */
+export function professorMarcado(r: Pick<RespostaNps, 'declared_professor'>): string | null {
+  return PROFESSORES_DA_PESQUISA.find((p) => p.valor === r.declared_professor)?.nome ?? null
+}
+
+/** O aluno marcou um professor e o cadastro aponta outro: vínculo desatualizado ou engano. */
+export function professorDivergente(r: CamposDoProfessor): boolean {
+  const cadastro = r.professor_name?.trim()
+  const marcado = professorMarcado(r)
+  return Boolean(cadastro && marcado && !nomeCasaCom(marcado, cadastro))
+}
+
 export interface LinhaProfessor {
   professor: string
   identificado: boolean
   respostas: number
+  /** Quantas entraram pelo professor que o aluno marcou, sem vínculo no cadastro. */
+  informadas: number
   nps: number | null
   detratores: number
   mediaProfessor: number | null
@@ -280,14 +318,14 @@ export interface LinhaProfessor {
 const DIMENSAO_PROFESSOR = DIMENSOES.find((d) => d.id === 'professor') as Dimensao
 
 /**
- * NPS por professor. Só é possível para respostas vinculadas a um aluno (link
- * pessoal ou nome reconhecido); o resto aparece como "Não identificado", por
- * último, para ninguém ler o total como se fosse de um professor.
+ * NPS por professor: pelo cadastro e, sem ele, pelo professor que o aluno
+ * marcou. O resto ("Não sei", ou sem cadastro e sem a pergunta) aparece como
+ * "Não identificado", por último, para ninguém ler o total como de um professor.
  */
 export function porProfessor(respostas: readonly RespostaNps[]): LinhaProfessor[] {
   const grupos = new Map<string | null, RespostaNps[]>()
   for (const r of respostas) {
-    const chave = r.professor_name?.trim() || null
+    const chave = professorDaResposta(r)?.nome ?? null
     grupos.set(chave, [...(grupos.get(chave) ?? []), r])
   }
   return Array.from(grupos, ([professor, lista]) => {
@@ -296,6 +334,7 @@ export function porProfessor(respostas: readonly RespostaNps[]): LinhaProfessor[
       professor: professor ?? 'Não identificado',
       identificado: professor !== null,
       respostas: lista.length,
+      informadas: lista.filter((r) => professorDaResposta(r)?.origem === 'informado').length,
       nps: resumo.nps,
       detratores: resumo.detratores,
       mediaProfessor: mediaDaDimensao(lista, DIMENSAO_PROFESSOR).media,
@@ -351,6 +390,8 @@ export interface Relatorio {
   domingos: { frequencia: Fatia[] }
   whatsapp: { volume: Fatia[]; conteudos: Fatia[]; maisFeedback: Fatia[] }
   professores: LinhaProfessor[]
+  /** Alunos que marcaram um professor diferente do cadastro. */
+  professoresDivergentes: number
   origens: Fatia[]
   identificacao: Fatia[]
   precisamTratativa: number
@@ -397,6 +438,7 @@ export function montarRelatorio(
       maisFeedback: distribuicao(respostas, 'needs_more_feedback'),
     },
     professores: porProfessor(respostas),
+    professoresDivergentes: respostas.filter(professorDivergente).length,
     origens: porOrigem(respostas),
     identificacao: porIdentificacao(respostas),
     precisamTratativa: respostas.filter(precisaTratativa).length,
@@ -447,6 +489,15 @@ export function pontosDeAtencao(r: Omit<Relatorio, 'pontos'>): PontoDeAtencao[] 
       severidade: 'alta',
       titulo: `NPS caiu ${emPontos(r.variacaoNps)}`,
       detalhe: `Na rodada anterior o NPS foi ${r.anterior?.nps === null || r.anterior?.nps === undefined ? '-' : numeroBr(r.anterior.nps)}.`,
+    })
+  }
+
+  if (r.professoresDivergentes > 0) {
+    pontos.push({
+      id: 'professor-divergente',
+      severidade: 'media',
+      titulo: `${r.professoresDivergentes} ${r.professoresDivergentes === 1 ? 'aluno marcou' : 'alunos marcaram'} outro professor`,
+      detalhe: 'O professor marcado na pesquisa não é o do cadastro. Confira o vínculo na gestão ou corrija a resposta.',
     })
   }
 
@@ -548,7 +599,14 @@ export function respostasParaCsv(respostas: readonly RespostaNps[]): string {
     { titulo: 'Enviada em', valor: (r) => formatarDataHora(r.submitted_at) },
     { titulo: 'Nome', valor: (r) => r.first_name },
     { titulo: 'Sobrenome', valor: (r) => r.last_name },
-    { titulo: 'Professor', valor: (r) => r.professor_name },
+    { titulo: 'Professor', valor: (r) => professorDaResposta(r)?.nome },
+    {
+      titulo: 'Professor vem de',
+      valor: (r) => {
+        const origem = professorDaResposta(r)?.origem
+        return origem === 'cadastro' ? 'Cadastro' : origem === 'informado' ? 'Marcado pelo aluno' : ''
+      },
+    },
     { titulo: 'Identificação', valor: (r) => ROTULO_IDENTIFICACAO[r.identification_method] },
     { titulo: 'Origem', valor: (r) => rotuloDaOrigem(r.source) },
   ]
@@ -587,6 +645,7 @@ export function respostasParaCsv(respostas: readonly RespostaNps[]): string {
     titulo: 'Tempo de preenchimento (min)',
     valor: (r) => (typeof r.completion_seconds === 'number' ? Math.round(r.completion_seconds / 6) / 10 : ''),
   })
+  colunas.push({ titulo: 'Corrigida no painel por', valor: (r) => r.updated_by })
 
   const linhas = [colunas.map((c) => celula(c.titulo)).join(';')]
   for (const r of respostas) linhas.push(colunas.map((c) => celula(c.valor(r))).join(';'))

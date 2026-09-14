@@ -85,7 +85,7 @@ export function NpsTratativas({ respostas, onAbrir }: { respostas: RespostaResum
                         <StatusPill tone={s.tone}>{s.rotulo}</StatusPill>
                       </div>
                       <p className="mt-1 text-meta text-ink-muted">
-                        {r.professor_name ?? 'Professor não identificado'}
+                        {r.professor ?? 'Professor não identificado'}
                         {r.tratativa_responsavel ? ` · com ${r.tratativa_responsavel}` : ''}
                       </p>
                       <p className="mt-2 flex flex-wrap gap-1.5">

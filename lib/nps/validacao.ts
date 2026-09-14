@@ -85,3 +85,36 @@ export const salvarTratativaSchema = z
 export type SalvarTratativaInput = z.infer<typeof salvarTratativaSchema>
 
 export const uuidSchema = z.string().uuid('Identificador inválido.')
+
+const SO_LETRAS = /^[\p{L}\p{M}'’.\- ]+$/u
+
+/** Mesma regra da pesquisa no site: só letras, pelo menos duas. */
+function parteDoNome(rotulo: string, max: number) {
+  return z
+    .string()
+    .transform((v) => v.normalize('NFC').replace(/\s+/g, ' ').trim())
+    .pipe(
+      z
+        .string()
+        .min(1, `Informe o ${rotulo}.`)
+        .max(max, `O ${rotulo} pode ter até ${max} caracteres.`)
+        .regex(SO_LETRAS, `Use apenas letras no ${rotulo}.`)
+        .refine((v) => v.replace(/[^\p{L}]/gu, '').length >= 2, `Escreva o ${rotulo} completo.`),
+    )
+}
+
+/**
+ * Correção feita no painel: quem respondeu e qual o professor. Notas e textos
+ * são do aluno e não se editam; mudar uma nota falsearia o NPS.
+ */
+export const editarRespostaSchema = z
+  .object({
+    first_name: parteDoNome('nome', 60).optional(),
+    last_name: parteDoNome('sobrenome', 80).optional(),
+    professor_id: z.string().uuid('Professor inválido.').nullable().optional(),
+  })
+  .refine((d) => d.first_name !== undefined || d.last_name !== undefined || d.professor_id !== undefined, {
+    message: 'Nada para alterar.',
+  })
+
+export type EditarRespostaInput = z.infer<typeof editarRespostaSchema>

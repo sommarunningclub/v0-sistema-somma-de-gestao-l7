@@ -77,8 +77,9 @@ export function NpsQuestionario({ versao }: { versao: string }) {
     <div className="space-y-5">
       <p className="max-w-3xl text-meta text-ink-muted">
         Versão <span className="font-mono text-ink">{questionario.versao}</span>: {questionario.perguntas.length} perguntas,
-        antecedidas por nome e sobrenome (obrigatórios). É o mesmo questionário em todas as rodadas desta versão; mudar uma
-        pergunta cria uma versão nova, para não somar respostas de perguntas diferentes.
+        antecedidas por nome e sobrenome (obrigatórios). É o mesmo questionário em todas as rodadas desta versão; mudar o
+        sentido de uma pergunta cria uma versão nova, para não somar respostas de perguntas diferentes. Onde está “seu
+        professor”, o aluno vê o nome do próprio professor quando ele é conhecido.
       </p>
 
       {questionario.secoes
@@ -100,6 +101,7 @@ export function NpsQuestionario({ versao }: { versao: string }) {
                           <Etiqueta>{TIPO[p.tipo]}</Etiqueta>
                           <Etiqueta>{p.obrigatoria ? 'Obrigatória' : 'Opcional'}</Etiqueta>
                           {p.condicao ? <Etiqueta destaque>{p.condicao}</Etiqueta> : null}
+                          {p.citaProfessor ? <Etiqueta>Cita o nome do professor</Etiqueta> : null}
                         </p>
                         <Alternativas pergunta={p} />
                       </div>

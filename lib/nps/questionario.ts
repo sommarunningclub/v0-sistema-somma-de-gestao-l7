@@ -2,9 +2,11 @@
  * Questionário do NPS da Assessoria, espelhado do site.
  *
  * GERADO a partir de NOVO-SITE-SOMMA-V3/lib/assessoria-nps/survey.ts. Não edite
- * à mão. Uma versão publicada (`survey_version`) é congelada: pergunta nova é
- * versão nova, e aí este arquivo ganha outra entrada em `QUESTIONARIOS` em vez
- * de ter a atual alterada. É isso que mantém as rodadas comparáveis.
+ * à mão. Mudou o sentido de uma pergunta, uma alternativa ou uma escala? É
+ * versão nova, e este arquivo ganha outra entrada em `QUESTIONARIOS` em vez de
+ * ter a atual alterada: é isso que mantém as rodadas comparáveis. Pergunta nova
+ * que não muda as outras (como `declared_professor`) entra na mesma versão;
+ * nas respostas antigas ela aparece como não exibida.
  *
  * O painel só lê rótulos: título, alternativas e quando cada pergunta aparece.
  * A lógica condicional e a validação vivem no site.
@@ -31,8 +33,11 @@ export interface PerguntaQuestionario {
   id: string
   secao: string
   tipo: TipoPergunta
+  /** Como aparece quando o professor não é conhecido ("seu professor"). */
   titulo: string
   obrigatoria: boolean
+  /** No site, o enunciado troca "seu professor" pelo apelido do professor do aluno ("o Ale"). */
+  citaProfessor?: boolean
   opcoes?: OpcaoQuestionario[]
   /** Escala 1 a 5: um rótulo por ponto. */
   rotulos?: string[]
@@ -53,6 +58,31 @@ export interface Questionario {
   secoes: SecaoQuestionario[]
   perguntas: PerguntaQuestionario[]
 }
+
+/** Opções de "Quem é o seu professor?" (`declared_professor`). `nome` é igual ao cadastro (`professors.name`). */
+export interface ProfessorDaPesquisa {
+  valor: string
+  nome: string
+  apelido: string
+}
+
+export const PROFESSORES_DA_PESQUISA: ProfessorDaPesquisa[] = [
+  {
+    "valor": "alexandre_alves",
+    "nome": "Alexandre Alves",
+    "apelido": "Ale"
+  },
+  {
+    "valor": "joseph_pereira",
+    "nome": "Joseph Pereira",
+    "apelido": "Jojô"
+  },
+  {
+    "valor": "mateus_fonseca",
+    "nome": "Mateus Fonseca",
+    "apelido": "Mateus"
+  }
+]
 
 export const QUESTIONARIO_V1: Questionario = {
   "versao": "assessoria_nps_v1",
@@ -146,11 +176,38 @@ export const QUESTIONARIO_V1: Questionario = {
       ]
     },
     {
+      "id": "declared_professor",
+      "secao": "professor",
+      "tipo": "single",
+      "titulo": "Quem é o seu professor?",
+      "obrigatoria": true,
+      "opcoes": [
+        {
+          "valor": "alexandre_alves",
+          "rotulo": "Alexandre Alves (Ale)"
+        },
+        {
+          "valor": "joseph_pereira",
+          "rotulo": "Joseph Pereira (Jojô)"
+        },
+        {
+          "valor": "mateus_fonseca",
+          "rotulo": "Mateus Fonseca"
+        },
+        {
+          "valor": "unknown",
+          "rotulo": "Não sei"
+        }
+      ],
+      "condicao": "Só quando o link não traz o professor (o link pessoal já traz)"
+    },
+    {
       "id": "teacher_followup",
       "secao": "professor",
       "tipo": "rating",
       "titulo": "Você sente que seu professor acompanha sua rotina de treinos com frequência?",
       "obrigatoria": true,
+      "citaProfessor": true,
       "rotulos": [
         "Nunca",
         "Raramente",
@@ -165,6 +222,7 @@ export const QUESTIONARIO_V1: Questionario = {
       "tipo": "rating",
       "titulo": "Você sente que seu professor conhece seus objetivos e acompanha sua evolução?",
       "obrigatoria": true,
+      "citaProfessor": true,
       "rotulos": [
         "Nada",
         "Pouco",
@@ -179,6 +237,7 @@ export const QUESTIONARIO_V1: Questionario = {
       "tipo": "rating",
       "titulo": "Você tem facilidade para conversar individualmente com seu professor pelo WhatsApp quando precisa?",
       "obrigatoria": true,
+      "citaProfessor": true,
       "rotulos": [
         "Muito difícil",
         "Difícil",
@@ -193,6 +252,7 @@ export const QUESTIONARIO_V1: Questionario = {
       "tipo": "rating",
       "titulo": "Quando você chama seu professor no privado, sente que recebe atenção e suporte adequados?",
       "obrigatoria": true,
+      "citaProfessor": true,
       "rotulos": [
         "Nunca",
         "Raramente",
@@ -207,6 +267,7 @@ export const QUESTIONARIO_V1: Questionario = {
       "tipo": "rating",
       "titulo": "Como você avalia a qualidade da comunicação com seu professor?",
       "obrigatoria": true,
+      "citaProfessor": true,
       "rotulos": [
         "Muito ruim",
         "Ruim",
@@ -277,6 +338,7 @@ export const QUESTIONARIO_V1: Questionario = {
       "tipo": "single",
       "titulo": "Você sente necessidade de mais feedback do professor sobre sua evolução?",
       "obrigatoria": true,
+      "citaProfessor": true,
       "opcoes": [
         {
           "valor": "yes",

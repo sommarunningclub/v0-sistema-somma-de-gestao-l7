@@ -61,8 +61,11 @@ export interface RespostaNps {
   identification_method: MetodoIdentificacao
   invite_id: string | null
   student_asaas_id: string | null
+  /** Professor do cadastro: link pessoal, nome reconhecido ou correção no painel. */
   professor_id: string | null
   professor_name: string | null
+  /** "Quem é o seu professor?": valor de `PROFESSORES_DA_PESQUISA` ou `unknown`. Nulo = não exibida. */
+  declared_professor: string | null
 
   nps_score: number
   nps_category: CategoriaNps
@@ -126,7 +129,13 @@ export interface RespostaNps {
   started_at: string
   submitted_at: string
   completion_seconds: number | null
+  updated_at: string
+  /** Quem corrigiu nome, sobrenome ou professor no painel. Nulo = nunca editada. */
+  updated_by: string | null
 }
+
+/** De onde vem o professor de uma resposta: cadastro da gestão ou o que o aluno marcou. */
+export type OrigemProfessor = 'cadastro' | 'informado'
 
 export type StatusTratativa = 'pending' | 'in_progress' | 'resolved' | 'no_action'
 
@@ -155,6 +164,9 @@ export interface RespostaResumida {
   id: string
   full_name: string
   professor_name: string | null
+  /** Para exibir: o professor do cadastro ou, sem ele, o que o aluno marcou. */
+  professor: string | null
+  professor_origem: OrigemProfessor | null
   identification_method: MetodoIdentificacao
   source: string
   nps_score: number
