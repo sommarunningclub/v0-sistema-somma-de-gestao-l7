@@ -15,6 +15,7 @@ export const SECTION_LABELS: Record<string, string> = {
   vagas: 'Vagas',
   pdv: 'PDV',
   pixAutomatico: 'Pix Automático',
+  nps: 'NPS Assessoria',
   systems: 'Administração',
 }
 
@@ -34,6 +35,7 @@ export const SECTION_PERMISSIONS: Record<string, PermissionKey | null> = {
   vagas: 'vagas',
   pdv: 'pdv',
   pixAutomatico: 'pixAutomatico',
+  nps: 'nps',
   systems: 'admin',
 }
 
@@ -53,6 +55,7 @@ const LEGACY_EXACT: Record<string, string> = {
   '/vagas': '/?section=vagas',
   '/pdv': '/?section=pdv',
   '/pix-automatico': '/?section=pixAutomatico',
+  '/nps': '/?section=nps',
   '/systems': '/?section=systems',
   '/command-center': '/?section=overview',
   '/operations': '/?section=overview',
@@ -72,6 +75,7 @@ const PAGE_PERMISSIONS: Array<{ pattern: RegExp; permission: PermissionKey }> = 
   { pattern: /^\/vagas/, permission: 'vagas' },
   { pattern: /^\/pdv/, permission: 'pdv' },
   { pattern: /^\/pix-automatico/, permission: 'pixAutomatico' },
+  { pattern: /^\/nps(\/|$)/, permission: 'nps' },
   { pattern: /^\/insiders/, permission: 'pagamentos' },
 ]
 

@@ -96,6 +96,7 @@ const DEFAULT_PERMISSIONS: ModulePermissions = {
   vagas: false,
   pdv: false,
   pixAutomatico: false,
+  nps: false,
   admin: false,
 }
 
@@ -113,6 +114,7 @@ const ALL_PERMISSIONS: ModulePermissions = {
   vagas: true,
   pdv: true,
   pixAutomatico: true,
+  nps: true,
   admin: true,
 }
 
