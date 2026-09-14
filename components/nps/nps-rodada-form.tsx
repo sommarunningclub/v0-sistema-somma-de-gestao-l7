@@ -35,7 +35,7 @@ interface NpsRodadaFormProps {
 
 type Erros = Partial<Record<'referencia' | 'titulo' | 'slug' | 'abre' | 'fecha', string>>
 
-const CAMPO_SELECT =
+export const CAMPO_SELECT =
   'h-11 w-full rounded-md border border-line bg-surface-sunken px-3 text-base text-ink focus-visible:border-brand focus-visible:outline-none sm:text-sm'
 
 /**

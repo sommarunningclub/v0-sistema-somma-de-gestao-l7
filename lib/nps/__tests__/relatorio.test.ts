@@ -8,6 +8,8 @@ import {
   motivosDaTratativa,
   porProfessor,
   precisaTratativa,
+  professorDaResposta,
+  professorDivergente,
   respostasParaCsv,
   resumoNps,
   zonaDoNps,
@@ -29,6 +31,7 @@ function resposta(parcial: Partial<RespostaNps> = {}): RespostaNps {
     student_asaas_id: null,
     professor_id: null,
     professor_name: null,
+    declared_professor: null,
     nps_score: 9,
     nps_category: 'promoter',
     nps_reason: null,
@@ -81,6 +84,8 @@ function resposta(parcial: Partial<RespostaNps> = {}): RespostaNps {
     started_at: '2026-09-14T12:00:00Z',
     submitted_at: '2026-09-14T12:05:00Z',
     completion_seconds: 300,
+    updated_at: '2026-09-14T12:05:00Z',
+    updated_by: null,
   }
   const r = { ...base, ...parcial }
   return { ...r, nps_category: categoriaDaNota(r.nps_score) }
@@ -251,5 +256,47 @@ describe('CSV', () => {
     expect(linha).toContain(`"'=HYPERLINK(""http://mal.example"")"`)
     expect(linha).toContain('"Não"')
     expect(linha).toContain('"Joseph Pereira"')
+  })
+
+  it('traz o professor com a origem e a pergunta de quem é o professor', () => {
+    const csv = respostasParaCsv([resposta({ declared_professor: 'joseph_pereira' })])
+    const [cabecalho, linha] = csv.slice(1).split('\r\n')
+    expect(cabecalho).toContain('"Quem é o seu professor?"')
+    expect(linha).toContain('"Joseph Pereira (Jojô)"')
+    expect(linha).toContain('"Marcado pelo aluno"')
+  })
+})
+
+describe('professor da resposta', () => {
+  it('usa o cadastro e, sem ele, o que o aluno marcou', () => {
+    expect(professorDaResposta({ professor_name: 'Joseph pereira', declared_professor: 'alexandre_alves' })).toEqual({
+      nome: 'Joseph Pereira',
+      origem: 'cadastro',
+    })
+    expect(professorDaResposta({ professor_name: null, declared_professor: 'mateus_fonseca' })).toEqual({
+      nome: 'Mateus Fonseca',
+      origem: 'informado',
+    })
+    expect(professorDaResposta({ professor_name: null, declared_professor: 'unknown' })).toBeNull()
+    expect(professorDaResposta({ professor_name: '  ', declared_professor: null })).toBeNull()
+  })
+
+  it('junta cadastro e marcação do mesmo professor e conta as marcadas', () => {
+    const linhas = porProfessor([
+      resposta({ professor_name: 'Joseph pereira', nps_score: 10 }),
+      resposta({ declared_professor: 'joseph_pereira', nps_score: 6 }),
+      resposta({ declared_professor: 'unknown' }),
+    ])
+    expect(linhas[0]).toMatchObject({ professor: 'Joseph Pereira', respostas: 2, informadas: 1, nps: 0 })
+    expect(linhas[1]).toMatchObject({ professor: 'Não identificado', identificado: false })
+  })
+
+  it('aponta aluno que marcou professor diferente do cadastro', () => {
+    expect(professorDivergente({ professor_name: 'Alexandre Alves', declared_professor: 'joseph_pereira' })).toBe(true)
+    expect(professorDivergente({ professor_name: 'Joseph pereira', declared_professor: 'joseph_pereira' })).toBe(false)
+    expect(professorDivergente({ professor_name: 'Alexandre Alves', declared_professor: 'unknown' })).toBe(false)
+    const r = montarRelatorio([resposta({ professor_name: 'Alexandre Alves', declared_professor: 'mateus_fonseca' })])
+    expect(r.professoresDivergentes).toBe(1)
+    expect(r.pontos.find((p) => p.id === 'professor-divergente')?.titulo).toBe('1 aluno marcou outro professor')
   })
 })

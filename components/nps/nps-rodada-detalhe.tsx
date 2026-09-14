@@ -26,7 +26,7 @@ import { NpsRespostas } from './nps-respostas'
 import { NpsTratativas } from './nps-tratativas'
 import { NpsDivulgacao } from './nps-divulgacao'
 import { NpsQuestionario } from './nps-questionario'
-import { NpsRespostaModal } from './nps-resposta-modal'
+import { NpsRespostaModal, type ModoFicha } from './nps-resposta-modal'
 import { NpsRodadaForm } from './nps-rodada-form'
 
 export const ABAS_RODADA = ['resultados', 'respostas', 'tratativas', 'divulgacao', 'questionario'] as const
@@ -63,7 +63,7 @@ export function NpsRodadaDetalhe({
   const [erro, setErro] = useState<string | null>(null)
   const [editando, setEditando] = useState(false)
   const [agindo, setAgindo] = useState(false)
-  const [respostaAberta, setRespostaAberta] = useState<string | null>(null)
+  const [respostaAberta, setRespostaAberta] = useState<{ id: string; modo: ModoFicha } | null>(null)
 
   const carregar = useCallback(async () => {
     setCarregando(true)
@@ -84,6 +84,9 @@ export function NpsRodadaDetalhe({
     void carregar()
   }, [carregar])
 
+  const abrirResposta = useCallback((respostaId: string) => setRespostaAberta({ id: respostaId, modo: 'ver' }), [])
+  const editarResposta = useCallback((respostaId: string) => setRespostaAberta({ id: respostaId, modo: 'editar' }), [])
+
   const rodada = dados?.rodada
   const estado = rodada ? estadoDaRodada(rodada) : null
   const link = rodada ? linkDaRodada(rodada.slug) : ''
@@ -95,6 +98,30 @@ export function NpsRodadaDetalhe({
       notify.success('Link copiado', { description: link })
     } catch {
       notify.error('Não foi possível copiar')
+    }
+  }
+
+  /** Apagar tira a resposta da lista, do NPS e das tratativas. Pede confirmação. */
+  async function apagarResposta(respostaId: string, nome: string) {
+    const ok = await confirmAction({
+      title: 'Apagar esta resposta?',
+      description:
+        'Ela sai da lista, do NPS e do relatório desta rodada, junto com a tratativa e o histórico. Não dá para desfazer.',
+      detail: nome,
+      confirmLabel: 'Apagar resposta',
+      tone: 'danger',
+    })
+    if (!ok) return
+
+    try {
+      const res = await apiFetch(`/api/nps/respostas/${respostaId}`, { method: 'DELETE' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Não foi possível apagar a resposta.')
+      setRespostaAberta((atual) => (atual?.id === respostaId ? null : atual))
+      notify.success('Resposta apagada', { description: nome })
+      await carregar()
+    } catch (err) {
+      notify.error('Não foi possível apagar', { description: err instanceof Error ? err.message : undefined })
     }
   }
 
@@ -247,9 +274,15 @@ export function NpsRodadaDetalhe({
           {aba === 'resultados' ? (
             <NpsResultados dados={dados} onIrPara={onAba} />
           ) : aba === 'respostas' ? (
-            <NpsRespostas rodada={dados.rodada} respostas={dados.respostas} onAbrir={setRespostaAberta} />
+            <NpsRespostas
+              rodada={dados.rodada}
+              respostas={dados.respostas}
+              onAbrir={abrirResposta}
+              onEditar={editarResposta}
+              onApagar={(r) => void apagarResposta(r.id, r.full_name)}
+            />
           ) : aba === 'tratativas' ? (
-            <NpsTratativas respostas={dados.respostas} onAbrir={setRespostaAberta} />
+            <NpsTratativas respostas={dados.respostas} onAbrir={abrirResposta} />
           ) : aba === 'divulgacao' ? (
             <NpsDivulgacao rodada={dados.rodada} />
           ) : (
@@ -259,9 +292,10 @@ export function NpsRodadaDetalhe({
       ) : null}
 
       <NpsRespostaModal
-        respostaId={respostaAberta}
+        resposta={respostaAberta}
         onClose={() => setRespostaAberta(null)}
         onAlterada={() => void carregar()}
+        onApagar={apagarResposta}
       />
 
       {rodada ? (

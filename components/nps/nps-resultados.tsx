@@ -148,10 +148,14 @@ export function NpsResultados({ dados, onIrPara }: { dados: DadosRodada; onIrPar
         </Panel>
 
         <Panel>
-          <PanelHeader title="Por professor" description="Só respostas vinculadas a um aluno (link pessoal ou nome reconhecido)." />
+          <PanelHeader
+            title="Por professor"
+            description="Pelo cadastro do aluno e, sem cadastro, pelo professor que o aluno marcou na pesquisa."
+          />
           {identificados.length === 0 ? (
             <p className="p-4 text-meta text-ink-muted sm:p-5">
-              Nenhuma resposta foi vinculada a um aluno ainda. Os links pessoais da aba Divulgação resolvem isso.
+              Nenhuma resposta tem professor ainda. Os links pessoais da aba Divulgação trazem o professor do cadastro, e a
+              ficha de cada resposta permite corrigir.
             </p>
           ) : (
             <TableFrame className="rounded-none border-0">
@@ -168,6 +172,11 @@ export function NpsResultados({ dados, onIrPara }: { dados: DadosRodada; onIrPar
                     <TR key={p.professor}>
                       <TD>
                         <span className={p.identificado ? 'text-ink-strong' : 'text-ink-muted'}>{p.professor}</span>
+                        {p.informadas > 0 ? (
+                          <span className="block text-meta text-ink-muted">
+                            {p.informadas === p.respostas ? 'todas' : p.informadas} marcadas pelo aluno
+                          </span>
+                        ) : null}
                       </TD>
                       <TD align="right">
                         <span className="font-mono tabular-nums">{p.respostas}</span>

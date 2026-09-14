@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Download, MessageSquareHeart } from 'lucide-react'
+import { Download, MessageSquareHeart, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   EmptyState,
@@ -33,14 +33,29 @@ function normalizar(texto: string | null | undefined): string {
     .toLowerCase()
 }
 
+/** Professor com a origem quando não veio do cadastro: quem lê sabe o peso da informação. */
+function Professor({ r }: { r: RespostaResumida }) {
+  if (!r.professor) return <span className="text-ink-muted">Não identificado</span>
+  return (
+    <span className="text-ink">
+      {r.professor}
+      {r.professor_origem === 'informado' ? <span className="block text-meta text-ink-muted">marcado pelo aluno</span> : null}
+    </span>
+  )
+}
+
 export function NpsRespostas({
   rodada,
   respostas,
   onAbrir,
+  onEditar,
+  onApagar,
 }: {
   rodada: Rodada
   respostas: RespostaResumida[]
   onAbrir: (id: string) => void
+  onEditar: (id: string) => void
+  onApagar: (resposta: RespostaResumida) => void
 }) {
   const [busca, setBusca] = useState('')
   const [filtro, setFiltro] = useState<Filtro>('todas')
@@ -53,7 +68,7 @@ export function NpsRespostas({
         (r) =>
           !termo ||
           normalizar(r.full_name).includes(termo) ||
-          normalizar(r.professor_name).includes(termo) ||
+          normalizar(r.professor).includes(termo) ||
           normalizar(r.nps_reason).includes(termo),
       )
   }, [respostas, busca, filtro])
@@ -108,6 +123,9 @@ export function NpsRespostas({
                   <TH>Motivo da nota</TH>
                   <TH>Tratativa</TH>
                   <TH>Enviada em</TH>
+                  <TH align="right">
+                    <span className="sr-only">Ações</span>
+                  </TH>
                 </THead>
                 <TBody>
                   {lista.map((r) => (
@@ -116,7 +134,7 @@ export function NpsRespostas({
                         <span className="font-medium text-ink-strong">{r.full_name}</span>
                       </TD>
                       <TD>
-                        <span className={r.professor_name ? 'text-ink' : 'text-ink-muted'}>{r.professor_name ?? 'Não identificado'}</span>
+                        <Professor r={r} />
                       </TD>
                       <TD align="right">
                         <span className="inline-flex items-center gap-2">
@@ -142,6 +160,38 @@ export function NpsRespostas({
                       <TD>
                         <span className="whitespace-nowrap text-meta text-ink-muted">{formatarDataHora(r.submitted_at)}</span>
                       </TD>
+                      <TD align="right" className="py-2">
+                        {/* Os botões param o clique e o Enter: a linha inteira abre a ficha. */}
+                        <span className="inline-flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Editar resposta de ${r.full_name}`}
+                            title="Editar nome ou professor"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onEditar(r.id)
+                            }}
+                            onKeyDown={(e) => e.stopPropagation()}
+                          >
+                            <Pencil className="h-4 w-4" aria-hidden="true" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Apagar resposta de ${r.full_name}`}
+                            title="Apagar resposta"
+                            className="text-ink-muted hover:text-danger"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onApagar(r)
+                            }}
+                            onKeyDown={(e) => e.stopPropagation()}
+                          >
+                            <Trash2 className="h-4 w-4" aria-hidden="true" />
+                          </Button>
+                        </span>
+                      </TD>
                     </TR>
                   ))}
                 </TBody>
@@ -149,12 +199,17 @@ export function NpsRespostas({
             </TableFrame>
           </div>
 
+          {/* No celular, editar e apagar ficam na ficha: o cartão inteiro já é um botão. */}
           <div className="space-y-3 lg:hidden">
             {lista.map((r) => (
               <MobileRecordCard
                 key={r.id}
                 title={r.full_name}
-                subtitle={r.professor_name ?? 'Professor não identificado'}
+                subtitle={
+                  r.professor
+                    ? `${r.professor}${r.professor_origem === 'informado' ? ' (marcado pelo aluno)' : ''}`
+                    : 'Professor não identificado'
+                }
                 status={<StatusPill tone={CATEGORIA[r.nps_category].tone}>{`${r.nps_score} · ${CATEGORIA[r.nps_category].rotulo}`}</StatusPill>}
                 fields={[
                   { label: 'Renovar', value: `${r.renewal_probability}/10` },
