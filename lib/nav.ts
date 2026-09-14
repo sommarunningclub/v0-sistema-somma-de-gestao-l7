@@ -4,6 +4,7 @@ import {
   CalendarRange,
   CheckSquare,
   ClipboardList,
+  Gauge,
   Handshake,
   LayoutDashboard,
   Mail,
@@ -166,6 +167,15 @@ export const NAV_ITEMS: NavItem[] = [
     permission: 'email',
     group: 'relacionamento',
     keywords: ['campanha', 'disparo', 'newsletter', 'resend'],
+  },
+  {
+    id: 'nps',
+    label: 'NPS Assessoria',
+    description: 'Rodadas de pesquisa com os alunos, relatórios e tratativas',
+    icon: Gauge,
+    permission: 'nps',
+    group: 'relacionamento',
+    keywords: ['nps', 'pesquisa', 'satisfação', 'satisfacao', 'alunos', 'assessoria', 'feedback', 'detrator', 'promotor', 'renovação'],
   },
 
   {
