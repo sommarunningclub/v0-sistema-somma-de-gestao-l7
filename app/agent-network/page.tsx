@@ -271,16 +271,19 @@ export default function AgentNetworkPage() {
     if (!confirmed) return
 
     setDeleting(true)
-    const success = await deleteMember(member.id)
-    setDeleting(false)
-
-    if (success) {
+    try {
+      await deleteMember(member.id)
       setSelectedMember(null)
       setMembers((prev) => prev.filter((m) => m.id !== member.id))
       setTotalMembers((prev) => Math.max(0, prev - 1))
       notify.success("Membro excluído", { description: `${member.nome_completo} foi removido da base.` })
-    } else {
-      notify.error("Erro ao deletar membro", { description: "Tente novamente em alguns instantes." })
+    } catch (err) {
+      console.error("[membros] Erro ao deletar membro:", err)
+      notify.error("Erro ao deletar membro", {
+        description: err instanceof Error ? err.message : "Tente novamente em alguns instantes.",
+      })
+    } finally {
+      setDeleting(false)
     }
   }
 
