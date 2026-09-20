@@ -117,6 +117,34 @@ export const AUDIENCE_SOURCES: Record<AudienceKey, AudienceSource> = {
       },
     ],
   },
+  /**
+   * Base da régua da Talk Run 2026 (20 a 26/09/2026), um e-mail por dia.
+   *
+   * View `campanha_talk_run_base` (migration 20260920203000 do projeto do
+   * site). Diferente de `sunset_wine_run`, ela lê `cadastro_site` + `checkins`
+   * AO VIVO em vez de uma base fotografada: com sete envios em sete dias, quem
+   * se cadastra na terça entra no e-mail de quarta. Sai sem duplicados, sem
+   * quem está em `descadastros_globais` (o descadastro do site) e com `nome`
+   * já reduzido ao primeiro nome, que é o que o `{{nome}}` do HTML espera.
+   */
+  talk_run: {
+    key: 'talk_run',
+    label: 'Base da Talk Run 2026 (cadastro + check-ins, sem duplicados)',
+    table: 'campanha_talk_run_base',
+    emailCol: 'email',
+    nameCol: 'nome',
+    filters: [
+      {
+        key: 'segmento',
+        label: 'Segmento',
+        kind: 'select',
+        options: [
+          { value: 'cadastro-site', label: 'Cadastro do site' },
+          { value: 'checkins', label: 'Só check-ins' },
+        ],
+      },
+    ],
+  },
   lista_espera: {
     key: 'lista_espera',
     label: 'Lista de espera assessoria',

@@ -4,10 +4,11 @@ describe('AUDIENCE_SOURCES', () => {
   // A lista é travada de propósito: uma base a mais aqui é uma base a mais na
   // tela de audiência, e ninguém deve conseguir publicar uma sem passar por
   // este teste. `sunset_wine_run` entrou em 27/08/2026 para dar ao módulo a
-  // base de uma campanha do SITE, que vive noutra tabela do mesmo banco.
-  it('declares the five bases from the spec', () => {
+  // base de uma campanha do SITE, que vive noutra tabela do mesmo banco;
+  // `talk_run` entrou em 20/09/2026 pelo mesmo motivo.
+  it('declares the six bases from the spec', () => {
     expect(Object.keys(AUDIENCE_SOURCES).sort()).toEqual(
-      ['checkins', 'lista_espera', 'lista_vip', 'membros', 'sunset_wine_run'].sort(),
+      ['checkins', 'lista_espera', 'lista_vip', 'membros', 'sunset_wine_run', 'talk_run'].sort(),
     )
   })
 
@@ -30,6 +31,10 @@ describe('AUDIENCE_SOURCES', () => {
     // mandaria o e-mail para a base de todas as campanhas do site.
     expect(AUDIENCE_SOURCES.sunset_wine_run.table).toBe('campanha_swr_base')
     expect(AUDIENCE_SOURCES.sunset_wine_run.nameCol).toBe('nome')
+
+    // View ao vivo sobre cadastro_site + checkins, já sem descadastrados do site.
+    expect(AUDIENCE_SOURCES.talk_run.table).toBe('campanha_talk_run_base')
+    expect(AUDIENCE_SOURCES.talk_run.nameCol).toBe('nome')
   })
 
   it('uses email as the address column everywhere', () => {
