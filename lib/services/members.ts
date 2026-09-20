@@ -89,15 +89,12 @@ export async function updateMember(
 }
 
 // Deletar membro
-export async function deleteMember(id: number): Promise<boolean> {
-  try {
-    const res = await apiFetch(`/api/membros/${id}`, { method: "DELETE" })
-    await readJson(res)
-    return true
-  } catch (err) {
-    console.error("[membros] Erro ao deletar membro:", err)
-    return false
-  }
+// Propaga o erro em vez de devolver `false`: a rota distingue "membro tem
+// inscrição em evento" (409) de falha real, e engolir a mensagem fazia a tela
+// sugerir nova tentativa para um caso que nunca vai passar sozinho.
+export async function deleteMember(id: number): Promise<void> {
+  const res = await apiFetch(`/api/membros/${id}`, { method: "DELETE" })
+  await readJson(res)
 }
 
 export const PAGE_SIZE_EXPORT = PAGE_SIZE

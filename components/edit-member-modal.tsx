@@ -119,15 +119,11 @@ export function EditMemberModal({ member, onClose, onSave }: EditMemberModalProp
     setError(null)
     setDeleting(true)
     try {
-      const success = await deleteMember(member.id)
-      if (success) {
-        notify.success("Membro excluído", { description: `${member.nome_completo} foi removido da base.` })
-        onSave()
-      } else {
-        setError("Erro ao deletar membro")
-      }
+      await deleteMember(member.id)
+      notify.success("Membro excluído", { description: `${member.nome_completo} foi removido da base.` })
+      onSave()
     } catch (err) {
-      setError("Erro ao deletar membro")
+      setError(err instanceof Error ? err.message : "Erro ao deletar membro")
       console.error("[v0] Error deleting member:", err)
     } finally {
       setDeleting(false)

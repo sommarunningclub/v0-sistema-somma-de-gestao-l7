@@ -102,7 +102,35 @@ export async function DELETE(
   if (id === null) return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
 
   try {
-    const { data, error } = await getAdminClient()
+    const admin = getAdminClient()
+
+    // `evento_participantes.pessoa_id` referencia o membro sem ON DELETE
+    // CASCADE: sem essa checagem o Postgres recusa o DELETE com um 23503 cru.
+    // A inscrição é histórico do evento (ticket, pelotão, check-in), então o
+    // caminho certo é barrar aqui e dizer o que precisa ser cancelado antes.
+    const { data: inscricoes, error: inscricoesError } = await admin
+      .from('evento_participantes')
+      .select('ticket_code')
+      .eq('pessoa_id', id)
+      .limit(3)
+
+    if (inscricoesError) {
+      console.error('[membros] Erro ao checar inscrições do membro:', inscricoesError)
+      return NextResponse.json({ error: inscricoesError.message }, { status: 500 })
+    }
+    if (inscricoes && inscricoes.length > 0) {
+      const tickets = inscricoes.map((i) => i.ticket_code).filter(Boolean).join(', ')
+      return NextResponse.json(
+        {
+          error: tickets
+            ? `Membro possui inscrição em evento (${tickets}). Cancele a inscrição antes de excluir.`
+            : 'Membro possui inscrição em evento. Cancele a inscrição antes de excluir.',
+        },
+        { status: 409 }
+      )
+    }
+
+    const { data, error } = await admin
       .from('cadastro_site')
       .delete()
       .eq('id', id)
@@ -110,6 +138,15 @@ export async function DELETE(
 
     if (error) {
       console.error('[membros] Erro ao deletar membro:', error)
+      // 23503 = foreign_key_violation. Cai aqui quando outro vínculo (fora
+      // evento_participantes) segura o cadastro; a mensagem crua do Postgres
+      // não ajuda quem está no painel.
+      if (error.code === '23503') {
+        return NextResponse.json(
+          { error: 'Membro tem registros vinculados e não pode ser excluído. Remova os vínculos antes de tentar de novo.' },
+          { status: 409 }
+        )
+      }
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
     if (!data || data.length === 0) {
