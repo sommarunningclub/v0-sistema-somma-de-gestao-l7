@@ -12,9 +12,10 @@
 -- (20% na 1ª mensalidade do mensal) viraria 20% em todas as mensalidades de
 -- todos os planos. Estas três colunas fecham esse buraco.
 --
--- Rodar ANTES de publicar o site com a leitura das novas colunas e ANTES do
--- seed (scripts/seed-coupons-legados.sql). É aditivo: todas as colunas são
--- opcionais e nenhum cupom existente muda de comportamento.
+-- Esta migration é aditiva e não muda o comportamento de nenhum cupom
+-- existente: todas as colunas são opcionais. Ela vem ANTES do deploy do site
+-- que lê essas colunas, e o seed (scripts/seed-coupons-legados.sql) vem depois
+-- dos dois.
 
 alter table coupons add column if not exists professor        varchar(120);
 alter table coupons add column if not exists plan_type        varchar(20);

@@ -7,7 +7,7 @@
 -- so existem no codigo.
 --
 -- ORDEM IMPORTA. Rodar:
---   1. scripts/add-coupon-rules.sql       (colunas professor/plan_type/first_month_only)
+--   1. supabase/migrations/20260920223743_coupon_rules.sql       (colunas professor/plan_type/first_month_only)
 --   2. deploy do site lendo essas colunas (lib/checkout/cupons.ts)
 --   3. este arquivo
 --
