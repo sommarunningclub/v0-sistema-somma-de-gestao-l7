@@ -12,6 +12,7 @@ import {
   MonitorSmartphone,
   Settings,
   Star,
+  Ticket,
   Users,
   Zap,
   type LucideIcon,
@@ -112,6 +113,15 @@ export const NAV_ITEMS: NavItem[] = [
     permission: 'pixAutomatico',
     group: 'operacao',
     keywords: ['pix', 'automatico', 'automático', 'debito', 'débito', 'recorrencia', 'recorrência', 'codigo', 'código', 'liberacao', 'liberação', 'checkout'],
+  },
+  {
+    id: 'cupons',
+    label: 'Cupons',
+    description: 'Descontos do checkout da Assessoria, com regras por professor e plano',
+    icon: Ticket,
+    permission: 'pagamentos',
+    group: 'operacao',
+    keywords: ['cupom', 'cupons', 'desconto', 'coupon', 'checkout', 'assessoria', 'promoção', 'promocao', 'campanha', 'voucher'],
   },
   {
     id: 'pdv',
