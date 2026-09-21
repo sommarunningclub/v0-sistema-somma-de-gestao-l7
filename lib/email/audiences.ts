@@ -117,6 +117,37 @@ export const AUDIENCE_SOURCES: Record<AudienceKey, AudienceSource> = {
       },
     ],
   },
+  /**
+   * `cadastro_site` + `checkins` numa base só, sem quem descadastrou pelo SITE.
+   *
+   * As bases `membros` e `checkins` acima leem as tabelas cruas, e a supressão
+   * deste módulo (`email_suppressions`) não conhece `descadastros_globais`, o
+   * descadastro dos e-mails do site. Mandar para as duas bases por aqui
+   * reenviaria para quem pediu para sair pelo rodapé de um e-mail do site. A
+   * view `campanha_base_geral` (sql/022) tira essas pessoas por construção; a
+   * supressão daqui continua valendo por cima, no disparo.
+   *
+   * O dedupe por e-mail entre as duas tabelas é o de sempre (`dedupeRecipients`):
+   * quem está no cadastro e fez check-in em oito eventos recebe um e-mail só.
+   */
+  base_geral: {
+    key: 'base_geral',
+    label: 'Base geral: cadastro do site + check-ins (sem descadastrados do site)',
+    table: 'campanha_base_geral',
+    emailCol: 'email',
+    nameCol: 'nome',
+    filters: [
+      {
+        key: 'segmento',
+        label: 'Origem',
+        kind: 'select',
+        options: [
+          { value: 'cadastro-site', label: 'Cadastro do site' },
+          { value: 'checkins', label: 'Check-ins' },
+        ],
+      },
+    ],
+  },
   lista_espera: {
     key: 'lista_espera',
     label: 'Lista de espera assessoria',
@@ -289,6 +320,8 @@ export interface ResolvedAudience {
   recipients: Recipient[]
   /** Quantos saíram por já terem aberto uma das campanhas de `excluir_abertos_de`. */
   excluidosPorAbertura: number
+  /** Quantos saíram por NÃO terem aberto nenhuma das campanhas de `somente_abertos_de`. */
+  excluidosPorNaoAbertura: number
 }
 
 /**
@@ -328,10 +361,25 @@ export async function resolveAudienceDetailed(
   const naoAbriram =
     abertos.size === 0 ? deduped : deduped.filter((r) => !abertos.has(r.email))
 
-  const recipients = await filterSuppressed(naoAbriram)
+  // Só os engajados, quando pedido. Lista vazia em `somente_abertos_de` não
+  // filtra nada; lista preenchida sem nenhuma abertura esvazia a audiência de
+  // propósito: "só quem abriu" nunca pode virar "todo mundo".
+  const somente = selection?.somente_abertos_de ?? []
+  let engajados = naoAbriram
+  if (somente.length > 0) {
+    const abriram = await fetchOpenedEmails(somente)
+    if (abriram === null) return null
+    engajados = naoAbriram.filter((r) => abriram.has(r.email))
+  }
+
+  const recipients = await filterSuppressed(engajados)
   if (recipients === null) return null
 
-  return { recipients, excluidosPorAbertura: deduped.length - naoAbriram.length }
+  return {
+    recipients,
+    excluidosPorAbertura: deduped.length - naoAbriram.length,
+    excluidosPorNaoAbertura: naoAbriram.length - engajados.length,
+  }
 }
 
 /** Só os destinatários. Mantida porque é o que o disparo consome. */

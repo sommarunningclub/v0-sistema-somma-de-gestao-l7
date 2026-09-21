@@ -47,6 +47,7 @@ export default function EmailAudiencePicker({
   const [total, setTotal] = useState(0)
   const [porBase, setPorBase] = useState<Record<string, number>>({})
   const [excluidosPorAbertura, setExcluidosPorAbertura] = useState(0)
+  const [excluidosPorNaoAbertura, setExcluidosPorNaoAbertura] = useState(0)
   // Gera um "número de série" por requisição de preview disparada, para
   // descartar respostas desatualizadas que cheguem fora de ordem (ex.: o
   // usuário marca a base A, espera o debounce disparar, depois marca a base
@@ -109,6 +110,7 @@ export default function EmailAudiencePicker({
       setTotal(0)
       setPorBase({})
       setExcluidosPorAbertura(0)
+      setExcluidosPorNaoAbertura(0)
       setPreviewLoading(false)
       onTotalChange?.(0)
       return
@@ -132,6 +134,7 @@ export default function EmailAudiencePicker({
         setTotal(data.total ?? 0)
         setPorBase(data.porBase ?? {})
         setExcluidosPorAbertura(data.excluidosPorAbertura ?? 0)
+        setExcluidosPorNaoAbertura(data.excluidosPorNaoAbertura ?? 0)
         onTotalChange?.(data.total ?? 0)
       } catch {
         // silencioso — mantém a última contagem conhecida
@@ -172,6 +175,14 @@ export default function EmailAudiencePicker({
       ? atual.filter((id) => id !== campaignId)
       : [...atual, campaignId]
     onChange({ ...value, excluir_abertos_de })
+  }
+
+  const toggleSomenteAbertura = (campaignId: string) => {
+    const atual = value.somente_abertos_de ?? []
+    const somente_abertos_de = atual.includes(campaignId)
+      ? atual.filter((id) => id !== campaignId)
+      : [...atual, campaignId]
+    onChange({ ...value, somente_abertos_de })
   }
 
   if (loading) return <PageLoading label="Carregando bases de audiência..." />
@@ -267,7 +278,7 @@ export default function EmailAudiencePicker({
       </div>
 
       {campanhas.length > 0 && (
-        <div className="space-y-2">
+        <div className="space-y-2" role="group" aria-label="Não enviar para quem já abriu">
           <p className="text-sm font-medium text-white">Não enviar para quem já abriu</p>
           <p className="text-xs text-neutral-500">
             Para reenviar só para quem não abriu. A conta é feita na hora do disparo, então dá para
@@ -298,6 +309,38 @@ export default function EmailAudiencePicker({
         </div>
       )}
 
+      {campanhas.length > 0 && (
+        <div className="space-y-2" role="group" aria-label="Enviar só para quem já abriu">
+          <p className="text-sm font-medium text-white">Enviar só para quem já abriu</p>
+          <p className="text-xs text-neutral-500">
+            Para falar só com quem demonstrou interesse: recebe quem abriu ou clicou em pelo menos
+            uma das marcadas. Também é calculado na hora do disparo.
+          </p>
+          <div className="space-y-1.5">
+            {campanhas.map((c) => {
+              const marcada = (value.somente_abertos_de ?? []).includes(c.id)
+              return (
+                <label
+                  key={c.id}
+                  className={`flex items-center gap-2.5 border rounded-lg px-3 py-2 cursor-pointer transition-colors ${
+                    marcada ? 'border-orange-500 bg-orange-500/5' : 'border-neutral-700 bg-neutral-900'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={marcada}
+                    onChange={() => toggleSomenteAbertura(c.id)}
+                    className="accent-orange-500"
+                  />
+                  <span className="text-sm text-white truncate">{c.nome}</span>
+                  <span className="text-xs text-neutral-500 ml-auto flex-shrink-0">{c.status}</span>
+                </label>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="rounded-lg border border-neutral-700 bg-neutral-900 p-4 flex items-start gap-3">
         <Users className="w-5 h-5 text-orange-400 flex-shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0">
@@ -311,6 +354,12 @@ export default function EmailAudiencePicker({
             <p className="text-xs text-orange-400/80 mt-1">
               {excluidosPorAbertura} já abriram uma das campanhas marcadas e ficaram de fora. O
               número final é recalculado na hora do disparo.
+            </p>
+          )}
+          {(value.somente_abertos_de ?? []).length > 0 && (
+            <p className="text-xs text-orange-400/80 mt-1">
+              {excluidosPorNaoAbertura} não abriram nenhuma das campanhas marcadas e ficaram de fora.
+              Enquanto elas não forem enviadas, a contagem fica em zero.
             </p>
           )}
           {Object.keys(porBase).length > 0 && (

@@ -71,6 +71,11 @@ export function renderHtmlCustom({
   // — escapar o documento inteiro destruiria o HTML do usuário.
   const safeNome = nome ? escapeHtml(nome) : ''
   out = out.replace(/\{\{\s*nome\s*\}\}/g, () => safeNome)
+  // `{{nome}}` é o nome inteiro como está na base ("Diogo hideaki hiramatsu de
+  // carvalho"), o que num "Oi, {{nome}}" soa como cobrança. `{{primeiro_nome}}`
+  // é o que uma saudação quer.
+  const primeiro = nome ? escapeHtml(nome.trim().split(/\s+/)[0] ?? '') : ''
+  out = out.replace(/\{\{\s*primeiro_nome\s*\}\}/g, () => primeiro)
 
   if (preheader) {
     const block = preheaderBlock(preheader)

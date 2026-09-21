@@ -76,6 +76,17 @@ describe('renderHtmlCustom', () => {
     expect(out).not.toContain('null')
   })
 
+  it('substitui {{primeiro_nome}} pelo primeiro nome, escapado', () => {
+    const html = '<body><p>Oi, {{ primeiro_nome }}. {{nome}}</p></body>'
+    expect(renderHtmlCustom({ ...base, html, nome: '  Diogo hideaki de carvalho' })).toContain(
+      'Oi, Diogo. ',
+    )
+    expect(renderHtmlCustom({ ...base, html, nome: '<i>Bia Souza' })).toContain('Oi, &lt;i&gt;Bia.')
+    const semNome = renderHtmlCustom({ ...base, html, nome: null })
+    expect(semNome).toContain('Oi, . ')
+    expect(semNome).not.toContain('primeiro_nome')
+  })
+
   it('injeta o preheader quando existe', () => {
     const out = renderHtmlCustom({ ...base, preheader: 'Prévia da caixa' })
     expect(out).toContain('Prévia da caixa')

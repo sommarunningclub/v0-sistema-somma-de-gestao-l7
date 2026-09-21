@@ -36,6 +36,7 @@ export async function POST(req: NextRequest) {
       total: resolved.recipients.length,
       porBase,
       excluidosPorAbertura: resolved.excluidosPorAbertura,
+      excluidosPorNaoAbertura: resolved.excluidosPorNaoAbertura,
     })
   } catch (err) {
     console.error('[email-audiences/preview] POST exception:', err)

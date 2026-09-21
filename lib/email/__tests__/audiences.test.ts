@@ -5,9 +5,9 @@ describe('AUDIENCE_SOURCES', () => {
   // tela de audiência, e ninguém deve conseguir publicar uma sem passar por
   // este teste. `sunset_wine_run` entrou em 27/08/2026 para dar ao módulo a
   // base de uma campanha do SITE, que vive noutra tabela do mesmo banco.
-  it('declares the five bases from the spec', () => {
+  it('declares the six bases from the spec', () => {
     expect(Object.keys(AUDIENCE_SOURCES).sort()).toEqual(
-      ['checkins', 'lista_espera', 'lista_vip', 'membros', 'sunset_wine_run'].sort(),
+      ['base_geral', 'checkins', 'lista_espera', 'lista_vip', 'membros', 'sunset_wine_run'].sort(),
     )
   })
 
