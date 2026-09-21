@@ -175,3 +175,50 @@ describe('resolveAudienceDetailed com excluir_abertos_de', () => {
     expect(tabelas).not.toContain('email_campaign_events')
   })
 })
+
+describe('resolveAudienceDetailed com somente_abertos_de', () => {
+  const soEngajados = (ids: string[], excluir?: string[]) => ({
+    bases: [{ key: 'membros' as const, filtros: {} }],
+    somente_abertos_de: ids,
+    excluir_abertos_de: excluir,
+  })
+
+  it('mantém só quem abriu ou clicou em alguma das campanhas marcadas', async () => {
+    handler = ({ table, range }) => {
+      if (table === 'cadastro_site') return pagina(BASE, range)
+      if (table === 'email_campaign_recipients') return pagina([{ email: 'ana@x.com' }], range)
+      if (table === 'email_campaign_events') return pagina([{ email: ' CARLA@x.com' }], range)
+      return pagina([], range)
+    }
+
+    const resolved = await resolveAudienceDetailed(soEngajados([CAMPANHA_1]))
+
+    expect(resolved?.recipients.map((r) => r.email)).toEqual(['ana@x.com', 'carla@x.com'])
+    expect(resolved?.excluidosPorNaoAbertura).toBe(1)
+    expect(resolved?.excluidosPorAbertura).toBe(0)
+  })
+
+  it('sem nenhuma abertura, a audiência sai vazia em vez de virar a base inteira', async () => {
+    const resolved = await resolveAudienceDetailed(soEngajados([CAMPANHA_1]))
+
+    expect(resolved?.recipients).toEqual([])
+    expect(resolved?.excluidosPorNaoAbertura).toBe(3)
+  })
+
+  it('lista vazia não filtra nada', async () => {
+    const resolved = await resolveAudienceDetailed(soEngajados([]))
+
+    expect(resolved?.recipients).toHaveLength(3)
+    expect(resolved?.excluidosPorNaoAbertura).toBe(0)
+  })
+
+  it('falha fechado se a leitura de aberturas falhar', async () => {
+    handler = ({ table, range }) => {
+      if (table === 'cadastro_site') return pagina(BASE, range)
+      if (table === 'email_campaign_events') return { data: null, error: { message: 'timeout' } }
+      return pagina([], range)
+    }
+
+    expect(await resolveAudienceDetailed(soEngajados([CAMPANHA_1]))).toBeNull()
+  })
+})

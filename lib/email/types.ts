@@ -25,6 +25,7 @@ export type AudienceKey =
   | 'lista_espera'
   | 'sunset_wine_run'
   | 'talk_run'
+  | 'base_geral'
 
 export interface AudienceIndividual {
   email: string
@@ -45,6 +46,17 @@ export interface AudienceSelection {
    * enxerga as aberturas acumuladas até o próprio horário.
    */
   excluir_abertos_de?: string[]
+  /**
+   * O inverso de `excluir_abertos_de`: só quem abriu (ou clicou) em alguma das
+   * campanhas listadas recebe esta. É a etapa de "quem demonstrou interesse" de
+   * uma régua, que fala só com os engajados em vez de insistir com a base toda.
+   *
+   * Também resolvida no disparo, então a etapa enxerga as aberturas acumuladas
+   * até o próprio horário. Se nenhuma das campanhas listadas teve abertura, a
+   * audiência sai vazia e o cron marca a campanha como erro, em vez de mandar
+   * para a base inteira.
+   */
+  somente_abertos_de?: string[]
 }
 
 export interface EmailCampaign {

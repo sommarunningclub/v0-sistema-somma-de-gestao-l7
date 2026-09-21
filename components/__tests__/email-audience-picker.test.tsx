@@ -1,5 +1,5 @@
 import React from 'react'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import EmailAudiencePicker from '../email-audience-picker'
 import { apiFetch } from '@/lib/api-client'
 import type { AudienceSelection } from '@/lib/email/types'
@@ -9,6 +9,11 @@ jest.mock('@/lib/api-client', () => ({
 }))
 
 const mockedApiFetch = apiFetch as jest.MockedFunction<typeof apiFetch>
+
+// A mesma campanha aparece nos dois blocos (excluir e só-engajados); cada
+// teste procura dentro do bloco de que está falando.
+const exclusao = () => within(screen.getByRole('group', { name: 'Não enviar para quem já abriu' }))
+const engajados = () => within(screen.getByRole('group', { name: 'Enviar só para quem já abriu' }))
 
 const SOURCES = [
   { key: 'membros', label: 'Membros do clube', table: 'cadastro_site', emailCol: 'email', nameCol: 'nome_completo', filters: [] },
@@ -230,11 +235,11 @@ describe('EmailAudiencePicker', () => {
   it('só oferece para exclusão as campanhas que podem ter abertura', async () => {
     render(<EmailAudiencePicker value={{ bases: [] }} onChange={jest.fn()} />)
 
-    await waitFor(() => expect(screen.getByText('Etapa 1 enviada')).toBeTruthy())
-    expect(screen.getByText('Etapa 2 agendada')).toBeTruthy()
+    await waitFor(() => expect(exclusao().getByText('Etapa 1 enviada')).toBeTruthy())
+    expect(exclusao().getByText('Etapa 2 agendada')).toBeTruthy()
     // Rascunho e cancelada nunca saem, então não têm abridor a excluir.
-    expect(screen.queryByText('Rascunho qualquer')).toBeNull()
-    expect(screen.queryByText('Cancelada qualquer')).toBeNull()
+    expect(exclusao().queryByText('Rascunho qualquer')).toBeNull()
+    expect(exclusao().queryByText('Cancelada qualquer')).toBeNull()
   })
 
   it('não oferece a própria campanha em edição como exclusão de si mesma', async () => {
@@ -246,8 +251,8 @@ describe('EmailAudiencePicker', () => {
       />,
     )
 
-    await waitFor(() => expect(screen.getByText('Etapa 1 enviada')).toBeTruthy())
-    expect(screen.queryByText('Etapa 2 agendada')).toBeNull()
+    await waitFor(() => expect(exclusao().getByText('Etapa 1 enviada')).toBeTruthy())
+    expect(exclusao().queryByText('Etapa 2 agendada')).toBeNull()
   })
 
   it('marcar uma campanha devolve o id em excluir_abertos_de', async () => {
@@ -259,8 +264,8 @@ describe('EmailAudiencePicker', () => {
       />,
     )
 
-    await waitFor(() => expect(screen.getByText('Etapa 1 enviada')).toBeTruthy())
-    fireEvent.click(screen.getByText('Etapa 1 enviada'))
+    await waitFor(() => expect(exclusao().getByText('Etapa 1 enviada')).toBeTruthy())
+    fireEvent.click(exclusao().getByText('Etapa 1 enviada'))
 
     expect(onChange).toHaveBeenCalledWith({
       bases: [{ key: 'membros', filtros: {} }],
@@ -280,8 +285,8 @@ describe('EmailAudiencePicker', () => {
       />,
     )
 
-    await waitFor(() => expect(screen.getByText('Etapa 1 enviada')).toBeTruthy())
-    fireEvent.click(screen.getByText('Etapa 1 enviada'))
+    await waitFor(() => expect(exclusao().getByText('Etapa 1 enviada')).toBeTruthy())
+    fireEvent.click(exclusao().getByText('Etapa 1 enviada'))
 
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({ excluir_abertos_de: [CAMPANHAS[1].id] }),
@@ -309,11 +314,57 @@ describe('EmailAudiencePicker', () => {
       />,
     )
 
-    await waitFor(() => expect(screen.getByText('Etapa 1 enviada')).toBeTruthy())
+    await waitFor(() => expect(exclusao().getByText('Etapa 1 enviada')).toBeTruthy())
     await act(async () => {
       jest.advanceTimersByTime(500)
     })
 
     await waitFor(() => expect(screen.getByText(/2 já abriram/)).toBeTruthy())
+  })
+
+  it('marcar no bloco de engajados devolve o id em somente_abertos_de, sem mexer na exclusão', async () => {
+    const onChange = jest.fn()
+    render(
+      <EmailAudiencePicker
+        value={{ bases: [{ key: 'membros', filtros: {} }] }}
+        onChange={onChange}
+      />,
+    )
+
+    await waitFor(() => expect(engajados().getByText('Etapa 1 enviada')).toBeTruthy())
+    fireEvent.click(engajados().getByText('Etapa 1 enviada'))
+
+    expect(onChange).toHaveBeenCalledWith({
+      bases: [{ key: 'membros', filtros: {} }],
+      somente_abertos_de: [CAMPANHAS[0].id],
+    })
+  })
+
+  it('mostra quantos saíram por não terem aberto', async () => {
+    mockedApiFetch.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      const method = init?.method ?? 'GET'
+      if (url === '/api/email-audiences/preview' && method === 'GET') return jsonResponse({ sources: SOURCES })
+      if (url === '/api/eventos/ativos') return jsonResponse({ proximos_eventos: [], historico: [] })
+      if (url === '/api/email-campaigns' && method === 'GET') return jsonResponse(CAMPANHAS)
+      if (url === '/api/email-audiences/preview' && method === 'POST') {
+        return jsonResponse({ total: 3, porBase: { membros: 3 }, excluidosPorAbertura: 0, excluidosPorNaoAbertura: 9 })
+      }
+      throw new Error(`unexpected apiFetch call: ${method} ${url}`)
+    })
+
+    render(
+      <EmailAudiencePicker
+        value={{ bases: [{ key: 'membros', filtros: {} }], somente_abertos_de: [CAMPANHAS[0].id] }}
+        onChange={jest.fn()}
+      />,
+    )
+
+    await waitFor(() => expect(engajados().getByText('Etapa 1 enviada')).toBeTruthy())
+    await act(async () => {
+      jest.advanceTimersByTime(500)
+    })
+
+    await waitFor(() => expect(screen.getByText(/9 não abriram/)).toBeTruthy())
   })
 })

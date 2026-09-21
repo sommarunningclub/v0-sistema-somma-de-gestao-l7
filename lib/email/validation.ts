@@ -44,6 +44,11 @@ export const audienceSchema = z
       .array(z.string().uuid('Campanha inválida'))
       .max(10, 'No máximo 10 campanhas na exclusão por abertura')
       .default([]),
+    // O inverso: só quem abriu uma destas recebe. Mesmo teto, mesmo motivo.
+    somente_abertos_de: z
+      .array(z.string().uuid('Campanha inválida'))
+      .max(10, 'No máximo 10 campanhas no filtro de engajados')
+      .default([]),
   })
   .refine((a) => a.bases.length > 0 || a.individuais.length > 0, {
     message: 'Selecione ao menos uma base ou um destinatário',
