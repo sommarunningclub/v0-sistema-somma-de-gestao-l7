@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Pencil, Percent, Plus, RefreshCw, Search, Ticket, Trash2 } from 'lucide-react'
+import { Pencil, Percent, Plus, RefreshCw, Search, Ticket, Trash2, Users } from 'lucide-react'
 
 import { apiFetch } from '@/lib/api-client'
 import { Button } from '@/components/ui/button'
@@ -42,6 +42,13 @@ import {
   type TipoPlano,
 } from '@/lib/cupons/tipos'
 import { ehLegado } from '@/lib/cupons/legados'
+import {
+  descreverAbatimento,
+  descreverCobranca,
+  situacaoDoUso,
+  type UsoCupom,
+} from '@/lib/cupons/usos'
+import { formatarDataHora } from '@/lib/nps/periodo'
 
 // Cupons do checkout da Assessoria.
 //
@@ -114,6 +121,12 @@ export function CuponsModule() {
   // Linhas com ação em andamento: trava só os botões daquela linha, em vez de
   // congelar a lista inteira enquanto um cupom é desativado.
   const [agindo, setAgindo] = useState<ReadonlySet<string>>(new Set())
+
+  // Quem usou: lista carregada sob demanda, um cupom por vez.
+  const [usosDe, setUsosDe] = useState<Cupom | null>(null)
+  const [usos, setUsos] = useState<UsoCupom[]>([])
+  const [carregandoUsos, setCarregandoUsos] = useState(false)
+  const [erroUsos, setErroUsos] = useState<string | null>(null)
 
   const marcarAgindo = (id: string, ativo: boolean) => {
     setAgindo((atual) => {
@@ -288,6 +301,23 @@ export function CuponsModule() {
     }
   }
 
+  const abrirUsos = async (cupom: Cupom) => {
+    setUsosDe(cupom)
+    setUsos([])
+    setErroUsos(null)
+    setCarregandoUsos(true)
+    try {
+      const res = await apiFetch(`/api/coupons/${cupom.id}/usos`)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Erro ao carregar os usos')
+      setUsos(data.usos ?? [])
+    } catch (err) {
+      setErroUsos(err instanceof Error ? err.message : 'Erro ao carregar os usos')
+    } finally {
+      setCarregandoUsos(false)
+    }
+  }
+
   // Parcelado não tem "primeira mensalidade": o site ignora a combinação, e a
   // API recusa. Melhor a tela não deixar chegar lá.
   const primeiroMesIndisponivel = form.plan_type === 'installment'
@@ -398,6 +428,17 @@ export function CuponsModule() {
                       disabled={emAcao}
                       aria-label={`${cupom.status === 'DISABLED' ? 'Ativar' : 'Desativar'} o cupom ${cupom.code}`}
                     />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void abrirUsos(cupom)}
+                      disabled={emAcao}
+                      title="Quem usou este cupom"
+                      aria-label={`Ver os ${cupom.usage_count} usos do cupom ${cupom.code}`}
+                    >
+                      <Users className="mr-2 h-4 w-4" />
+                      {cupom.usage_count} {cupom.usage_count === 1 ? 'uso' : 'usos'}
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
@@ -650,6 +691,77 @@ export function CuponsModule() {
               </p>
             ) : null}
           </div>
+        </ResponsiveModal>
+      ) : null}
+      {usosDe ? (
+        <ResponsiveModal
+          open
+          onOpenChange={(aberto) => {
+            if (!aberto) setUsosDe(null)
+          }}
+          title={`Quem usou ${usosDe.code}`}
+          description={
+            usosDe.usage_count === 0
+              ? 'Ninguém usou este cupom ainda.'
+              : `${usosDe.usage_count} ${usosDe.usage_count === 1 ? 'uso' : 'usos'} · ${descreverDesconto(usosDe)}`
+          }
+          size="lg"
+          footer={
+            <Button variant="outline" onClick={() => setUsosDe(null)}>
+              Fechar
+            </Button>
+          }
+        >
+          {erroUsos ? (
+            <ErrorBanner message={erroUsos} onRetry={() => void abrirUsos(usosDe)} />
+          ) : carregandoUsos ? (
+            <div className="space-y-2">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="h-14 animate-pulse rounded border border-line bg-surface-sunken" />
+              ))}
+            </div>
+          ) : usos.length === 0 ? (
+            <EmptyState
+              icon={Users}
+              title="Nenhum uso registrado"
+              description="Cada compra concluída no checkout com este cupom aparece aqui, com quem usou e quanto abateu."
+            />
+          ) : (
+            <div className="space-y-2">
+              {usos.map((uso) => {
+                const situacao = situacaoDoUso(uso)
+                const abatimento = descreverAbatimento(uso)
+                return (
+                  <div key={uso.id} className="rounded border border-line p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate font-medium text-ink-strong">
+                          {uso.customer_name ?? 'Cliente sem nome'}
+                        </p>
+                        {uso.customer_email ? (
+                          <p className="truncate text-xs text-ink-muted">{uso.customer_email}</p>
+                        ) : null}
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2 text-xs text-ink-muted">
+                        {situacao ? <StatusPill tone={situacao.tone}>{situacao.rotulo}</StatusPill> : null}
+                        <span>{formatarDataHora(uso.redeemed_at)}</span>
+                      </div>
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink-muted">
+                      <span>{descreverCobranca(uso)}</span>
+                      {uso.professor ? <span>Prof. {uso.professor}</span> : null}
+                      {abatimento ? <span>{abatimento}</span> : null}
+                      {uso.source === 'asaas' ? (
+                        <span title="Importado da descrição da cobrança no Asaas, antes de o site registrar usos">
+                          Histórico do Asaas
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </ResponsiveModal>
       ) : null}
     </PageShell>
