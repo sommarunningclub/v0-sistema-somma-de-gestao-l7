@@ -5,12 +5,14 @@ describe('AUDIENCE_SOURCES', () => {
   // tela de audiência, e ninguém deve conseguir publicar uma sem passar por
   // este teste. `sunset_wine_run` entrou em 27/08/2026 para dar ao módulo a
   // base de uma campanha do SITE, que vive noutra tabela do mesmo banco;
-  // `talk_run` e `base_geral` entraram em 20/09/2026 pelo mesmo motivo.
-  it('declares the seven bases from the spec', () => {
+  // `talk_run` e `base_geral` entraram em 20/09/2026 pelo mesmo motivo, e
+  // `desafio_esteiras_2409` em 21/09/2026 (base geral sem quem já fez check in).
+  it('declares the eight bases from the spec', () => {
     expect(Object.keys(AUDIENCE_SOURCES).sort()).toEqual(
       [
         'base_geral',
         'checkins',
+        'desafio_esteiras_2409',
         'lista_espera',
         'lista_vip',
         'membros',
