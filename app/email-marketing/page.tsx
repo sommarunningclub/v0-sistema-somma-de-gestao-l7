@@ -2,14 +2,15 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Mail, Plus, RefreshCw, Search, X } from 'lucide-react'
+import { Archive, Mail, Plus, RefreshCw, Search, X } from 'lucide-react'
 import { Input } from '@/components/ui/input'
-import { confirmAction } from '@/components/somma'
+import { confirmAction, notify } from '@/components/somma'
 import { matchesTextSearch } from '@/lib/search-utils'
 import EmailCampaignCard from '@/components/email-campaign-card'
 import EmailCampaignModal from '@/components/email-campaign-modal'
 import type { CampaignStatus, EmailCampaign } from '@/lib/email/types'
 import { apiFetch } from '@/lib/api-client'
+import { estaArquivada } from '@/lib/email/arquivar'
 import { ErrorBanner } from '@/components/ui/error-banner'
 import { PageLoading } from '@/components/ui/page-loading'
 
@@ -32,12 +33,18 @@ export default function EmailMarketingPage() {
   const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<CampaignStatus | 'todas'>('todas')
+  // O arquivo é uma visão à parte, não mais um valor de status: a campanha
+  // arquivada continua sendo 'enviada', e misturar as duas coisas faria o
+  // filtro por status mentir.
+  const [vendoArquivadas, setVendoArquivadas] = useState(false)
 
   const loadCampaigns = useCallback(async (quiet = false) => {
     if (quiet) setRefreshing(true)
     else setLoading(true)
     try {
-      const res = await apiFetch('/api/email-campaigns')
+      const res = await apiFetch(
+        `/api/email-campaigns${vendoArquivadas ? '?arquivadas=1' : ''}`
+      )
       if (!res.ok) throw new Error('Erro ao carregar')
       const data = await res.json()
       setCampaigns(data)
@@ -48,7 +55,7 @@ export default function EmailMarketingPage() {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [])
+  }, [vendoArquivadas])
 
   useEffect(() => {
     loadCampaigns()
@@ -101,6 +108,40 @@ export default function EmailMarketingPage() {
     }
   }
 
+  const handleArchive = async (campaign: EmailCampaign) => {
+    const arquivando = !estaArquivada(campaign)
+
+    if (arquivando) {
+      const ok = await confirmAction({
+        title: 'Arquivar campanha?',
+        description:
+          'Ela sai da listagem, mas continua enviada: métricas, destinatários e histórico ficam intactos. Dá para desarquivar quando quiser.',
+        detail: campaign.nome,
+        confirmLabel: 'Arquivar',
+      })
+      if (!ok) return
+    }
+
+    try {
+      const res = await apiFetch(`/api/email-campaigns/${campaign.id}/archive`, {
+        method: arquivando ? 'POST' : 'DELETE',
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        notify.error(data.error || 'Erro ao arquivar campanha')
+        return
+      }
+      // Some da visão atual em qualquer um dos dois sentidos: arquivada sai da
+      // lista de ativas, desarquivada sai do arquivo.
+      setCampaigns((prev) => prev.filter((c) => c.id !== campaign.id))
+      notify.success(arquivando ? 'Campanha arquivada' : 'Campanha desarquivada', {
+        description: campaign.nome,
+      })
+    } catch {
+      notify.error('Erro ao arquivar campanha')
+    }
+  }
+
   const openEdit = (campaign: EmailCampaign) => {
     setEditingCampaign(campaign)
     setShowModal(true)
@@ -125,7 +166,9 @@ export default function EmailMarketingPage() {
       <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-neutral-800">
         <div className="flex items-center gap-2">
           <Mail className="w-5 h-5 text-orange-400" />
-          <h1 className="text-lg font-semibold text-white">E-mail Marketing</h1>
+          <h1 className="text-lg font-semibold text-white">
+            E-mail Marketing{vendoArquivadas ? ' · arquivadas' : ''}
+          </h1>
           {campaigns.length > 0 && (
             <span className="text-xs text-neutral-500 bg-neutral-800 px-2 py-0.5 rounded-full">
               {campaigns.length}
@@ -134,19 +177,37 @@ export default function EmailMarketingPage() {
         </div>
         <div className="flex items-center gap-2">
           <button
+            onClick={() => {
+              setVendoArquivadas((v) => !v)
+              setStatusFilter('todas')
+              setSearchTerm('')
+            }}
+            title={vendoArquivadas ? 'Voltar para as campanhas ativas' : 'Ver campanhas arquivadas'}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border transition-colors ${
+              vendoArquivadas
+                ? 'bg-neutral-800 text-white border-neutral-600'
+                : 'bg-transparent text-neutral-500 border-neutral-800 hover:text-white'
+            }`}
+          >
+            <Archive className="w-4 h-4" />
+            {vendoArquivadas ? 'Ativas' : 'Arquivadas'}
+          </button>
+          <button
             onClick={() => loadCampaigns(true)}
             disabled={refreshing}
             className="p-2 text-neutral-500 hover:text-white transition-colors rounded-lg"
           >
             <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
           </button>
-          <button
-            onClick={openCreate}
-            className="flex items-center gap-1.5 bg-orange-500 hover:bg-orange-400 text-black font-semibold px-3 py-2 rounded-lg text-sm transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Nova campanha
-          </button>
+          {!vendoArquivadas && (
+            <button
+              onClick={openCreate}
+              className="flex items-center gap-1.5 bg-orange-500 hover:bg-orange-400 text-black font-semibold px-3 py-2 rounded-lg text-sm transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              Nova campanha
+            </button>
+          )}
         </div>
       </div>
 
@@ -200,6 +261,22 @@ export default function EmailMarketingPage() {
       <div className="flex-1 overflow-auto p-4">
         {loading ? (
           <PageLoading label="Carregando campanhas..." />
+        ) : campaigns.length === 0 && vendoArquivadas ? (
+          <div className="flex flex-col items-center justify-center h-64 gap-4 text-center">
+            <Archive className="w-12 h-12 text-neutral-700" />
+            <div>
+              <p className="text-neutral-400 font-medium">Nenhuma campanha arquivada</p>
+              <p className="text-neutral-600 text-sm mt-1">
+                Campanhas enviadas, canceladas ou com erro podem ser arquivadas para sair da listagem.
+              </p>
+            </div>
+            <button
+              onClick={() => setVendoArquivadas(false)}
+              className="flex items-center gap-1.5 bg-neutral-800 hover:bg-neutral-700 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-colors"
+            >
+              Voltar para as ativas
+            </button>
+          </div>
         ) : campaigns.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 gap-4 text-center">
             <Mail className="w-12 h-12 text-neutral-700" />
@@ -231,6 +308,7 @@ export default function EmailMarketingPage() {
                 onEdit={openEdit}
                 onDelete={handleDelete}
                 onCancel={handleCancel}
+                onArchive={handleArchive}
               />
             ))}
           </div>
