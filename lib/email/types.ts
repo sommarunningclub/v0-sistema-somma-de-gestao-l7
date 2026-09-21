@@ -24,6 +24,7 @@ export type AudienceKey =
   | 'lista_vip'
   | 'lista_espera'
   | 'sunset_wine_run'
+  | 'talk_run'
   | 'base_geral'
 
 export interface AudienceIndividual {

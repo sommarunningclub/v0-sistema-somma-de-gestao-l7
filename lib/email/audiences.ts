@@ -118,6 +118,35 @@ export const AUDIENCE_SOURCES: Record<AudienceKey, AudienceSource> = {
     ],
   },
   /**
+  /**
+   * Base da régua da Talk Run 2026 (20 a 26/09/2026), um e-mail por dia.
+   *
+   * View `campanha_talk_run_base` (migration 20260920203000 do projeto do
+   * site). Diferente de `sunset_wine_run`, ela lê `cadastro_site` + `checkins`
+   * AO VIVO em vez de uma base fotografada: com sete envios em sete dias, quem
+   * se cadastra na terça entra no e-mail de quarta. Sai sem duplicados, sem
+   * quem está em `descadastros_globais` (o descadastro do site) e com `nome`
+   * já reduzido ao primeiro nome, que é o que o `{{nome}}` do HTML espera.
+   */
+  talk_run: {
+    key: 'talk_run',
+    label: 'Base da Talk Run 2026 (cadastro + check-ins, sem duplicados)',
+    table: 'campanha_talk_run_base',
+    emailCol: 'email',
+    nameCol: 'nome',
+    filters: [
+      {
+        key: 'segmento',
+        label: 'Segmento',
+        kind: 'select',
+        options: [
+          { value: 'cadastro-site', label: 'Cadastro do site' },
+          { value: 'checkins', label: 'Só check-ins' },
+        ],
+      },
+    ],
+  },
+  /**
    * `cadastro_site` + `checkins` numa base só, sem quem descadastrou pelo SITE.
    *
    * As bases `membros` e `checkins` acima leem as tabelas cruas, e a supressão
@@ -126,6 +155,10 @@ export const AUDIENCE_SOURCES: Record<AudienceKey, AudienceSource> = {
    * reenviaria para quem pediu para sair pelo rodapé de um e-mail do site. A
    * view `campanha_base_geral` (sql/022) tira essas pessoas por construção; a
    * supressão daqui continua valendo por cima, no disparo.
+   *
+   * Difere de `talk_run`, que é a mesma ideia amarrada àquela campanha: esta
+   * não é de campanha nenhuma, serve para qualquer disparo "para a base toda",
+   * e devolve o nome completo (use `{{primeiro_nome}}` no HTML).
    *
    * O dedupe por e-mail entre as duas tabelas é o de sempre (`dedupeRecipients`):
    * quem está no cadastro e fez check-in em oito eventos recebe um e-mail só.
