@@ -20,6 +20,7 @@ import PopupsPage from "./popups/page"
 import EmailMarketingPage from "./email-marketing/page"
 import VagasPage from "./vagas/page"
 import { PdvModule } from "@/components/modules/pdv-module"
+import { CuponsModule } from "@/components/modules/cupons-module"
 import { PixAutomaticoModule } from "@/components/modules/pix-automatico-module"
 import { NpsModule } from "@/components/modules/nps-module"
 
@@ -143,6 +144,8 @@ function SommaAdmin() {
         return <VagasPage />
       case "pdv":
         return <PdvModule />
+      case "cupons":
+        return <CuponsModule />
       case "pixAutomatico":
         return <PixAutomaticoModule />
       case "nps":
