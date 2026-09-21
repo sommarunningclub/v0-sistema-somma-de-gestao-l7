@@ -181,6 +181,35 @@ export const AUDIENCE_SOURCES: Record<AudienceKey, AudienceSource> = {
       },
     ],
   },
+  /**
+   * Base da régua do Desafio das Esteiras de 24/09/2026 (Evolve Águas Claras 2).
+   *
+   * View `campanha_desafio_esteiras_2409_base` (sql/023): é a `base_geral`
+   * menos quem já fez check in NAQUELE evento. A régua tem nove envios em
+   * quatro dias e a regra é que quem converteu sai da sequência; como a
+   * audiência é resolvida no disparo, a view lendo `checkins` ao vivo faz isso
+   * sozinha, sem ninguém editar as campanhas agendadas.
+   *
+   * Depois de 24/09/2026 esta base não serve para mais nada e pode sair.
+   */
+  desafio_esteiras_2409: {
+    key: 'desafio_esteiras_2409',
+    label: 'Desafio das Esteiras 24/09: base geral sem quem já fez check in',
+    table: 'campanha_desafio_esteiras_2409_base',
+    emailCol: 'email',
+    nameCol: 'nome',
+    filters: [
+      {
+        key: 'segmento',
+        label: 'Origem',
+        kind: 'select',
+        options: [
+          { value: 'cadastro-site', label: 'Cadastro do site' },
+          { value: 'checkins', label: 'Check-ins' },
+        ],
+      },
+    ],
+  },
   lista_espera: {
     key: 'lista_espera',
     label: 'Lista de espera assessoria',

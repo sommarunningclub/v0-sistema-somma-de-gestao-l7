@@ -26,6 +26,7 @@ export type AudienceKey =
   | 'sunset_wine_run'
   | 'talk_run'
   | 'base_geral'
+  | 'desafio_esteiras_2409'
 
 export interface AudienceIndividual {
   email: string
