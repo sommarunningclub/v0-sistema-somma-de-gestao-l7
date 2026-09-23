@@ -37,6 +37,7 @@ function cupom(parcial: Partial<Cupom> = {}): Cupom {
     professor: null,
     plan_type: null,
     first_month_only: false,
+    pix_automatico: false,
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
     ...parcial,
@@ -112,6 +113,26 @@ describe('validarEntrada', () => {
   it('aceita 1ª mensalidade em plano recorrente ou sem restrição', () => {
     expect(validarEntrada({ ...base, first_month_only: true, plan_type: 'recurring' }).ok).toBe(true)
     expect(validarEntrada({ ...base, first_month_only: true, plan_type: null }).ok).toBe(true)
+  })
+
+  it('recusa Pix Automático em cupom de plano parcelado', () => {
+    // Pix Automático é débito mensal: não existe no Semestral/Anual, e a
+    // combinação seria uma regra que nunca casa com nada.
+    const r = validarEntrada({ ...base, pix_automatico: true, plan_type: 'installment' })
+    expect(r.ok).toBe(false)
+  })
+
+  it('aceita Pix Automático no mensal ou sem restrição de plano', () => {
+    expect(validarEntrada({ ...base, pix_automatico: true, plan_type: 'recurring' }).ok).toBe(true)
+    expect(validarEntrada({ ...base, pix_automatico: true, plan_type: null }).ok).toBe(true)
+  })
+
+  it('não marca Pix Automático por omissão', () => {
+    // O padrão continua sendo cartão: um cupom antigo não pode começar a
+    // descontar débito recorrente sozinho.
+    const r = validarEntrada(base)
+    expect(r.ok).toBe(true)
+    if (r.ok) expect(r.entrada.pix_automatico).toBe(false)
   })
 
   it('recusa tipo de plano desconhecido', () => {
@@ -192,6 +213,7 @@ describe('descreverRegras', () => {
         professor: 'Joseph Pereira',
         plan_type: 'recurring',
         first_month_only: true,
+        pix_automatico: true,
         usage_limit: 50,
         usage_count: 3,
         expiration_date: '2026-12-31',
@@ -201,6 +223,7 @@ describe('descreverRegras', () => {
       'Só com Joseph Pereira',
       'Só no plano Mensal',
       'Só na 1ª mensalidade',
+      'Vale no Pix Automático',
       '3/50 usos',
       'Até 31/12/2026',
     ])

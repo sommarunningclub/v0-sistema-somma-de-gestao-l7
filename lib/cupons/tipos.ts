@@ -30,13 +30,15 @@ export interface Cupom {
   professor: string | null
   plan_type: TipoPlano | null
   first_month_only: boolean
+  /** Também aceito no checkout via Pix Automático. */
+  pix_automatico: boolean
   created_at: string
   updated_at: string
 }
 
 /** Colunas devolvidas ao painel — `select *` traria as colunas mortas. */
 export const CAMPOS_CUPOM =
-  'id, code, type, value, description, expiration_date, usage_limit, usage_count, status, professor, plan_type, first_month_only, created_at, updated_at'
+  'id, code, type, value, description, expiration_date, usage_limit, usage_count, status, professor, plan_type, first_month_only, pix_automatico, created_at, updated_at'
 
 /**
  * Nomes canônicos dos professores, iguais aos do GROUP_MAP do site
@@ -62,6 +64,7 @@ export interface EntradaCupom {
   professor: string | null
   plan_type: TipoPlano | null
   first_month_only: boolean
+  pix_automatico: boolean
 }
 
 export function normalizarCodigo(valor: unknown): string {
@@ -143,6 +146,14 @@ export function validarEntrada(bruto: unknown): { ok: true; entrada: EntradaCupo
     return { ok: false, erro: 'Desconto só na 1ª mensalidade não se aplica a plano parcelado' }
   }
 
+  // O Pix Automático é débito recorrente mensal: não existe parcelamento por
+  // lá, então marcar um cupom de Semestral/Anual para ele seria uma regra que
+  // nunca casaria com nada.
+  const pix_automatico = body.pix_automatico === true
+  if (pix_automatico && plan_type === 'installment') {
+    return { ok: false, erro: 'Pix Automático só existe no plano mensal — não combina com cupom de plano parcelado' }
+  }
+
   const status = body.status === 'DISABLED' ? 'DISABLED' : 'ACTIVE'
 
   const descricaoBruta = typeof body.description === 'string' ? body.description.trim() : ''
@@ -160,6 +171,7 @@ export function validarEntrada(bruto: unknown): { ok: true; entrada: EntradaCupo
       professor,
       plan_type,
       first_month_only,
+      pix_automatico,
     },
   }
 }
@@ -199,6 +211,7 @@ export function descreverRegras(cupom: Cupom): string[] {
     regras.push(cupom.plan_type === 'recurring' ? 'Só no plano Mensal' : 'Só em Semestral e Anual')
   }
   if (cupom.first_month_only) regras.push('Só na 1ª mensalidade')
+  if (cupom.pix_automatico) regras.push('Vale no Pix Automático')
   if (cupom.usage_limit !== null) regras.push(`${cupom.usage_count}/${cupom.usage_limit} usos`)
   if (cupom.expiration_date) {
     const [ano, mes, dia] = cupom.expiration_date.split('-')

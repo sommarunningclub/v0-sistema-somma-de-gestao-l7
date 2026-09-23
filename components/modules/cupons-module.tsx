@@ -76,6 +76,7 @@ interface Formulario {
   professor: string
   plan_type: string
   first_month_only: boolean
+  pix_automatico: boolean
   ativo: boolean
 }
 
@@ -89,6 +90,7 @@ const FORM_VAZIO: Formulario = {
   professor: SEM_RESTRICAO,
   plan_type: SEM_RESTRICAO,
   first_month_only: false,
+  pix_automatico: false,
   ativo: true,
 }
 
@@ -103,6 +105,7 @@ function formDoCupom(cupom: Cupom): Formulario {
     professor: cupom.professor ?? SEM_RESTRICAO,
     plan_type: cupom.plan_type ?? SEM_RESTRICAO,
     first_month_only: cupom.first_month_only,
+    pix_automatico: cupom.pix_automatico,
     ativo: cupom.status !== 'DISABLED',
   }
 }
@@ -200,6 +203,7 @@ export function CuponsModule() {
       professor: form.professor === SEM_RESTRICAO ? null : form.professor,
       plan_type: form.plan_type === SEM_RESTRICAO ? null : (form.plan_type as TipoPlano),
       first_month_only: form.first_month_only,
+      pix_automatico: form.pix_automatico,
       status: form.ativo ? 'ACTIVE' : 'DISABLED',
     }
 
@@ -244,6 +248,7 @@ export function CuponsModule() {
           professor: cupom.professor,
           plan_type: cupom.plan_type,
           first_month_only: cupom.first_month_only,
+          pix_automatico: cupom.pix_automatico,
           status: ativando ? 'ACTIVE' : 'DISABLED',
         }),
       })
@@ -625,6 +630,7 @@ export function CuponsModule() {
                         ...f,
                         plan_type: v,
                         first_month_only: v === 'installment' ? false : f.first_month_only,
+                        pix_automatico: v === 'installment' ? false : f.pix_automatico,
                       }))
                     }
                   >
@@ -640,6 +646,27 @@ export function CuponsModule() {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+              </div>
+
+              <div className="mt-4 flex items-start gap-3">
+                <Switch
+                  id="cupom-pix-automatico"
+                  checked={form.pix_automatico}
+                  onCheckedChange={(v) => setForm((f) => ({ ...f, pix_automatico: v }))}
+                  disabled={primeiroMesIndisponivel}
+                />
+                <div>
+                  <Label htmlFor="cupom-pix-automatico" className="cursor-pointer">
+                    Vale também no Pix Automático
+                  </Label>
+                  <p className="text-xs text-ink-muted">
+                    {primeiroMesIndisponivel
+                      ? 'Indisponível: Pix Automático existe só no plano mensal.'
+                      : form.first_month_only
+                        ? 'O desconto entra no QR da 1ª mensalidade; o débito mensal segue no valor cheio.'
+                        : 'O desconto entra no valor debitado todo mês — o cliente autoriza esse valor no banco e ele não muda depois.'}
+                  </p>
                 </div>
               </div>
 
