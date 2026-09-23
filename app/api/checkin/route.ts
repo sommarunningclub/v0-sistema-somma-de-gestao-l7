@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { sincronizarInscritosLp, type ResultadoSincronizacao } from '@/lib/checkin/espelho-lp'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -38,6 +39,17 @@ export async function GET(request: NextRequest) {
 
     const eventoId = request.nextUrl.searchParams.get('evento_id')
     console.log('[v0] Fetching check-ins', eventoId ? `for evento ${eventoId}` : '(all)')
+
+    // Quem se inscreveu pela LP do site entra em `evento_participantes`; esta
+    // lista lê `checkins`. Antes de listar, traz quem ainda falta, para a
+    // lista, os totais e o CSV baterem com o que a seção Eventos mostra.
+    let sincronizacao: ResultadoSincronizacao | null = null
+    if (eventoId) {
+      sincronizacao = await sincronizarInscritosLp(supabase, eventoId)
+      if (sincronizacao.inseridos > 0) {
+        console.log('[v0] Inscritos da LP trazidos para checkins:', sincronizacao.inseridos)
+      }
+    }
 
     let query = supabase
       .from('checkins')
@@ -78,6 +90,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       data: transformedData,
       count: transformedData.length,
+      // Quantos vieram da LP nesta carga e quantos ainda faltam (-1 = a sincronização falhou).
+      espelhados: sincronizacao?.inseridos ?? 0,
+      lp_fora: sincronizacao?.restantes ?? 0,
       timestamp: new Date().toISOString(),
       source: 'supabase'
     })

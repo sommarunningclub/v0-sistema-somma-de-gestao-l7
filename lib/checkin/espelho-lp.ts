@@ -157,3 +157,44 @@ export async function espelharForaDaLista(
   const restantes = foraDaLista(parts, await cpfsNaLista(supabase, eventoId)).length
   return { inseridos: linhas.length, restantes }
 }
+
+/* ─── Sincronização ao carregar a lista ─────────────────────────────────── */
+
+/** Desliga a sincronização automática sem deploy: `CHECKIN_SINCRONIZAR_LP=off` na Vercel. */
+export function sincronizacaoLigada(): boolean {
+  return (process.env.CHECKIN_SINCRONIZAR_LP ?? '').trim().toLowerCase() !== 'off'
+}
+
+export interface ResultadoSincronizacao {
+  inseridos: number
+  restantes: number
+  erro?: string
+}
+
+const emAndamento = new Map<string, Promise<ResultadoSincronizacao>>()
+
+/**
+ * Traz para `checkins` quem se inscreveu pela LP e ainda não está lá, sem
+ * nunca derrubar quem chamou: erro vira `erro` na resposta e fica no log.
+ * Duas chamadas simultâneas para o mesmo evento (duas pessoas abrindo a
+ * lista ao mesmo tempo) compartilham a mesma execução, para não inserir a
+ * mesma pessoa duas vezes.
+ */
+export async function sincronizarInscritosLp(
+  supabase: SupabaseClient,
+  eventoId: string
+): Promise<ResultadoSincronizacao> {
+  if (!sincronizacaoLigada()) return { inseridos: 0, restantes: 0 }
+  const pendente = emAndamento.get(eventoId)
+  if (pendente) return pendente
+
+  const execucao = espelharForaDaLista(supabase, eventoId)
+    .catch((err: unknown): ResultadoSincronizacao => {
+      const erro = err instanceof Error ? err.message : String(err)
+      console.error('[v0] Falha ao sincronizar inscritos da LP:', eventoId, erro)
+      return { inseridos: 0, restantes: -1, erro }
+    })
+    .finally(() => { emAndamento.delete(eventoId) })
+  emAndamento.set(eventoId, execucao)
+  return execucao
+}
