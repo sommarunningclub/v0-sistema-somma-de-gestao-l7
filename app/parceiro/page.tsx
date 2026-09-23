@@ -21,6 +21,7 @@ import { PartnerList, type PartnerSortKey } from '@/components/partner-list'
 import { WhatsAppMessageModal } from '@/components/whatsapp-message-modal'
 import type { CNPJData, Partner } from '@/lib/services/partners'
 import { matchesTextSearch } from '@/lib/search-utils'
+import type { CodigoParceiro } from '@/lib/parceiros/vinculos'
 import {
   CardListSkeleton,
   EmptyState,
@@ -46,15 +47,6 @@ import {
 
 type FilterStatus = 'all' | PartnerStatus
 
-interface PartnerCode {
-  id: string
-  codigo: string
-  nome_parceiro: string
-  ativo: boolean
-  created_at: string
-  last_access?: string
-}
-
 const PAGE_SIZE = 20
 
 const STATUS_ICON = {
@@ -68,7 +60,7 @@ export default function ParceiroSommaPage() {
   const [cnpjData, setCNPJData] = useState<CNPJData | undefined>()
   const [editingPartner, setEditingPartner] = useState<Partner | undefined>()
   const [partners, setPartners] = useState<Partner[]>([])
-  const [partnerCodes, setPartnerCodes] = useState<PartnerCode[]>([])
+  const [partnerCodes, setPartnerCodes] = useState<CodigoParceiro[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isFormLoading, setIsFormLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
