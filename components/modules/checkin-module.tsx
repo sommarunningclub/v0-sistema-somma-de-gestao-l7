@@ -247,12 +247,17 @@ export function CheckInModule({ initialEventoId }: { initialEventoId?: string | 
       const json = await res.json()
       if (json.error) throw new Error(json.error)
       setCheckInData(json.data || [])
+      // A lista acabou de trazer inscritos da LP: o total e o aviso do
+      // cabeçalho vêm de /api/insider/eventos e precisam ser recarregados.
+      if (typeof json.espelhados === 'number' && json.espelhados > 0) {
+        void fetchEventos(false)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao carregar dados")
     } finally {
       setLoading(false)
     }
-  }, [selectedEvento])
+  }, [selectedEvento, fetchEventos])
 
   useEffect(() => { fetchCheckInData() }, [fetchCheckInData])
 
@@ -604,7 +609,7 @@ export function CheckInModule({ initialEventoId }: { initialEventoId?: string | 
       <div className="min-w-0 text-sm text-ink">
         <span className="font-mono tabular-nums font-semibold">{selectedEventoData.inscritos_lp_fora}</span>
         {' '}inscrito(s) pela página do evento ainda não estão nesta lista.
-        <span className="block text-meta text-ink-muted">Já contam no total do evento; traga para a lista para validar no dia.</span>
+        <span className="block text-meta text-ink-muted">Já contam no total do evento. A lista tenta trazê-los sozinha ao carregar; se continuam aqui, use o botão.</span>
       </div>
       <Button
         variant="secondary"
