@@ -36,5 +36,8 @@ export interface EventoCreate {
 export interface EventoUpdate extends Partial<EventoCreate> {}
 
 export interface EventoWithStats extends Evento {
+  /** Pessoas no evento: linhas em `checkins` + inscritos pela LP que ainda não estão lá. */
   checkin_count: number
+  /** Inscritos pela LP do site que ainda não foram copiados para `checkins`. */
+  inscritos_lp_fora?: number
 }
