@@ -54,13 +54,25 @@ export interface RecipientRow {
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
 
-export async function getCampaigns(): Promise<EmailCampaign[]> {
+/**
+ * Campanhas da listagem. Por padrão só as ativas: o arquivo é um lugar que se
+ * visita, não algo que volta junto e obriga a tela a filtrar depois.
+ */
+export async function getCampaigns(
+  opcoes: { arquivadas?: boolean } = {}
+): Promise<EmailCampaign[]> {
   try {
     const supabase = getSupabase()
-    const { data, error } = await supabase
+    let query = supabase
       .from('email_campaigns')
       .select('*')
       .order('created_at', { ascending: false })
+
+    query = opcoes.arquivadas
+      ? query.not('archived_at', 'is', null)
+      : query.is('archived_at', null)
+
+    const { data, error } = await query
 
     if (error) {
       console.error('[email-campaigns] getCampaigns error:', error)
@@ -129,6 +141,35 @@ export async function updateCampaign(
     return data as EmailCampaign
   } catch (e) {
     console.error('[email-campaigns] updateCampaign exception:', e)
+    return null
+  }
+}
+
+/**
+ * Arquiva ou desarquiva. O `eq('status', ...)` não entra aqui: quem decide se
+ * o status permite é a rota, que precisa responder o motivo da recusa — um
+ * update que simplesmente não afeta linha nenhuma viraria "não encontrada".
+ */
+export async function setCampaignArchived(
+  id: string,
+  arquivada: boolean
+): Promise<EmailCampaign | null> {
+  try {
+    const supabase = getSupabase()
+    const { data, error } = await supabase
+      .from('email_campaigns')
+      .update({ archived_at: arquivada ? new Date().toISOString() : null })
+      .eq('id', id)
+      .select('*')
+      .maybeSingle()
+
+    if (error) {
+      console.error('[email-campaigns] setCampaignArchived error:', error)
+      return null
+    }
+    return (data as EmailCampaign) ?? null
+  } catch (e) {
+    console.error('[email-campaigns] setCampaignArchived exception:', e)
     return null
   }
 }

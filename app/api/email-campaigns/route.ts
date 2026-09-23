@@ -18,7 +18,8 @@ export async function GET(req: NextRequest) {
   if (auth instanceof NextResponse) return auth
 
   try {
-    return NextResponse.json(await getCampaigns())
+    const arquivadas = new URL(req.url).searchParams.get('arquivadas') === '1'
+    return NextResponse.json(await getCampaigns({ arquivadas }))
   } catch (err) {
     console.error('[email-campaigns] GET exception:', err)
     return NextResponse.json({ error: 'Erro ao listar campanhas' }, { status: 500 })

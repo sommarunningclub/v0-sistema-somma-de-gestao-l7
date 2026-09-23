@@ -2,15 +2,17 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Ban, ChevronDown, ChevronUp, Edit2, Mail, Trash2 } from 'lucide-react'
+import { Archive, ArchiveRestore, Ban, ChevronDown, ChevronUp, Edit2, Mail, Trash2 } from 'lucide-react'
 import { apiFetch } from '@/lib/api-client'
 import type { CampaignStats, CampaignStatus, EmailCampaign } from '@/lib/email/types'
+import { estaArquivada, podeArquivar } from '@/lib/email/arquivar'
 
 interface EmailCampaignCardProps {
   campaign: EmailCampaign
   onEdit: (campaign: EmailCampaign) => void
   onDelete: (id: string) => void
   onCancel: (id: string) => void
+  onArchive: (campaign: EmailCampaign) => void
 }
 
 const STATUS_META: Record<CampaignStatus, { label: string; className: string }> = {
@@ -41,7 +43,13 @@ const STATS_LABELS: Record<keyof CampaignStats, string> = {
   descadastros: 'Descadastros',
 }
 
-export default function EmailCampaignCard({ campaign, onEdit, onDelete, onCancel }: EmailCampaignCardProps) {
+export default function EmailCampaignCard({
+  campaign,
+  onEdit,
+  onDelete,
+  onCancel,
+  onArchive,
+}: EmailCampaignCardProps) {
   const [stats, setStats] = useState<CampaignStats | null>(null)
   const [showStats, setShowStats] = useState(false)
   const [statsLoading, setStatsLoading] = useState(false)
@@ -84,6 +92,7 @@ export default function EmailCampaignCard({ campaign, onEdit, onDelete, onCancel
       : null
 
   const meta = STATUS_META[campaign.status]
+  const arquivada = estaArquivada(campaign)
   const canEdit = campaign.status === 'rascunho' || campaign.status === 'agendada'
   const canCancel =
     campaign.status === 'rascunho' || campaign.status === 'agendada' || campaign.status === 'enviando'
@@ -172,10 +181,26 @@ export default function EmailCampaignCard({ campaign, onEdit, onDelete, onCancel
             <Ban className="w-3.5 h-3.5" />
           </button>
         )}
+        {(podeArquivar(campaign.status) || arquivada) && (
+          <button
+            onClick={() => onArchive(campaign)}
+            title={arquivada ? 'Desarquivar' : 'Arquivar'}
+            className="flex items-center gap-1 p-1.5 text-neutral-500 hover:text-white transition-colors rounded ml-auto"
+          >
+            {arquivada ? (
+              <ArchiveRestore className="w-3.5 h-3.5" />
+            ) : (
+              <Archive className="w-3.5 h-3.5" />
+            )}
+            <span className="text-xs">{arquivada ? 'Desarquivar' : 'Arquivar'}</span>
+          </button>
+        )}
         <button
           onClick={() => onDelete(campaign.id)}
           title="Excluir"
-          className="p-1.5 text-neutral-500 hover:text-red-400 transition-colors rounded ml-auto"
+          className={`p-1.5 text-neutral-500 hover:text-red-400 transition-colors rounded ${
+            podeArquivar(campaign.status) || arquivada ? '' : 'ml-auto'
+          }`}
         >
           <Trash2 className="w-3.5 h-3.5" />
         </button>

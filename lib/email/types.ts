@@ -77,6 +77,8 @@ export interface EmailCampaign {
   total_recipients: number
   error: string | null
   created_by: string | null
+  /** Fora da listagem padrão, sem deixar de ser o que é. NULL = ativa. */
+  archived_at: string | null
   created_at: string
   updated_at: string
 }

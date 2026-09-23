@@ -1,0 +1,18 @@
+-- Marcador: migration aplicada direto no painel do Supabase
+-- =========================================================
+--
+-- Esta versao (20260920203000, 20/09/2026 as 20:30) consta como aplicada no
+-- historico do banco, mas nunca teve arquivo no repositorio: foi executada
+-- pelo SQL Editor do painel. Sem um arquivo local, o CLI recusa qualquer
+-- `db push` seguinte com LegacyDbPushMissingLocalError, travando migrations
+-- que nao tem nada a ver com ela.
+--
+-- O arquivo existe so para destravar isso, preservando o registro no historico
+-- da producao — o contrario (`migration repair --status reverted`) apagaria o
+-- rastro de que ela rodou.
+--
+-- NAO contem o DDL original, que nao esta versionado em lugar nenhum. Para
+-- recuperar o schema de verdade: instalar o Docker e rodar `supabase db pull`,
+-- que gera um baseline a partir do banco.
+
+-- intencionalmente sem comandos
