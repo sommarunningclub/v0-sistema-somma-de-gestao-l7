@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import type { EventoCreate } from '@/lib/types/evento'
+import { contarForaDaListaPorEvento } from '@/lib/checkin/espelho-lp'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,9 +41,20 @@ export async function GET() {
       }
     }
 
+    // Quem se inscreveu pela LP do site e ainda não foi copiado para `checkins`
+    // é gente do evento do mesmo jeito: sem somar, o painel mostra menos
+    // pessoas do que existem (em 23/09/2026 eram 105 a menos no SOMMA DAY).
+    let foraDaLista: Record<string, number> = {}
+    try {
+      foraDaLista = await contarForaDaListaPorEvento(supabase)
+    } catch (err) {
+      console.error('[v0] Falha ao contar inscritos pela LP fora da lista:', err)
+    }
+
     const enriched = (data || []).map(e => ({
       ...e,
-      checkin_count: countsMap[e.id] || 0,
+      checkin_count: (countsMap[e.id] || 0) + (foraDaLista[e.id] || 0),
+      inscritos_lp_fora: foraDaLista[e.id] || 0,
     }))
 
     return NextResponse.json({ data: enriched })

@@ -64,6 +64,8 @@ interface EventoOption {
   data_evento: string
   checkin_status: string
   checkin_count: number
+  /** Inscritos pela LP do site que ainda não foram copiados para esta lista. */
+  inscritos_lp_fora: number
   tipo?: string
 }
 
@@ -73,6 +75,7 @@ interface EventoApiItem {
   data_evento: string
   checkin_status: string
   checkin_count?: number
+  inscritos_lp_fora?: number
 }
 
 const PELOTAO_OPTIONS = ['4km', '6km', '8km', 'Alfa', 'Bravo', 'Charlie', 'Delta'] as const
@@ -190,36 +193,38 @@ export function CheckInModule({ initialEventoId }: { initialEventoId?: string | 
     if (container) container.scrollTop = 0
   }, [])
 
-  // Fetch events
-  useEffect(() => {
-    async function fetchEventos() {
-      try {
-        const res = await apiFetch('/api/insider/eventos', { cache: 'no-store' })
-        if (!res.ok) throw new Error('Erro ao buscar eventos')
-        const json = await res.json()
-        const list: EventoOption[] = ((json.data || []) as EventoApiItem[]).map(e => ({
-          id: e.id,
-          titulo: e.titulo,
-          data_evento: e.data_evento,
-          checkin_status: e.checkin_status,
-          checkin_count: e.checkin_count || 0,
-        }))
-        setEventos(list)
-        // Escolha padrão: o evento com check-in aberto, senão o bloqueado mais
-        // próximo. Um `initialEventoId` vindo do módulo Eventos sobrescreve
-        // isto no efeito seguinte.
-        const active = list.find(e => e.checkin_status === 'aberto')
-          || list.find(e => e.checkin_status === 'bloqueado')
-          || list[0]
-        if (active) setSelectedEvento(active.id)
-      } catch (err) {
-        console.error('[v0] Error fetching eventos:', err)
-      } finally {
-        setLoadingEventos(false)
-      }
+  // Fetch events. `escolherPadrao` só na primeira carga: recarregar depois de
+  // trazer inscritos da LP não pode trocar o evento que está na tela.
+  const fetchEventos = useCallback(async (escolherPadrao: boolean) => {
+    try {
+      const res = await apiFetch('/api/insider/eventos', { cache: 'no-store' })
+      if (!res.ok) throw new Error('Erro ao buscar eventos')
+      const json = await res.json()
+      const list: EventoOption[] = ((json.data || []) as EventoApiItem[]).map(e => ({
+        id: e.id,
+        titulo: e.titulo,
+        data_evento: e.data_evento,
+        checkin_status: e.checkin_status,
+        checkin_count: e.checkin_count || 0,
+        inscritos_lp_fora: e.inscritos_lp_fora || 0,
+      }))
+      setEventos(list)
+      if (!escolherPadrao) return
+      // Escolha padrão: o evento com check-in aberto, senão o bloqueado mais
+      // próximo. Um `initialEventoId` vindo do módulo Eventos sobrescreve
+      // isto no efeito seguinte.
+      const active = list.find(e => e.checkin_status === 'aberto')
+        || list.find(e => e.checkin_status === 'bloqueado')
+        || list[0]
+      if (active) setSelectedEvento(active.id)
+    } catch (err) {
+      console.error('[v0] Error fetching eventos:', err)
+    } finally {
+      setLoadingEventos(false)
     }
-    fetchEventos()
   }, [])
+
+  useEffect(() => { fetchEventos(true) }, [fetchEventos])
 
   /**
    * Sincroniza o evento vindo de fora (o botão "ver check-ins" do módulo
@@ -250,6 +255,40 @@ export function CheckInModule({ initialEventoId }: { initialEventoId?: string | 
   }, [selectedEvento])
 
   useEffect(() => { fetchCheckInData() }, [fetchCheckInData])
+
+  /**
+   * Quem se inscreve pela LP do site entra em `evento_participantes`; esta
+   * lista lê `checkins`. O site espelha na hora desde 23/09/2026, mas quem
+   * entrou antes (ou quando o espelho falha) só aparece aqui depois disto.
+   */
+  const [espelhando, setEspelhando] = useState(false)
+  const trazerInscritosLp = async () => {
+    if (!selectedEventoData || selectedEventoData.inscritos_lp_fora <= 0) return
+    const n = selectedEventoData.inscritos_lp_fora
+    const confirmed = await confirmAction({
+      title: 'Trazer inscritos da LP para a lista?',
+      description: `${n} pessoa(s) se inscreveram pela página do evento e ainda não aparecem aqui. Elas entram como check-in pendente, sem duplicar CPF.`,
+      confirmLabel: 'Trazer para a lista',
+      detail: selectedEventoData.titulo,
+    })
+    if (!confirmed) return
+    setEspelhando(true)
+    try {
+      const res = await apiFetch('/api/checkin/espelhar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ evento_id: selectedEventoData.id }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok || json.error) throw new Error(json.error || `Erro ${res.status}`)
+      notify.success(`${json.inseridos} inscrito(s) trazidos para a lista`)
+      await Promise.all([fetchEventos(false), fetchCheckInData()])
+    } catch (err) {
+      notify.error(err instanceof Error ? err.message : 'Erro ao trazer inscritos da LP')
+    } finally {
+      setEspelhando(false)
+    }
+  }
 
   // Foco automático na busca só no desktop — no celular abriria o teclado sozinho.
   useEffect(() => {
@@ -555,6 +594,30 @@ export function CheckInModule({ initialEventoId }: { initialEventoId?: string | 
       ) : null}
     </div>
   )
+
+  /* ───────────────────────── Inscritos pela LP fora da lista ───────────────────────── */
+  const avisoLp = selectedEventoData && selectedEventoData.inscritos_lp_fora > 0 ? (
+    <div
+      role="status"
+      className="mt-3 flex flex-col gap-3 rounded-xl border border-warning-border bg-warning-soft px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+    >
+      <div className="min-w-0 text-sm text-ink">
+        <span className="font-mono tabular-nums font-semibold">{selectedEventoData.inscritos_lp_fora}</span>
+        {' '}inscrito(s) pela página do evento ainda não estão nesta lista.
+        <span className="block text-meta text-ink-muted">Já contam no total do evento; traga para a lista para validar no dia.</span>
+      </div>
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={trazerInscritosLp}
+        disabled={espelhando}
+        aria-busy={espelhando}
+      >
+        <Users aria-hidden="true" />
+        {espelhando ? 'Trazendo…' : 'Trazer para a lista'}
+      </Button>
+    </div>
+  ) : null
 
   /* ───────────────────────── Chips de filtro ───────────────────────── */
   const filterChips = (
@@ -929,6 +992,7 @@ export function CheckInModule({ initialEventoId }: { initialEventoId?: string | 
         }
       >
         {eventSelector}
+        {avisoLp}
       </PageHeader>
 
       {/* Resultado da última validação, para leitores de tela. */}
