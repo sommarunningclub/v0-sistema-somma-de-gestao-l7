@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { sincronizarInscritosLp, type ResultadoSincronizacao } from '@/lib/checkin/espelho-lp'
+import { formatarDataHoraBR, formatarDataPura, formatarHoraBR } from '@/lib/datas'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -78,10 +79,13 @@ export async function GET(request: NextRequest) {
       cpf: record.cpf || '',
       pelotao: record.pelotao || '',
       sexo: record.sexo || '',
-      data: record.data_hora_checkin ? new Date(record.data_hora_checkin).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '',
+      // Formatado em Brasília, não no fuso do servidor: esta rota roda na
+      // Vercel, em UTC, e o horário saía três horas adiantado na tela.
+      data: formatarDataHoraBR(record.data_hora_checkin),
       event: record.nome_do_evento || '',
-      event_date: record.data_do_evento ? new Date(record.data_do_evento).toLocaleDateString('pt-BR') : '',
-      event_time: record.data_hora_checkin ? new Date(record.data_hora_checkin).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '',
+      // `data_do_evento` é coluna `date`: dia puro, sem hora e sem fuso.
+      event_date: formatarDataPura(record.data_do_evento),
+      event_time: formatarHoraBR(record.data_hora_checkin),
       validated: record.validacao_do_checkin || false,
       validated_at: record.validacao_do_checkin ? record.data_hora_checkin : null,
       qr_code: record.qr_code || '',
