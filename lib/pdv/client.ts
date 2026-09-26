@@ -3,7 +3,7 @@ import { requirePermission } from '@/lib/auth/api-auth'
 import { joinPosUrl } from '@/lib/pdv/types'
 
 function posApiUrl(): string {
-  return (process.env.POS_API_URL || 'https://somma-pdv-point.vercel.app').replace(/\/$/, '')
+  return (process.env.POS_API_URL || 'https://pdv.sommaclub.com.br').replace(/\/$/, '')
 }
 
 function posInternalKey(): string {

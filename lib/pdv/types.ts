@@ -124,8 +124,18 @@ export function joinPosUrl(base: string, path: string): string {
 }
 
 export function pdvFrontUrl(): string {
-  return (process.env.NEXT_PUBLIC_POS_FRONT_URL || 'https://somma-pdv-point.vercel.app/pdv').replace(
+  return (process.env.NEXT_PUBLIC_POS_FRONT_URL || 'https://pdv.sommaclub.com.br/pdv').replace(
     /\/$/,
     '',
   )
+}
+
+/** Tela de login do PDV: mesma origem da frente de caixa, rota /login. */
+export function pdvLoginUrl(): string {
+  const front = pdvFrontUrl()
+  try {
+    return `${new URL(front).origin}/login`
+  } catch {
+    return `${front}/login`
+  }
 }

@@ -22,6 +22,7 @@ import {
 } from '@/lib/pdv/types'
 import { ErrorBanner } from '@/components/ui/error-banner'
 import { Button } from '@/components/ui/button'
+import { PdvOperadoresPanel } from '@/components/modules/pdv-operadores'
 import {
   EmptyState,
   PageHeader,
@@ -188,7 +189,7 @@ export function PdvModule() {
       <PageHeader
         eyebrow="Operação"
         title="PDV"
-        description="Integração da frente de caixa com a Shopify e a maquininha Mercado Pago Point. Cobrar continua sendo só no PDV."
+        description="Quem opera o caixa, e a integração da frente de caixa com a Shopify e a maquininha Mercado Pago Point. Cobrar continua sendo só no PDV."
         meta={
           data ? (
             <>
@@ -213,6 +214,11 @@ export function PdvModule() {
           <ErrorBanner message={error} onRetry={load} />
         </div>
       ) : null}
+
+      {/* Independe do diagnóstico: cadastrar operador não passa pelo PDV. */}
+      <div className="mb-5">
+        <PdvOperadoresPanel />
+      </div>
 
       {loading && !data ? (
         <StatGridSkeleton count={4} />

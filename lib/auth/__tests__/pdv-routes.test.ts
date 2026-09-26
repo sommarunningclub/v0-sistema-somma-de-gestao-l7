@@ -11,6 +11,13 @@ describe('rotas do módulo PDV', () => {
     expect(getRequiredPermission('/api/pdv/sales/abc/retry-sync')).toBe('pdv')
   })
 
+  it('exige a permissão pdv no cadastro de operadores', () => {
+    expect(getRequiredPermission('/api/pdv/operadores')).toBe('pdv')
+    expect(getRequiredPermission('/api/pdv/operadores/lookup')).toBe('pdv')
+    expect(getRequiredPermission('/api/pdv/operadores/abc')).toBe('pdv')
+    expect(getRequiredPermission('/api/pdv/operadores/abc/codigo')).toBe('pdv')
+  })
+
   it('não afeta as rotas de outros módulos', () => {
     expect(getRequiredPermission('/api/checkin')).toBe('checkin')
     expect(getRequiredPermission('/api/admin/users')).toBe('admin')
