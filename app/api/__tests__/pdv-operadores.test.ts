@@ -199,7 +199,7 @@ describe('POST /api/pdv/operadores', () => {
     expect(authAdmin.createUser).not.toHaveBeenCalled()
   })
 
-  it('Insider com senha: libera sem código, vincula o registro Insider e usa segredo interno no Auth', async () => {
+  it('Insider: libera sem código, vincula o registro Insider e usa segredo interno no Auth', async () => {
     mundo.insiders = [
       { id: INSIDER_ID, cpf: '529.982.247-25', nome: 'Ana Insider', ativo: true, criado_em: '2026-08-10T12:00:00Z', insider_credentials: { senha_hash: '$2b$12$hash' } },
     ]
@@ -218,12 +218,12 @@ describe('POST /api/pdv/operadores', () => {
     expect(mundo.operadores[0]).toMatchObject({ insider_id: INSIDER_ID })
   })
 
-  it('com a chave da senha do Insider desligada, gera código e não vincula', async () => {
+  it('com a chave do acesso Insider desligada, gera código e não vincula', async () => {
     mundo.insiders = [
       { id: INSIDER_ID, cpf: '529.982.247-25', nome: 'Ana Insider', ativo: true, insider_credentials: { senha_hash: '$2b$12$hash' } },
     ]
     const { POST } = await import('../pdv/operadores/route')
-    const res = await POST(post({ cpf: CPF_VALIDO, senha_insider: false }))
+    const res = await POST(post({ cpf: CPF_VALIDO, acesso_insider: false }))
     expect(res.status).toBe(201)
 
     const body = await res.json()
@@ -232,15 +232,27 @@ describe('POST /api/pdv/operadores', () => {
     expect(mundo.operadores[0]).toMatchObject({ insider_id: null })
   })
 
-  it('Insider sem senha criada ainda recebe código como qualquer operador', async () => {
-    mundo.insiders = [{ id: INSIDER_ID, cpf: '529.982.247-25', nome: 'Ana Insider', ativo: true, insider_credentials: null }]
+  it('Insider sem senha no Insider Connect também entra só com o CPF', async () => {
+    mundo.insiders = [{ id: INSIDER_ID, cpf: '529.982.247-25', nome: 'Ana Insider', ativo: true }]
+    const { POST } = await import('../pdv/operadores/route')
+    const res = await POST(post({ cpf: CPF_VALIDO }))
+    expect(res.status).toBe(201)
+
+    const body = await res.json()
+    expect(body.codigo).toBeNull()
+    expect(body.operador).toMatchObject({ nome: 'Ana Insider', insider: true })
+    expect(mundo.operadores[0]).toMatchObject({ insider_id: INSIDER_ID })
+  })
+
+  it('Insider inativo recebe código e não é vinculado', async () => {
+    mundo.insiders = [{ id: INSIDER_ID, cpf: '529.982.247-25', nome: 'Ana Insider', ativo: false }]
     const { POST } = await import('../pdv/operadores/route')
     const res = await POST(post({ cpf: CPF_VALIDO }))
     expect(res.status).toBe(201)
 
     const body = await res.json()
     expect(body.codigo).toMatch(/^[A-Z2-9]{8}$/)
-    expect(body.operador).toMatchObject({ nome: 'Ana Insider', insider: false })
+    expect(body.operador.insider).toBe(false)
     expect(mundo.operadores[0]).toMatchObject({ insider_id: null })
   })
 
@@ -300,7 +312,7 @@ describe('GET /api/pdv/operadores', () => {
     })
   }
 
-  it('marca como Insider quem foi vinculado ao registro Insider atual com senha', async () => {
+  it('marca como Insider quem foi vinculado ao registro Insider atual', async () => {
     operadorNaLista(INSIDER_ID)
     mundo.insiders = [{ id: INSIDER_ID, cpf: '529.982.247-25', nome: 'Ana', ativo: true, insider_credentials: [{ senha_hash: '$2b$12$x' }] }]
     const { GET } = await import('../pdv/operadores/route')

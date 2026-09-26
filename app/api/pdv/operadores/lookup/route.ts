@@ -29,10 +29,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       nome: existente?.nome ?? insider?.nome ?? nome,
       ja_cadastrado: existente !== null,
-      // Insider com senha: o formulário oferece liberar a entrada pela senha
-      // dele e mostra desde quando o registro existe, para quem libera conferir.
-      insider: Boolean(insider?.comSenha),
-      insider_desde: insider?.comSenha ? insider.desde : null,
+      // Insider: o formulário oferece liberar a entrada só com o CPF e mostra
+      // desde quando o registro existe, para quem libera conferir.
+      insider: Boolean(insider?.apto),
+      insider_desde: insider?.apto ? insider.desde : null,
     })
   } catch (err) {
     console.error('[pdv/operadores] Erro na consulta de CPF:', err)

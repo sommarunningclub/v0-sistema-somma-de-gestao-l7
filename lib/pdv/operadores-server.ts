@@ -74,16 +74,16 @@ export function gerarCodigoAcesso(): string {
 
 /**
  * Senha do usuário do Auth quando o operador é Insider e não recebe código:
- * precisa existir (o Auth exige), mas ninguém a usa — o Insider entra pela
- * própria senha, e um "novo código" a substitui se for preciso.
+ * precisa existir (o Auth exige), mas ninguém a usa — o Insider entra só com
+ * o CPF, e um "novo código" a substitui se for preciso.
  */
 export function gerarSegredoInterno(): string {
   return gerarAleatorio(32)
 }
 
 /**
- * Entra com a senha do Insider só quem foi vinculado na liberação E cujo
- * registro Insider atual é o mesmo (e ainda tem senha). `aptos` mapeia CPF em
+ * Entra só com o CPF (Insider) quem foi vinculado na liberação E cujo
+ * registro Insider atual é o mesmo (e está ativo). `aptos` mapeia CPF em
  * dígitos → id do Insider apto hoje.
  */
 function paraOperador(linha: Linha, ultimoAcesso: string | null, aptos: Map<string, string>): Operador {
@@ -119,40 +119,31 @@ async function obterLinha(supabase: SupabaseClient, id: string): Promise<Linha> 
   return data as Linha
 }
 
-type CredencialEmbed = { senha_hash: string | null } | Array<{ senha_hash: string | null }> | null | undefined
-
 type LinhaInsider = {
   id: string
   cpf: string | null
   nome: string | null
   ativo: boolean | null
   criado_em?: string | null
-  insider_credentials: CredencialEmbed
 }
 
-function temSenha(embed: CredencialEmbed): boolean {
-  const linha = Array.isArray(embed) ? embed[0] : embed
-  return typeof linha?.senha_hash === 'string' && linha.senha_hash.length > 0
-}
-
-/** Insider ativo e com senha criada: é quem consegue entrar no PDV sem código. */
+/**
+ * Insider ativo: é quem consegue entrar no PDV só com o CPF, como no Insider
+ * Connect em produção (lá o CPF basta; quase ninguém tem senha).
+ */
 function insiderApto(linha: LinhaInsider | undefined | null): boolean {
-  return Boolean(linha) && linha?.ativo !== false && temSenha(linha?.insider_credentials)
+  return Boolean(linha) && linha?.ativo !== false
 }
 
 /** `desde`: quando o registro Insider foi criado — o painel mostra, para quem libera conferir. */
-export type InsiderResumo = { id: string; nome: string | null; comSenha: boolean; desde: string | null }
+export type InsiderResumo = { id: string; nome: string | null; apto: boolean; desde: string | null }
 
-/**
- * O CPF é de um SOMMA Insider? A senha dele fica em `insider_credentials`,
- * gravada pelo portal Insider; o PDV confere a mesma senha no login. Só
- * leitura, nas duas grafias de CPF do banco.
- */
+/** O CPF é de um SOMMA Insider? Só leitura, nas duas grafias de CPF do banco. */
 export async function buscarInsiderPorCpf(cpf: string): Promise<InsiderResumo | null> {
   const supabase = getAdminClient()
   const { data, error } = await supabase
     .from('dados_insiders')
-    .select('id, cpf, nome, ativo, criado_em, insider_credentials(senha_hash)')
+    .select('id, cpf, nome, ativo, criado_em')
     .in('cpf', cpfCandidates(cpf))
     .limit(1)
   if (error) throw error
@@ -160,7 +151,7 @@ export async function buscarInsiderPorCpf(cpf: string): Promise<InsiderResumo | 
   const linha = (data?.[0] ?? null) as LinhaInsider | null
   if (!linha) return null
   const nome = typeof linha.nome === 'string' && linha.nome.trim() ? linha.nome.trim() : null
-  return { id: linha.id, nome, comSenha: insiderApto(linha), desde: linha.criado_em ?? null }
+  return { id: linha.id, nome, apto: insiderApto(linha), desde: linha.criado_em ?? null }
 }
 
 /** CPF (em dígitos) → id do Insider apto, numa única consulta para a listagem. */
@@ -168,7 +159,7 @@ async function insidersAptos(supabase: SupabaseClient, cpfs: string[]): Promise<
   if (cpfs.length === 0) return new Map()
   const { data, error } = await supabase
     .from('dados_insiders')
-    .select('id, cpf, nome, ativo, insider_credentials(senha_hash)')
+    .select('id, cpf, nome, ativo')
     .in('cpf', cpfs.flatMap((c) => cpfCandidates(c)))
   if (error) throw error
 
@@ -244,10 +235,10 @@ export async function buscarNomePorCpf(cpf: string): Promise<string | null> {
 }
 
 /**
- * Insider já com senha (`insiderId` preenchido) não recebe código: entra com a
- * senha do Insider Connect, conferida pelo PDV contra ESTE registro Insider. O
- * usuário do Auth nasce com um segredo interno que ninguém conhece; `codigo`
- * volta null. "Novo código" continua valendo para ele, se um dia precisar.
+ * Insider (`insiderId` preenchido) não recebe código: entra no PDV só com o
+ * CPF, e o PDV confere que o registro Insider atual é ESTE. O usuário do Auth
+ * nasce com um segredo interno que ninguém conhece; `codigo` volta null.
+ * "Novo código" continua valendo para ele, se um dia precisar.
  */
 export async function criarOperador(input: {
   cpf: string

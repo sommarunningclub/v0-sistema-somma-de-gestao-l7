@@ -31,9 +31,8 @@ export type Operador = {
   nome: string
   ativo: boolean
   /**
-   * SOMMA Insider com senha cadastrada: entra no PDV com a senha do Insider
-   * Connect, sem precisar de código. Calculado na listagem, não gravado —
-   * quem virar Insider depois passa a poder entrar assim automaticamente.
+   * Vinculado ao registro SOMMA Insider atual do CPF: entra no PDV só com o
+   * CPF, sem código. Registro Insider criado depois da liberação não conta.
    */
   insider: boolean
   /** Quando o código vigente foi gerado. */
@@ -70,11 +69,11 @@ export function formatarCpfOperador(cpf: string): string {
 }
 
 /**
- * `senhaInsider`: liberar a entrada com a senha do Insider Connect, se o CPF
- * for Insider com senha. Default true; desligado, o painel gera código mesmo
- * para Insider (útil quando o registro Insider não é conhecido de quem libera).
+ * `acessoInsider`: liberar a entrada só com o CPF, se o CPF for Insider.
+ * Default true; desligado, o painel gera código mesmo para Insider (útil
+ * quando o registro Insider não é conhecido de quem libera).
  */
-export type NovoOperador = { cpf: string; nome: string | null; senhaInsider: boolean }
+export type NovoOperador = { cpf: string; nome: string | null; acessoInsider: boolean }
 
 export function validarNovoOperador(
   body: unknown
@@ -89,7 +88,7 @@ export function validarNovoOperador(
   if (nome && nome.length < 2) return { ok: false, erro: 'Informe o nome do operador.' }
 
   // Nome em branco não é erro: a rota tenta preencher pela base de membros.
-  return { ok: true, entrada: { cpf, nome: nome || null, senhaInsider: b.senha_insider !== false } }
+  return { ok: true, entrada: { cpf, nome: nome || null, acessoInsider: b.acesso_insider !== false } }
 }
 
 /** Texto pronto para mandar no WhatsApp de quem vai operar o caixa. */
@@ -111,7 +110,7 @@ export function instrucoesDeAcesso(p: {
   ].join('\n')
 }
 
-/** Versão para quem é Insider: nenhum código, a senha é a do Insider Connect. */
+/** Versão para quem é Insider: nenhum código, só o CPF, como no Insider Connect. */
 export function instrucoesDeAcessoInsider(p: { nome: string; cpf: string; loginUrl: string }): string {
   return [
     'Acesso à frente de caixa SOMMA',
@@ -119,8 +118,7 @@ export function instrucoesDeAcessoInsider(p: { nome: string; cpf: string; loginU
     `Operador: ${p.nome}`,
     `Entre em: ${p.loginUrl}`,
     `CPF: ${maskCpf(p.cpf)}`,
-    'Senha: a mesma do Insider Connect (sommaclub.com.br/insider-conect)',
     '',
-    'Na tela de login, toque em "Senha do Insider" antes de digitar a senha.',
+    'Na tela de login, digite o CPF, toque em "Sou Insider" e em Entrar.',
   ].join('\n')
 }

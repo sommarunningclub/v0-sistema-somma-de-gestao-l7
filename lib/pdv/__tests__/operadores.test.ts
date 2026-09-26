@@ -77,22 +77,22 @@ describe('validarNovoOperador', () => {
   it('devolve o CPF só com dígitos e o nome limpo', () => {
     expect(validarNovoOperador({ cpf: CPF_VALIDO, nome: '  Ana   Souza ' })).toEqual({
       ok: true,
-      entrada: { cpf: '52998224725', nome: 'Ana Souza', senhaInsider: true },
+      entrada: { cpf: '52998224725', nome: 'Ana Souza', acessoInsider: true },
     })
   })
 
   it('aceita nome em branco — a rota busca na base', () => {
     expect(validarNovoOperador({ cpf: CPF_VALIDO, nome: '' })).toEqual({
       ok: true,
-      entrada: { cpf: '52998224725', nome: null, senhaInsider: true },
+      entrada: { cpf: '52998224725', nome: null, acessoInsider: true },
     })
   })
 
-  it('senha do Insider só desliga quando vem false explícito', () => {
-    const desligado = validarNovoOperador({ cpf: CPF_VALIDO, senha_insider: false })
-    expect(desligado.ok && desligado.entrada.senhaInsider).toBe(false)
-    const lixo = validarNovoOperador({ cpf: CPF_VALIDO, senha_insider: 'nao' })
-    expect(lixo.ok && lixo.entrada.senhaInsider).toBe(true)
+  it('acesso Insider só desliga quando vem false explícito', () => {
+    const desligado = validarNovoOperador({ cpf: CPF_VALIDO, acesso_insider: false })
+    expect(desligado.ok && desligado.entrada.acessoInsider).toBe(false)
+    const lixo = validarNovoOperador({ cpf: CPF_VALIDO, acesso_insider: 'nao' })
+    expect(lixo.ok && lixo.entrada.acessoInsider).toBe(true)
   })
 
   it('recusa nome de uma letra e nome longo demais', () => {
@@ -115,13 +115,13 @@ describe('instruções de acesso', () => {
     expect(texto).toContain('https://pdv.sommaclub.com.br/login')
   })
 
-  it('para Insider, aponta a senha do Insider Connect e não traz código', () => {
+  it('para Insider, pede só o CPF e não traz código', () => {
     const texto = instrucoesDeAcessoInsider({
       nome: 'Ana Souza',
       cpf: '52998224725',
       loginUrl: 'https://pdv.sommaclub.com.br/login',
     })
-    expect(texto).toContain('Insider Connect')
+    expect(texto).toContain('Sou Insider')
     expect(texto).toContain('529.982.247-25')
     expect(texto).not.toMatch(/Código de acesso:/)
   })

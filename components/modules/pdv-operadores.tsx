@@ -37,14 +37,14 @@ import { formatPdvWhen, pdvLoginUrl } from '@/lib/pdv/types'
  * emissão é um modal próprio, com cópia do código e das instruções prontas
  * para mandar no WhatsApp.
  *
- * Quem é SOMMA Insider (com senha) não recebe código: entra no PDV com a senha
- * do Insider Connect. O formulário avisa antes de salvar, e o modal final traz
- * as instruções sem código. "Novo código" segue disponível para todo mundo.
+ * Quem é SOMMA Insider não recebe código: entra no PDV só com o CPF, como no
+ * Insider Connect. O formulário avisa antes de salvar, e o modal final traz as
+ * instruções sem código. "Novo código" segue disponível para todo mundo.
  */
 
 type CodigoEmitido = {
   operador: Operador
-  /** null quando o operador é Insider e entra com a própria senha. */
+  /** null quando o operador é Insider e entra só com o CPF. */
   codigo: string | null
   motivo: 'novo' | 'renovado'
 }
@@ -80,7 +80,7 @@ export function PdvOperadoresPanel() {
   const [agindo, setAgindo] = useState<Set<string>>(new Set())
 
   const [formAberto, setFormAberto] = useState(false)
-  const [form, setForm] = useState({ cpf: '', nome: '', senhaInsider: true })
+  const [form, setForm] = useState({ cpf: '', nome: '', acessoInsider: true })
   // Nome que veio da consulta de CPF: se o CPF mudar, ele não vale mais.
   const nomeSugerido = useRef<string | null>(null)
   const [salvando, setSalvando] = useState(false)
@@ -156,7 +156,7 @@ export function PdvOperadoresPanel() {
   }, [formAberto, cpfDigitos])
 
   function abrirNovo() {
-    setForm({ cpf: '', nome: '', senhaInsider: true })
+    setForm({ cpf: '', nome: '', acessoInsider: true })
     nomeSugerido.current = null
     setErroForm(null)
     setConsulta(null)
@@ -197,7 +197,7 @@ export function PdvOperadoresPanel() {
         body: JSON.stringify({
           cpf: cpfDigitos,
           nome: form.nome.trim(),
-          senha_insider: form.senhaInsider,
+          acesso_insider: form.acessoInsider,
         }),
       })
       const body = await lerJson<{ operador: Operador; codigo: string | null }>(res)
@@ -300,7 +300,7 @@ export function PdvOperadoresPanel() {
   }
 
   const ativos = operadores.filter((o) => o.ativo).length
-  const entraPorSenhaInsider = Boolean(consulta?.insider && form.senhaInsider)
+  const entraComoInsider = Boolean(consulta?.insider && form.acessoInsider)
 
   return (
     <>
@@ -308,7 +308,7 @@ export function PdvOperadoresPanel() {
         <PanelHeader
           icon={Users}
           title="Operadores da frente de caixa"
-          description="Quem cobra no PDV entra com o CPF e um código gerado aqui. Insider entra com a senha do Insider Connect."
+          description="Quem cobra no PDV entra com o CPF e um código gerado aqui. Insider liberado entra só com o CPF."
           actions={
             <Button size="sm" onClick={abrirNovo}>
               <Plus aria-hidden="true" />
@@ -364,7 +364,7 @@ export function PdvOperadoresPanel() {
                     </div>
                     <p className="mt-1 text-meta text-ink-muted">
                       {operador.insider
-                        ? 'Entra com a senha do Insider Connect'
+                        ? 'Entra só com o CPF (Insider)'
                         : `Código gerado em ${formatPdvWhen(operador.codigo_gerado_em)}`}{' '}
                       ·{' '}
                       {operador.ultimo_acesso_em
@@ -421,8 +421,8 @@ export function PdvOperadoresPanel() {
           }}
           title="Novo operador"
           description={
-            entraPorSenhaInsider
-              ? 'Insider entra com a própria senha do Insider Connect; nenhum código é gerado.'
+            entraComoInsider
+              ? 'Insider entra no PDV só com o CPF, como no Insider Connect; nenhum código é gerado.'
               : 'O código de acesso aparece assim que o cadastro for salvo.'
           }
           dismissible={false}
@@ -433,7 +433,7 @@ export function PdvOperadoresPanel() {
               </Button>
               <Button onClick={() => void salvar()} disabled={salvando}>
                 {salvando ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : null}
-                {entraPorSenhaInsider ? 'Liberar acesso' : 'Cadastrar e gerar código'}
+                {entraComoInsider ? 'Liberar acesso' : 'Cadastrar e gerar código'}
               </Button>
             </>
           }
@@ -457,7 +457,7 @@ export function PdvOperadoresPanel() {
                 {consulta?.jaCadastrado
                   ? 'Este CPF já tem acesso ao PDV.'
                   : consulta?.insider
-                    ? 'Encontrado no SOMMA Insider, com senha criada.'
+                    ? 'Encontrado no SOMMA Insider.'
                     : consulta && consulta.nome
                       ? 'Encontrado na base do clube — confira o nome abaixo.'
                       : consulta
@@ -481,13 +481,13 @@ export function PdvOperadoresPanel() {
             {consulta?.insider && !consulta.jaCadastrado ? (
               <div className="flex items-start gap-3 rounded border border-line p-3">
                 <Switch
-                  id="operador-senha-insider"
-                  checked={form.senhaInsider}
-                  onCheckedChange={(v) => setForm((f) => ({ ...f, senhaInsider: v }))}
+                  id="operador-acesso-insider"
+                  checked={form.acessoInsider}
+                  onCheckedChange={(v) => setForm((f) => ({ ...f, acessoInsider: v }))}
                 />
                 <div className="space-y-1">
-                  <Label htmlFor="operador-senha-insider" className="cursor-pointer">
-                    Entrar com a senha do Insider Connect
+                  <Label htmlFor="operador-acesso-insider" className="cursor-pointer">
+                    Entrar só com o CPF (Insider)
                   </Label>
                   <p className="text-xs text-ink-muted">
                     Registro Insider criado em {formatPdvWhen(consulta.insiderDesde)}. O cadastro
@@ -516,7 +516,7 @@ export function PdvOperadoresPanel() {
           }
           description={
             emitido.codigo === null
-              ? 'Insider: entra no PDV com o CPF e a senha do Insider Connect. Nenhum código foi gerado.'
+              ? 'Insider: entra no PDV só com o CPF, como no Insider Connect. Nenhum código foi gerado.'
               : 'Este código só aparece agora. Se a pessoa perder, gere outro.'
           }
           footer={
@@ -571,9 +571,8 @@ export function PdvOperadoresPanel() {
 
             {emitido.codigo === null ? (
               <div className="rounded border border-line bg-surface-sunken p-4 text-sm text-ink">
-                Na tela de login, a pessoa toca em <strong>Senha do Insider</strong> e usa a
-                mesma senha do Insider Connect. Se preferir um código, use{' '}
-                <strong>Novo código</strong> na lista.
+                Na tela de login, a pessoa digita o CPF, toca em <strong>Sou Insider</strong> e
+                em Entrar. Se preferir um código, use <strong>Novo código</strong> na lista.
               </div>
             ) : (
               <div className="rounded border border-line bg-surface-sunken p-4 text-center">

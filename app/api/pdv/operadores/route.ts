@@ -23,8 +23,8 @@ export const revalidate = 0
  * O código de acesso volta UMA vez, na resposta do POST. Não fica em lugar
  * nenhum além do Auth (como hash); perdeu, gera outro.
  *
- * Se o CPF é de um SOMMA Insider com senha, não há código: `codigo` volta
- * null e a pessoa entra no PDV com a senha do Insider Connect.
+ * Se o CPF é de um SOMMA Insider, não há código: `codigo` volta null e a
+ * pessoa entra no PDV só com o CPF, como no Insider Connect.
  */
 
 export async function GET(request: NextRequest) {
@@ -72,11 +72,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // O vínculo guarda o id do registro Insider que JÁ tinha senha agora. O PDV
-    // só aceita a senha do Insider se o registro atual do CPF for este — uma
-    // senha criada depois (o portal Insider é de auto-cadastro) não vale.
-    const insiderId =
-      validacao.entrada.senhaInsider && insider?.comSenha ? insider.id : null
+    // O vínculo guarda o id do registro Insider que existe AGORA. O PDV só
+    // aceita o login Insider (só CPF) se o registro atual do CPF for este — um
+    // Insider criado depois (o portal é de auto-cadastro) não vale.
+    const insiderId = validacao.entrada.acessoInsider && insider?.apto ? insider.id : null
 
     const { operador, codigo } = await criarOperador({
       cpf,
