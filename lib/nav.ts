@@ -1,4 +1,5 @@
 import {
+  Beer,
   Briefcase,
   Calendar,
   CalendarRange,
@@ -186,6 +187,15 @@ export const NAV_ITEMS: NavItem[] = [
     permission: 'nps',
     group: 'relacionamento',
     keywords: ['nps', 'pesquisa', 'satisfação', 'satisfacao', 'alunos', 'assessoria', 'feedback', 'detrator', 'promotor', 'renovação'],
+  },
+  {
+    id: 'michelob',
+    label: 'Michelob Ultra',
+    description: 'Acesso ao painel da parceria: Lista VIP, Ultra Pass e Segment',
+    icon: Beer,
+    permission: 'michelob',
+    group: 'relacionamento',
+    keywords: ['michelob', 'ultra', 'lista vip', 'ultra pass', 'segment', 'parceria', 'cerveja'],
   },
 
   {
