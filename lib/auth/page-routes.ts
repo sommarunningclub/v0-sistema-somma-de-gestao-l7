@@ -17,6 +17,7 @@ export const SECTION_LABELS: Record<string, string> = {
   pdv: 'PDV',
   pixAutomatico: 'Pix Automático',
   nps: 'NPS Assessoria',
+  michelob: 'Michelob Ultra',
   systems: 'Administração',
 }
 
@@ -38,6 +39,7 @@ export const SECTION_PERMISSIONS: Record<string, PermissionKey | null> = {
   pdv: 'pdv',
   pixAutomatico: 'pixAutomatico',
   nps: 'nps',
+  michelob: 'michelob',
   systems: 'admin',
 }
 
@@ -59,6 +61,7 @@ const LEGACY_EXACT: Record<string, string> = {
   '/pdv': '/?section=pdv',
   '/pix-automatico': '/?section=pixAutomatico',
   '/nps': '/?section=nps',
+  '/michelob': '/?section=michelob',
   '/systems': '/?section=systems',
   '/command-center': '/?section=overview',
   '/operations': '/?section=overview',

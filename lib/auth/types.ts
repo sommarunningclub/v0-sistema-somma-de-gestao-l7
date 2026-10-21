@@ -13,6 +13,7 @@ export interface ModulePermissions {
   pdv: boolean
   pixAutomatico: boolean
   nps: boolean
+  michelob: boolean
   admin: boolean
 }
 
