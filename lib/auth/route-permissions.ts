@@ -48,6 +48,7 @@ const ROUTE_PERMISSIONS: Array<{ pattern: RegExp; permission: PermissionKey }> =
   { pattern: /^\/api\/pdv/, permission: 'pdv' },
   { pattern: /^\/api\/pix-automatico/, permission: 'pixAutomatico' },
   { pattern: /^\/api\/nps(\/|$)/, permission: 'nps' },
+  { pattern: /^\/api\/nova-assessoria(\/|$)/, permission: 'novaAssessoria' },
   // Defesa em profundidade: os handlers destas rotas já chamam
   // requirePermission; espelhar o prefixo aqui evita que uma rota nova no
   // mesmo módulo nasça sem checagem alguma.

@@ -97,6 +97,7 @@ const DEFAULT_PERMISSIONS: ModulePermissions = {
   pdv: false,
   pixAutomatico: false,
   nps: false,
+  novaAssessoria: false,
   admin: false,
 }
 
@@ -115,6 +116,7 @@ const ALL_PERMISSIONS: ModulePermissions = {
   pdv: true,
   pixAutomatico: true,
   nps: true,
+  novaAssessoria: true,
   admin: true,
 }
 
