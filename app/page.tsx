@@ -23,6 +23,7 @@ import { PdvModule } from "@/components/modules/pdv-module"
 import { CuponsModule } from "@/components/modules/cupons-module"
 import { PixAutomaticoModule } from "@/components/modules/pix-automatico-module"
 import { NpsModule } from "@/components/modules/nps-module"
+import { NovaAssessoriaModule } from "@/components/modules/nova-assessoria-module"
 
 /**
  * O painel é uma SPA: o middleware redireciona as rotas legadas para
@@ -150,6 +151,8 @@ function SommaAdmin() {
         return <PixAutomaticoModule />
       case "nps":
         return <NpsModule />
+      case "novaAssessoria":
+        return <NovaAssessoriaModule />
       case "systems":
         return <SystemsPage />
       default:

@@ -11,6 +11,7 @@ import {
   Megaphone,
   MonitorSmartphone,
   Settings,
+  Shuffle,
   Star,
   Ticket,
   Users,
@@ -186,6 +187,15 @@ export const NAV_ITEMS: NavItem[] = [
     permission: 'nps',
     group: 'relacionamento',
     keywords: ['nps', 'pesquisa', 'satisfação', 'satisfacao', 'alunos', 'assessoria', 'feedback', 'detrator', 'promotor', 'renovação'],
+  },
+  {
+    id: 'novaAssessoria',
+    label: 'Nova Assessoria',
+    description: 'Contatos da BORA vindos do site: rodízio entre os professores e a origem de cada clique',
+    icon: Shuffle,
+    permission: 'novaAssessoria',
+    group: 'relacionamento',
+    keywords: ['bora', 'assessoria', 'rodízio', 'rodizio', 'whatsapp', 'utm', 'leads', 'professores', 'origem', 'campanha'],
   },
 
   {

@@ -13,6 +13,7 @@ export interface ModulePermissions {
   pdv: boolean
   pixAutomatico: boolean
   nps: boolean
+  novaAssessoria: boolean
   admin: boolean
 }
 
