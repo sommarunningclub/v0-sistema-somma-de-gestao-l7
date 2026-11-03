@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { SECTION_LABELS } from '../lib/auth/page-routes'
+import { base32Decode, codigoNoPasso, passoAtual } from '../lib/auth/totp'
 
 /**
  * Percurso pelas telas autenticadas.
@@ -7,14 +8,18 @@ import { SECTION_LABELS } from '../lib/auth/page-routes'
  * Só roda quando `E2E_EMAIL` e `E2E_PASSWORD` estão definidos, porque exige uma
  * conta real no Supabase. Use uma conta de teste — a suíte navega pelos módulos
  * mas não cria, edita nem exclui registro nenhum.
+ *
+ * O login tem segunda etapa (Google Authenticator): `E2E_TOTP_SECRET` é a
+ * chave base32 cadastrada para a conta de teste, de onde a suíte gera o código.
  */
 
 const EMAIL = process.env.E2E_EMAIL
 const PASSWORD = process.env.E2E_PASSWORD
+const TOTP_SECRET = process.env.E2E_TOTP_SECRET
 
 test.skip(
-  !EMAIL || !PASSWORD,
-  'Defina E2E_EMAIL e E2E_PASSWORD para rodar os testes autenticados.',
+  !EMAIL || !PASSWORD || !TOTP_SECRET,
+  'Defina E2E_EMAIL, E2E_PASSWORD e E2E_TOTP_SECRET para rodar os testes autenticados.',
 )
 
 const SECTIONS = Object.keys(SECTION_LABELS)
@@ -24,6 +29,9 @@ async function login(page: Page) {
   await page.getByLabel(/e-?mail/i).first().fill(EMAIL!)
   await page.getByLabel(/senha/i).first().fill(PASSWORD!)
   await page.getByRole('button', { name: /entrar|acessar/i }).click()
+  const codigo = codigoNoPasso(base32Decode(TOTP_SECRET!), passoAtual())
+  await page.getByLabel(/código/i).first().fill(codigo)
+  await page.getByRole('button', { name: /^entrar$/i }).click()
   await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 30_000 })
 }
 

@@ -1,0 +1,12 @@
+-- Marcador: migration aplicada por outro projeto que compartilha este banco
+-- =========================================================================
+--
+-- A versão 20261003190000 consta como aplicada no histórico do banco, mas foi criada
+-- fora deste repositório: somma-club-store / NOVO-SITE-SOMMA-V3-loja (20261003190000_loja_drop_access.sql).
+--
+-- Sem um arquivo local com a mesma versão, o CLI recusa qualquer `db push`
+-- seguinte com LegacyDbPushMissingLocalError. O arquivo existe só para
+-- destravar isso, preservando o registro no histórico da produção. O DDL de
+-- verdade vive no projeto de origem.
+
+-- intencionalmente sem comandos
