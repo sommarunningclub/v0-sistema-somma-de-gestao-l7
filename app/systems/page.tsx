@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { KeyRound, Layers, Plus, ShieldCheck, Trash2, UserCog, Users } from 'lucide-react'
+import { KeyRound, Layers, Plus, ShieldCheck, Smartphone, Trash2, UserCog, Users } from 'lucide-react'
 
 import { apiFetch } from '@/lib/api-client'
 import { searchAndRank } from '@/lib/search-utils'
@@ -80,6 +80,8 @@ interface User {
   is_active: boolean
   created_at: string
   permissions: ModulePermissions | null
+  /** Já cadastrou o Google Authenticator. Sem isso, o próximo login pede o QR code. */
+  mfa_ativo?: boolean
 }
 
 const DEFAULT_PERMISSIONS: ModulePermissions = {
@@ -528,6 +530,35 @@ export default function AdminPage() {
     }
   }
 
+  // Para quem trocou ou perdeu o celular: apaga o autenticador cadastrado e o
+  // próximo login da pessoa mostra o QR code de novo.
+  const handleResetMfa = async (user: User) => {
+    const confirmed = await confirmAction({
+      title: 'Redefinir o Google Authenticator?',
+      description:
+        'O autenticador atual deixa de valer. No próximo login a pessoa escaneia um QR code novo. Sessões já abertas continuam até expirar — para cortar o acesso agora, revogue o usuário.',
+      detail: `${user.full_name} — ${user.email}`,
+      tone: 'danger',
+      confirmLabel: 'Redefinir 2FA',
+    })
+    if (!confirmed) return
+
+    try {
+      const res = await apiFetch(`/api/admin/users/${user.id}/mfa`, { method: 'DELETE' })
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string }
+        notify.error('Não foi possível redefinir o 2FA', { description: body.error || res.statusText })
+        return
+      }
+      notify.success('Google Authenticator redefinido', { description: user.email })
+      void fetchUsers()
+    } catch {
+      notify.error('Não foi possível redefinir o 2FA', {
+        description: 'Falha de conexão com o servidor.',
+      })
+    }
+  }
+
   // `searchAndRank` filtra E ordena por relevância: quem digita "ana" vê
   // "Ana Paula" antes de "Mariana".
   const filteredUsers = searchAndRank(users, searchTerm, (user) => [
@@ -712,6 +743,11 @@ export default function AdminPage() {
                                 {user.is_active ? 'Ativo' : 'Revogado'}
                               </StatusPill>
                             </button>
+                            <span className="ml-1.5 inline-flex">
+                              <StatusPill tone={user.mfa_ativo ? 'info' : 'warning'}>
+                                {user.mfa_ativo ? '2FA' : '2FA pendente'}
+                              </StatusPill>
+                            </span>
                           </TD>
                           <TD className="text-ink-muted">
                             {new Date(user.created_at).toLocaleDateString('pt-BR')}
@@ -726,6 +762,17 @@ export default function AdminPage() {
                               >
                                 <UserCog aria-hidden="true" />
                               </Button>
+                              {user.mfa_ativo ? (
+                                <Button
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  onClick={() => void handleResetMfa(user)}
+                                  aria-label={`Redefinir o Google Authenticator de ${user.full_name}`}
+                                  title="Redefinir Google Authenticator"
+                                >
+                                  <Smartphone aria-hidden="true" />
+                                </Button>
+                              ) : null}
                               <Button
                                 variant="ghost"
                                 size="icon-sm"
@@ -764,6 +811,10 @@ export default function AdminPage() {
                       value: `${countModules(user.permissions, user.role)} de ${TOTAL_MODULES}`,
                     },
                     {
+                      label: 'Google Authenticator',
+                      value: user.mfa_ativo ? 'Cadastrado' : 'Pendente (pede no próximo login)',
+                    },
+                    {
                       label: 'Criado em',
                       value: new Date(user.created_at).toLocaleDateString('pt-BR'),
                     },
@@ -785,6 +836,12 @@ export default function AdminPage() {
                       >
                         {user.is_active ? 'Revogar acesso' : 'Reativar acesso'}
                       </Button>
+                      {user.mfa_ativo ? (
+                        <Button variant="ghost" size="sm" onClick={() => void handleResetMfa(user)}>
+                          <Smartphone aria-hidden="true" />
+                          Redefinir 2FA
+                        </Button>
+                      ) : null}
                       <Button
                         variant="ghost"
                         size="icon-sm"

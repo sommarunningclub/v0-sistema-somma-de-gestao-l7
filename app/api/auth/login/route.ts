@@ -5,9 +5,11 @@ import {
   verifyPassword,
 } from "@/lib/auth/api-auth"
 import {
-  createSessionToken,
-  attachSessionCookie,
+  attachMfaPendingCookie,
+  clearSessionCookie,
+  createMfaPendingToken,
 } from "@/lib/auth/session"
+import { etapaDoUsuario } from "@/lib/auth/mfa"
 import { checkRateLimit, clientKey } from "@/lib/auth/rate-limit"
 
 // Força bruta: 10 tentativas por IP e 5 por e-mail a cada 60s. O balde por
@@ -24,7 +26,8 @@ function limiteExcedido(retryAfterSeconds: number) {
   )
 }
 
-// POST /api/auth/login
+// POST /api/auth/login — primeira etapa (e-mail + senha). A segunda é o
+// código do Google Authenticator, em /api/auth/mfa/verify.
 export async function POST(req: NextRequest) {
   try {
     const ip = clientKey(req)
@@ -77,23 +80,15 @@ export async function POST(req: NextRequest) {
       await supabase.from("users").update({ password_hash: newHash }).eq("id", user.id)
     }
 
-    const token = await createSessionToken({
-      id: user.id,
-      email: user.email,
-      full_name: user.full_name,
-      role: user.role,
-      permissions: user.permissions,
-    })
+    // Senha certa ainda não é sessão: falta o Google Authenticator. O que sai
+    // daqui é só o cookie da etapa pendente (10 min), que as rotas
+    // /api/auth/mfa/* trocam pela sessão depois do código de 6 dígitos.
+    const etapa = await etapaDoUsuario(user.id)
+    const pendente = await createMfaPendingToken(user.id, etapa)
 
-    const response = NextResponse.json({
-      id: user.id,
-      email: user.email,
-      full_name: user.full_name,
-      role: user.role,
-      permissions: user.permissions,
-    })
-
-    return attachSessionCookie(response, token)
+    const response = NextResponse.json({ mfa: etapa })
+    clearSessionCookie(response)
+    return attachMfaPendingCookie(response, pendente)
   } catch (err) {
     console.error("[auth/login] Error:", err)
     return NextResponse.json({ error: "Erro interno ao autenticar" }, { status: 500 })

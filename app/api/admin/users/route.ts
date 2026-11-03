@@ -5,6 +5,7 @@ import {
   requireAdmin,
   validatePasswordPolicy,
 } from "@/lib/auth/api-auth"
+import { usuariosComMfa } from "@/lib/auth/mfa"
 
 // GET /api/admin/users — list all users
 export async function GET(req: NextRequest) {
@@ -23,7 +24,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json(data)
+    // Quem já cadastrou o Google Authenticator. Sem cadastro, o próximo login
+    // da pessoa pede o QR code.
+    const comMfa = await usuariosComMfa()
+    return NextResponse.json((data ?? []).map((u) => ({ ...u, mfa_ativo: comMfa.has(u.id) })))
   } catch (err) {
     console.error("[admin/users] GET exception:", err)
     return NextResponse.json({ error: String(err) }, { status: 500 })

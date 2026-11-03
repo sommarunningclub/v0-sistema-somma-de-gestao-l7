@@ -4,6 +4,10 @@ import type { PermissionKey } from './types'
 export const PUBLIC_API_ROUTES: Array<{ method?: string; pattern: RegExp }> = [
   { method: 'POST', pattern: /^\/api\/auth\/login$/ },
   { method: 'POST', pattern: /^\/api\/auth\/logout$/ },
+  // Segunda etapa do login (Google Authenticator): acontece antes de existir
+  // sessão. Cada rota exige o cookie assinado da etapa pendente, emitido só
+  // depois da senha certa.
+  { method: 'POST', pattern: /^\/api\/auth\/mfa\/(setup|verify)$/ },
   { pattern: /^\/api\/webhooks\// },
   { pattern: /^\/api\/checkout\/validate-coupon/ },
   { pattern: /^\/api\/cron\// },

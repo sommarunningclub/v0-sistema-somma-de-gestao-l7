@@ -24,6 +24,12 @@ export interface SessionPayload {
   role: string
   permissions: ModulePermissions | null
   exp: number
+  /**
+   * Segunda etapa (Google Authenticator) concluída. Sessão sem isso é
+   * recusada: inclusive os cookies emitidos antes do 2FA existir, o que força
+   * todo mundo a passar pelo cadastro do autenticador no próximo acesso.
+   */
+  mfa?: true
 }
 
 export type PermissionKey = keyof ModulePermissions
