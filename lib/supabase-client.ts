@@ -82,6 +82,13 @@ export type CadastroSite = {
   cpf: string;
   data_nascimento: string;
   whatsapp: string;
+  // Demais colunas de `cadastro_site`. Opcionais porque o formulário de novo
+  // membro não as envia; a listagem (/api/membros) traz todas.
+  cep?: string | null;
+  sexo?: string | null;
+  data_de_cadastro?: string | null;
+  /** Gerada pelo banco a partir do CPF (só dígitos). Só leitura. */
+  cpf_digits?: string | null;
 };
 
 export type Coupon = {

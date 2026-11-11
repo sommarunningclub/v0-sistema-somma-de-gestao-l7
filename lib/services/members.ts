@@ -69,23 +69,20 @@ export async function createMember(member: Omit<CadastroSite, "id">): Promise<Ca
   return body.data
 }
 
-// Atualizar membro
+// Atualizar membro — envia só os campos alterados e devolve a linha gravada.
+// Propaga o erro com a mensagem da rota ("CPF já pertence a outro membro",
+// "WhatsApp inválido"...): é ela que diz o que corrigir no formulário.
 export async function updateMember(
   id: number,
-  updates: Partial<CadastroSite>
-): Promise<boolean> {
-  try {
-    const res = await apiFetch(`/api/membros/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(updates),
-    })
-    await readJson(res)
-    return true
-  } catch (err) {
-    console.error("[membros] Erro ao atualizar membro:", err)
-    return false
-  }
+  updates: Record<string, string | null>
+): Promise<CadastroSite> {
+  const res = await apiFetch(`/api/membros/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(updates),
+  })
+  const body = await readJson(res)
+  return body.data as CadastroSite
 }
 
 // Deletar membro

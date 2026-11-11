@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAdminClient, requirePermission } from '@/lib/auth/api-auth'
 import { MEMBROS_PAGE_SIZE, pickMemberFields } from '@/lib/api/writable-fields'
 import { applyMemberSearch as applySearch } from '@/lib/api/member-search'
+import { COLUNAS_MEMBRO } from '@/lib/membros/campos'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -12,7 +13,8 @@ export const revalidate = 0
 // uma lista vazia. Por isso a leitura acontece aqui, no servidor, com service
 // role, protegida pela permissão de módulo `membros`.
 
-const LIST_COLUMNS = 'id, nome_completo, email, cpf, whatsapp, data_nascimento'
+// Todas as colunas da tabela: a tela de Membros mostra e edita o cadastro inteiro.
+const LIST_COLUMNS = COLUNAS_MEMBRO
 
 // A lógica de busca (acento-insensível via `imatch`, AND entre termos, e busca
 // por dígitos em CPF/telefone) mora em `@/lib/api/member-search` — é reusada
