@@ -5,6 +5,7 @@ import { MoreHorizontal } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { TD, TR } from '@/components/somma'
 import type { CadastroSite } from '@/lib/supabase-client'
+import { formatarCadastro, formatarCep, formatarTelefone, rotuloSexo } from '@/lib/membros/campos'
 
 interface MembersTableRowProps {
   member: CadastroSite
@@ -36,7 +37,14 @@ export const MembersTableRow = memo(function MembersTableRow({
         {formatDate(member.data_nascimento)}
       </TD>
       <TD className="hidden font-mono tabular-nums text-ink-muted sm:table-cell">
-        {member.whatsapp || '—'}
+        {formatarTelefone(member.whatsapp)}
+      </TD>
+      <TD className="hidden text-ink-muted 2xl:table-cell">{rotuloSexo(member.sexo)}</TD>
+      <TD className="hidden font-mono tabular-nums text-ink-muted 2xl:table-cell">
+        {formatarCep(member.cep)}
+      </TD>
+      <TD className="hidden text-ink-muted xl:table-cell">
+        <span className="whitespace-nowrap">{formatarCadastro(member.data_de_cadastro)}</span>
       </TD>
       <TD align="right">
         <Button

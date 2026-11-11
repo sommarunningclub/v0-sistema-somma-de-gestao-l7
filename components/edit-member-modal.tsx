@@ -1,73 +1,73 @@
 "use client"
 
 import type React from "react"
-import { useId, useState } from "react"
+import { useId, useMemo, useState } from "react"
 import { AlertCircle, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ResponsiveModal, SectionTitle, confirmAction, notify } from "@/components/somma"
 import { updateMember, deleteMember } from "@/lib/services/members"
 import type { CadastroSite } from "@/lib/supabase-client"
+import { maskCep, maskCpf } from "@/lib/insider/validation"
+import {
+  OPCOES_SEXO,
+  diferencas,
+  formatarCpf,
+  mascararTelefone,
+  normalizarAlteracoes,
+  paraFormulario,
+  type CampoEditavel,
+  type FormularioMembro,
+} from "@/lib/membros/campos"
 
 interface EditMemberModalProps {
   member: CadastroSite
   onClose: () => void
-  onSave: () => void
+  onSave: (atualizado?: CadastroSite) => void
 }
 
+/**
+ * Edição do cadastro completo do membro — todas as colunas de `cadastro_site`.
+ *
+ * Só os campos alterados vão para o servidor. A base mistura formatos antigos
+ * (WhatsApp só com dígitos, nascimento em DD/MM/AAAA); reenviar tudo
+ * reescreveria esses valores sem ninguém ter pedido.
+ */
 export function EditMemberModal({ member, onClose, onSave }: EditMemberModalProps) {
   const formId = useId()
-  const [formData, setFormData] = useState({
-    nome_completo: member.nome_completo || "",
-    email: member.email || "",
-    cpf: member.cpf || "",
-    whatsapp: member.whatsapp || "",
-    data_nascimento: member.data_nascimento || "",
-  })
+  const inicial = useMemo(() => paraFormulario(member), [member])
+  const [formData, setFormData] = useState<FormularioMembro>(inicial)
   const [loading, setLoading] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [campoComErro, setCampoComErro] = useState<CampoEditavel | null>(null)
 
   const busy = loading || deleting
+  const alterados = diferencas(inicial, formData)
+  const qtdAlterados = Object.keys(alterados).length
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target
-    let formattedValue = value
+  // Valores que a tela não consegue mostrar no campo (formato antigo/ilegível).
+  // Ficam visíveis como dica, e só mudam se a pessoa preencher o campo.
+  const nascimentoIlegivel = !inicial.data_nascimento && (member.data_nascimento ?? "").trim()
+  const cadastroIlegivel = !inicial.data_de_cadastro && (member.data_de_cadastro ?? "").trim()
+  const sexoForaDaLista =
+    inicial.sexo && !OPCOES_SEXO.some((o) => o.valor === inicial.sexo) ? inicial.sexo : null
 
-    if (name === "cpf") {
-      formattedValue = value.replace(/\D/g, "").slice(0, 11)
-    } else if (name === "whatsapp") {
-      formattedValue = value.replace(/\D/g, "").slice(0, 11)
+  const atualizar = (campo: CampoEditavel, valor: string) => {
+    setFormData((prev) => ({ ...prev, [campo]: valor }))
+    if (campoComErro === campo) {
+      setCampoComErro(null)
+      setError(null)
     }
-
-    setFormData((prev) => ({
-      ...prev,
-      [name]: formattedValue,
-    }))
   }
 
-  const validateForm = () => {
-    if (!formData.nome_completo.trim()) {
-      setError("Nome completo é obrigatório")
-      return false
-    }
-    if (!formData.email.trim()) {
-      setError("Email é obrigatório")
-      return false
-    }
-    if (!formData.email.includes("@")) {
-      setError("Email inválido")
-      return false
-    }
-    if (formData.cpf.replace(/\D/g, "").length !== 11) {
-      setError("CPF deve conter 11 dígitos")
-      return false
-    }
-    if (formData.whatsapp.replace(/\D/g, "").length < 10) {
-      setError("WhatsApp inválido")
-      return false
-    }
-    return true
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const campo = e.target.name as CampoEditavel
+    const { value } = e.target
+    if (campo === "cpf") return atualizar(campo, maskCpf(value))
+    if (campo === "whatsapp") return atualizar(campo, mascararTelefone(value))
+    if (campo === "cep") return atualizar(campo, maskCep(value))
+    atualizar(campo, value)
   }
 
   const handleSave = async (e: React.FormEvent) => {
@@ -75,29 +75,33 @@ export function EditMemberModal({ member, onClose, onSave }: EditMemberModalProp
     if (busy) return
 
     setError(null)
-    if (!validateForm()) return
+    setCampoComErro(null)
+
+    if (qtdAlterados === 0) {
+      notify.info("Nada para salvar", { description: "Nenhum campo foi alterado." })
+      onClose()
+      return
+    }
+
+    // Mesma regra que o servidor aplica: o erro aparece antes de ir à rede.
+    const previa = normalizarAlteracoes(alterados)
+    if (!previa.ok) {
+      setError(previa.erro)
+      setCampoComErro(previa.campo)
+      return
+    }
 
     setLoading(true)
     try {
-      const success = await updateMember(member.id, {
-        nome_completo: formData.nome_completo.trim(),
-        email: formData.email.trim().toLowerCase(),
-        cpf: formData.cpf.replace(/\D/g, ""),
-        whatsapp: formData.whatsapp.replace(/\D/g, ""),
-        data_nascimento: formData.data_nascimento,
+      const atualizado = await updateMember(member.id, alterados)
+      notify.success("Membro atualizado", {
+        description: `${qtdAlterados} ${qtdAlterados === 1 ? "campo salvo" : "campos salvos"} de ${
+          atualizado?.nome_completo ?? formData.nome_completo.trim()
+        }.`,
       })
-
-      if (success) {
-        notify.success("Membro atualizado", {
-          description: `As alterações de ${formData.nome_completo.trim()} foram salvas.`,
-        })
-        onSave()
-      } else {
-        setError("Erro ao atualizar membro")
-      }
+      onSave(atualizado)
     } catch (err) {
-      setError("Erro ao salvar as alterações")
-      console.error("[v0] Error saving member:", err)
+      setError(err instanceof Error ? err.message : "Erro ao salvar as alterações")
     } finally {
       setLoading(false)
     }
@@ -124,11 +128,34 @@ export function EditMemberModal({ member, onClose, onSave }: EditMemberModalProp
       onSave()
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro ao deletar membro")
-      console.error("[v0] Error deleting member:", err)
     } finally {
       setDeleting(false)
     }
   }
+
+  const campo = (
+    nome: CampoEditavel,
+    rotulo: string,
+    props: React.ComponentProps<typeof Input> = {},
+    dica?: React.ReactNode,
+  ) => (
+    <div>
+      <label htmlFor={`${formId}-${nome}`} className="ds-label mb-1.5 flex items-center gap-2">
+        {rotulo}
+        {nome in alterados ? <span className="text-xs font-normal text-brand">alterado</span> : null}
+      </label>
+      <Input
+        id={`${formId}-${nome}`}
+        name={nome}
+        value={formData[nome]}
+        onChange={handleInputChange}
+        disabled={busy}
+        aria-invalid={campoComErro === nome ? true : undefined}
+        {...props}
+      />
+      {dica ? <p className="mt-1 text-xs text-ink-muted">{dica}</p> : null}
+    </div>
+  )
 
   return (
     <ResponsiveModal
@@ -137,7 +164,7 @@ export function EditMemberModal({ member, onClose, onSave }: EditMemberModalProp
         if (!open && !busy) onClose()
       }}
       title="Editar membro"
-      description={member.nome_completo}
+      description={`${member.nome_completo} · ID ${member.id}`}
       size="lg"
       dismissible={!busy}
       footer={
@@ -158,7 +185,7 @@ export function EditMemberModal({ member, onClose, onSave }: EditMemberModalProp
             Cancelar
           </Button>
           <Button type="submit" form={formId} loading={loading} disabled={deleting} block className="sm:w-auto">
-            Salvar alterações
+            {qtdAlterados > 0 ? `Salvar alterações (${qtdAlterados})` : "Salvar alterações"}
           </Button>
         </>
       }
@@ -178,50 +205,53 @@ export function EditMemberModal({ member, onClose, onSave }: EditMemberModalProp
           <SectionTitle title="Identificação" as="h3" />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
-              <label htmlFor={`${formId}-nome`} className="ds-label mb-1.5 block">
-                Nome completo
-              </label>
-              <Input
-                id={`${formId}-nome`}
-                name="nome_completo"
-                autoComplete="name"
-                value={formData.nome_completo}
-                onChange={handleInputChange}
-                disabled={busy}
-                placeholder="Nome completo"
-              />
+              {campo("nome_completo", "Nome completo", { autoComplete: "off", placeholder: "Nome completo" })}
             </div>
 
-            <div>
-              <label htmlFor={`${formId}-cpf`} className="ds-label mb-1.5 block">
-                CPF
-              </label>
-              <Input
-                id={`${formId}-cpf`}
-                name="cpf"
-                inputMode="numeric"
-                value={formData.cpf}
-                onChange={handleInputChange}
-                disabled={busy}
-                placeholder="00000000000"
-                maxLength={14}
-                className="font-mono tabular-nums"
-              />
-            </div>
+            {campo(
+              "cpf",
+              "CPF",
+              {
+                inputMode: "numeric",
+                autoComplete: "off",
+                placeholder: "000.000.000-00",
+                maxLength: 14,
+                className: "font-mono tabular-nums",
+              },
+              "O CPF é único: não pode ser o de outro membro.",
+            )}
+
+            {campo(
+              "data_nascimento",
+              "Data de nascimento",
+              { type: "date", autoComplete: "off" },
+              nascimentoIlegivel ? `Valor atual no cadastro: "${nascimentoIlegivel}" (formato não reconhecido).` : null,
+            )}
 
             <div>
-              <label htmlFor={`${formId}-nascimento`} className="ds-label mb-1.5 block">
-                Data de nascimento
+              <label htmlFor={`${formId}-sexo`} className="ds-label mb-1.5 flex items-center gap-2">
+                Sexo
+                {"sexo" in alterados ? <span className="text-xs font-normal text-brand">alterado</span> : null}
               </label>
-              <Input
-                id={`${formId}-nascimento`}
-                name="data_nascimento"
-                type="date"
-                autoComplete="bday"
-                value={formData.data_nascimento}
+              <select
+                id={`${formId}-sexo`}
+                name="sexo"
+                value={formData.sexo}
                 onChange={handleInputChange}
                 disabled={busy}
-              />
+                aria-invalid={campoComErro === "sexo" ? true : undefined}
+                className="flex h-11 w-full rounded-lg border border-line bg-surface-sunken px-3.5 text-base text-ink transition-colors hover:border-line-strong focus-visible:border-brand focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand aria-[invalid=true]:border-danger disabled:cursor-not-allowed disabled:opacity-50 lg:h-10 lg:text-sm"
+              >
+                <option value="">Não informado</option>
+                {OPCOES_SEXO.map((o) => (
+                  <option key={o.valor} value={o.valor}>
+                    {o.rotulo}
+                  </option>
+                ))}
+                {sexoForaDaLista ? (
+                  <option value={sexoForaDaLista}>{`"${sexoForaDaLista}" (valor antigo)`}</option>
+                ) : null}
+              </select>
             </div>
           </div>
         </section>
@@ -229,42 +259,63 @@ export function EditMemberModal({ member, onClose, onSave }: EditMemberModalProp
         <section>
           <SectionTitle title="Contato" as="h3" />
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label htmlFor={`${formId}-email`} className="ds-label mb-1.5 block">
-                E-mail
-              </label>
-              <Input
-                id={`${formId}-email`}
-                name="email"
-                type="email"
-                inputMode="email"
-                autoComplete="email"
-                autoCapitalize="none"
-                spellCheck={false}
-                value={formData.email}
-                onChange={handleInputChange}
-                disabled={busy}
-                placeholder="email@exemplo.com"
-              />
+            <div className="sm:col-span-2">
+              {campo("email", "E-mail", {
+                type: "email",
+                inputMode: "email",
+                autoComplete: "off",
+                autoCapitalize: "none",
+                spellCheck: false,
+                placeholder: "email@exemplo.com",
+              })}
+            </div>
+
+            {campo("whatsapp", "WhatsApp", {
+              type: "tel",
+              inputMode: "tel",
+              autoComplete: "off",
+              placeholder: "(00) 00000-0000",
+              maxLength: 15,
+              className: "font-mono tabular-nums",
+            })}
+
+            {campo("cep", "CEP", {
+              inputMode: "numeric",
+              autoComplete: "off",
+              placeholder: "00000-000",
+              maxLength: 9,
+              className: "font-mono tabular-nums",
+            })}
+          </div>
+        </section>
+
+        <section>
+          <SectionTitle title="Registro" as="h3" />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              {campo(
+                "data_de_cadastro",
+                "Data de cadastro",
+                { type: "datetime-local", autoComplete: "off" },
+                cadastroIlegivel
+                  ? `Valor atual no cadastro: "${cadastroIlegivel}" (formato não reconhecido).`
+                  : "Horário de Brasília.",
+              )}
             </div>
 
             <div>
-              <label htmlFor={`${formId}-whatsapp`} className="ds-label mb-1.5 block">
-                WhatsApp
-              </label>
-              <Input
-                id={`${formId}-whatsapp`}
-                name="whatsapp"
-                type="tel"
-                inputMode="tel"
-                autoComplete="tel"
-                value={formData.whatsapp}
-                onChange={handleInputChange}
-                disabled={busy}
-                placeholder="00000000000"
-                maxLength={15}
-                className="font-mono tabular-nums"
-              />
+              <p className="ds-label mb-1.5">ID</p>
+              <p className="flex h-11 items-center rounded-lg border border-line bg-surface-sunken px-3.5 font-mono text-sm tabular-nums text-ink-muted lg:h-10">
+                {member.id}
+              </p>
+            </div>
+
+            <div>
+              <p className="ds-label mb-1.5">CPF normalizado</p>
+              <p className="flex h-11 items-center rounded-lg border border-line bg-surface-sunken px-3.5 font-mono text-sm tabular-nums text-ink-muted lg:h-10">
+                {(member.cpf_digits ?? "").trim() || formatarCpf(member.cpf).replace(/\D/g, "") || "—"}
+              </p>
+              <p className="mt-1 text-xs text-ink-muted">Gerado pelo banco a partir do CPF.</p>
             </div>
           </div>
         </section>

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAdminClient, requirePermission } from '@/lib/auth/api-auth'
-import { pickMemberFields } from '@/lib/api/writable-fields'
+import { COLUNAS_MEMBRO, normalizarAlteracoes } from '@/lib/membros/campos'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,7 +26,7 @@ export async function GET(
   try {
     const { data, error } = await getAdminClient()
       .from('cadastro_site')
-      .select('*')
+      .select(COLUNAS_MEMBRO)
       .eq('id', id)
       .maybeSingle()
 
@@ -56,21 +56,67 @@ export async function PATCH(
   const id = parseId((await params).id)
   if (id === null) return NextResponse.json({ error: 'ID inválido' }, { status: 400 })
 
+  let body: unknown
   try {
-    const fields = pickMemberFields(await request.json())
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Corpo da requisição inválido' }, { status: 400 })
+  }
+
+  try {
+    // Valida e converte para o formato do site (CPF com máscara, nascimento
+    // AAAA-MM-DD...). Só os campos editáveis presentes no corpo passam:
+    // `id` e `cpf_digits` (coluna gerada) nunca são gravados por aqui.
+    const normalizado = normalizarAlteracoes(body)
+    if (!normalizado.ok) {
+      return NextResponse.json({ error: normalizado.erro, campo: normalizado.campo }, { status: 400 })
+    }
+    const fields = normalizado.campos
     if (Object.keys(fields).length === 0) {
       return NextResponse.json({ error: 'Nenhum campo válido para atualizar' }, { status: 400 })
     }
 
+    const admin = getAdminClient()
+
+    // Mesma regra do site e do PDV: um e-mail, um cadastro. Só checa quando o
+    // e-mail muda — cadastros antigos duplicados continuam editáveis.
+    if (typeof fields.email === 'string') {
+      const padrao = fields.email.replace(/[\\%_]/g, (c) => `\\${c}`)
+      const { data: outro, error: emailError } = await admin
+        .from('cadastro_site')
+        .select('id')
+        .ilike('email', padrao)
+        .neq('id', id)
+        .limit(1)
+      if (emailError) {
+        console.error('[membros] Erro ao checar e-mail:', emailError)
+        return NextResponse.json({ error: emailError.message }, { status: 500 })
+      }
+      if (outro && outro.length > 0) {
+        return NextResponse.json(
+          { error: `Este e-mail já está no cadastro de outro membro (ID ${outro[0].id}).`, campo: 'email' },
+          { status: 409 }
+        )
+      }
+    }
+
     // .select() devolve as linhas afetadas — sem isso um id inexistente
     // retornaria sucesso sem ter alterado nada.
-    const { data, error } = await getAdminClient()
+    const { data, error } = await admin
       .from('cadastro_site')
       .update(fields)
       .eq('id', id)
-      .select('id, nome_completo, email, cpf, whatsapp, data_nascimento')
+      .select(COLUNAS_MEMBRO)
 
     if (error) {
+      // 23505 = unique_violation em `cadastro_site_cpf_digits_key`: o CPF novo
+      // já é de outra pessoa.
+      if (error.code === '23505') {
+        return NextResponse.json(
+          { error: 'Este CPF já pertence a outro membro.', campo: 'cpf' },
+          { status: 409 }
+        )
+      }
       console.error('[membros] Erro ao atualizar membro:', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
@@ -81,6 +127,7 @@ export async function PATCH(
       )
     }
 
+    console.log('[membros] Membro', id, 'editado por', auth.session.email, '— campos:', Object.keys(fields).join(', '))
     return NextResponse.json({ data: data[0] })
   } catch (err) {
     console.error('[membros] Erro inesperado no PATCH:', err)

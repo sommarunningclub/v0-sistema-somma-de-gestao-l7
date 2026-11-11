@@ -24,6 +24,16 @@ import { MembersSearchBar } from "@/components/members-search-bar"
 import { MembersTableRow } from "@/components/members-table-row"
 import { ErrorBanner } from "@/components/ui/error-banner"
 import {
+  cadastroParaInput,
+  formatarCadastro,
+  formatarCep,
+  formatarCpf,
+  formatarNascimento,
+  formatarTelefone,
+  nascimentoParaIso,
+  rotuloSexo,
+} from "@/lib/membros/campos"
+import {
   EmptyState,
   FilterButton,
   FilterChip,
@@ -48,7 +58,7 @@ import {
 } from "@/components/somma"
 
 type ContactFilter = "todos" | "com-whatsapp" | "sem-whatsapp"
-type SortKey = "nome_completo" | "email" | "data_nascimento"
+type SortKey = "nome_completo" | "email" | "data_nascimento" | "data_de_cadastro"
 
 const CONTACT_FILTER_LABEL: Record<ContactFilter, string> = {
   todos: "Todos",
@@ -167,10 +177,22 @@ export default function AgentNetworkPage() {
     if (!sortDirection) return filtered
 
     const factor = sortDirection === "asc" ? 1 : -1
+    // Datas em formatos misturados na base (AAAA-MM-DD, DD/MM/AAAA, com e sem
+    // hora): ordena pela forma normalizada, senão "31/12/1990" vem antes de "1991-01-01".
+    const chave = (m: CadastroSite) =>
+      sortKey === "data_nascimento"
+        ? nascimentoParaIso(m.data_nascimento)
+        : sortKey === "data_de_cadastro"
+          ? cadastroParaInput(m.data_de_cadastro)
+          : (m[sortKey] || "").toString()
     return [...filtered].sort((a, b) => {
-      const left = (a[sortKey] || "").toString()
-      const right = (b[sortKey] || "").toString()
-      if (sortKey === "data_nascimento") return left.localeCompare(right) * factor
+      const left = chave(a)
+      const right = chave(b)
+      if (sortKey === "data_nascimento" || sortKey === "data_de_cadastro") {
+        // Sem data vai para o fim nas duas direções.
+        if (!left || !right) return left ? -1 : right ? 1 : 0
+        return left.localeCompare(right) * factor
+      }
       return left.localeCompare(right, "pt-BR", { sensitivity: "base" }) * factor
     })
   }, [members, contactFilter, sortKey, sortDirection])
@@ -201,20 +223,11 @@ export default function AgentNetworkPage() {
     setQuery("")
   }, [])
 
-  const formatCPF = (cpf: string) => {
-    const cleaned = cpf.replace(/\D/g, "")
-    return cleaned.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4")
-  }
-
-  const formatDate = (dateString: string) => {
-    if (!dateString) return "-"
-    try {
-      const date = new Date(dateString)
-      return date.toLocaleDateString("pt-BR")
-    } catch {
-      return dateString
-    }
-  }
+  // `new Date("1990-05-10").toLocaleDateString()` lê a data em UTC e, em
+  // Brasília, mostrava o dia anterior; "10/05/1990" virava 5 de outubro. Os
+  // formatadores de `lib/membros/campos` leem os formatos da base sem fuso.
+  const formatCPF = (cpf: string) => formatarCpf(cpf)
+  const formatDate = (dateString: string) => formatarNascimento(dateString)
 
   const handleMemberAdded = async () => {
     setShowAddMember(false)
@@ -243,8 +256,15 @@ export default function AgentNetworkPage() {
     setMembers(results.flat())
   }, [currentPage, searchMode, query])
 
-  const handleMemberUpdated = async () => {
+  const handleMemberUpdated = async (atualizado?: CadastroSite) => {
     setEditingMember(null)
+    // Salvou: a rota devolve a linha gravada, então a lista e o detalhe
+    // trocam o registro na hora, sem recarregar as páginas já abertas.
+    if (atualizado) {
+      setMembers((prev) => prev.map((m) => (m.id === atualizado.id ? atualizado : m)))
+      setSelectedMember(atualizado)
+      return
+    }
     setSelectedMember(null)
     setLoading(true)
     try {
@@ -309,7 +329,7 @@ export default function AgentNetworkPage() {
       <PageHeader
         eyebrow="Relacionamento"
         title="Membros"
-        description="Base de cadastros do site: contatos e tags de cada membro."
+        description="Base de cadastros do site: todos os dados de cada membro, editáveis, e as tags."
         meta={
           <>
             <span>
@@ -400,7 +420,7 @@ export default function AgentNetworkPage() {
               <MembersCardList members={[]} onSelectMember={setSelectedMember} loading />
             </div>
             <div className="hidden lg:block">
-              <TableSkeleton rows={8} columns={6} />
+              <TableSkeleton rows={8} columns={9} />
             </div>
           </>
         ) : isEmptyResult ? (
@@ -423,7 +443,7 @@ export default function AgentNetworkPage() {
             />
 
             <TableFrame className="hidden lg:block" busy={loading || isSearching}>
-              <Table caption="Lista de membros da Somma com nome, contato, CPF e data de nascimento">
+              <Table caption="Lista de membros da Somma com nome, contato, CPF, nascimento, sexo, CEP e data de cadastro">
                 <THead>
                   <TH
                     sortable
@@ -450,6 +470,16 @@ export default function AgentNetworkPage() {
                     Nascimento
                   </TH>
                   <TH className="hidden sm:table-cell">WhatsApp</TH>
+                  <TH className="hidden 2xl:table-cell">Sexo</TH>
+                  <TH className="hidden 2xl:table-cell">CEP</TH>
+                  <TH
+                    className="hidden xl:table-cell"
+                    sortable
+                    direction={directionFor("data_de_cadastro")}
+                    onSort={() => toggleSort("data_de_cadastro")}
+                  >
+                    Cadastro
+                  </TH>
                   <TH align="right" width="88px">
                     Ações
                   </TH>
@@ -573,6 +603,14 @@ export default function AgentNetworkPage() {
                     <dt className="ds-eyebrow">Data de nascimento</dt>
                     <dd className="mt-1 text-sm text-ink">{formatDate(selectedMember.data_nascimento)}</dd>
                   </div>
+                  <div>
+                    <dt className="ds-eyebrow">Sexo</dt>
+                    <dd className="mt-1 text-sm text-ink">{rotuloSexo(selectedMember.sexo)}</dd>
+                  </div>
+                  <div>
+                    <dt className="ds-eyebrow">CEP</dt>
+                    <dd className="mt-1 font-mono text-sm tabular-nums text-ink">{formatarCep(selectedMember.cep)}</dd>
+                  </div>
                   <div className="sm:col-span-2">
                     <dt className="ds-eyebrow">E-mail</dt>
                     <dd className="mt-1 flex items-center gap-2 text-sm text-ink">
@@ -584,7 +622,29 @@ export default function AgentNetworkPage() {
                     <dt className="ds-eyebrow">WhatsApp</dt>
                     <dd className="mt-1 flex items-center gap-2 text-sm text-ink">
                       <Phone aria-hidden="true" className="h-4 w-4 shrink-0 text-ink-subtle" />
-                      <span className="font-mono tabular-nums">{selectedMember.whatsapp || "—"}</span>
+                      <span className="font-mono tabular-nums">{formatarTelefone(selectedMember.whatsapp)}</span>
+                    </dd>
+                  </div>
+                </dl>
+              </Panel>
+            </section>
+
+            <section>
+              <SectionTitle title="Registro" as="h3" />
+              <Panel inset>
+                <dl className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <div>
+                    <dt className="ds-eyebrow">Data de cadastro</dt>
+                    <dd className="mt-1 text-sm text-ink">{formatarCadastro(selectedMember.data_de_cadastro)}</dd>
+                  </div>
+                  <div>
+                    <dt className="ds-eyebrow">ID</dt>
+                    <dd className="mt-1 font-mono text-sm tabular-nums text-ink">{selectedMember.id}</dd>
+                  </div>
+                  <div>
+                    <dt className="ds-eyebrow">CPF normalizado</dt>
+                    <dd className="mt-1 font-mono text-sm tabular-nums text-ink">
+                      {(selectedMember.cpf_digits ?? "").trim() || "—"}
                     </dd>
                   </div>
                 </dl>

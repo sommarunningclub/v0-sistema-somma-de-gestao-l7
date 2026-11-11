@@ -2,6 +2,7 @@
 
 import { CardListSkeleton, MobileRecordCard } from '@/components/somma'
 import type { CadastroSite } from '@/lib/supabase-client'
+import { formatarCadastro, formatarNascimento } from '@/lib/membros/campos'
 
 interface MembersCardListProps {
   members: CadastroSite[]
@@ -61,6 +62,8 @@ export function MembersCardList({
             fields={[
               { label: 'WhatsApp', value: formatPhone(member.whatsapp) },
               { label: 'CPF', value: <span className="font-mono tabular-nums">{formatCPF(member.cpf)}</span> },
+              { label: 'Nascimento', value: formatarNascimento(member.data_nascimento) },
+              { label: 'Cadastro', value: formatarCadastro(member.data_de_cadastro) },
             ]}
           />
         </li>
